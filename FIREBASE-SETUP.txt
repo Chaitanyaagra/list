@@ -1,0 +1,84 @@
+PRICE & STOCK MANAGER — SECURE FIREBASE ACCESS v2.30
+
+1) Firebase Console > Authentication > Sign-in method > enable Email/Password.
+2) Create/choose Firestore Database.
+3) Firebase Console > Storage > Get started / enable Firebase Storage.
+4) Publish the included firestore.rules in Firestore > Rules.
+5) Publish the included storage.rules in Storage > Rules.
+   Storage Rules use Firestore access profiles to make sure a sales/customer login can read only its assigned catalog PDFs.
+6) Put your Firebase Web App config into firebase-config.js, OR connect it from App > Settings > Cloud sync.
+   The config should include storageBucket.
+7) In the app, Settings > Cloud sync: sign in/create the OWNER Firebase account.
+8) Open Users & access > Secure Firebase access > Initialize security.
+9) Create sales/customer usernames + PINs and assign required Price Books.
+10) In Users & access > Product catalog library, upload category-wise PDF catalogs and assign them to users.
+11) Click “create cloud login” for a user, or “Publish / update all users”.
+12) Sales/customer opens Viewer login and enters username + PIN.
+
+RESTRICTED USER EXPERIENCE
+- Price list downloads are PDF ONLY. No Excel price-list download is exposed.
+- PDF can also be shared through the phone/browser share sheet / WhatsApp as a PDF file.
+- Product code/name/barcode can be searched directly, so the full list does not need to be scrolled.
+- Where alternate UOM conversions exist in the backend, the restricted user can select an available UOM and immediately see its pre-calculated final rate.
+- Pricing formulas, supplier rate, cost, discounts, margin, stock and owner settings are never included in the viewer payload.
+- Uploaded product catalogs are PDF files stored in Firebase Storage. A user can view/download only assigned catalog files.
+- Assigned searchable rates stay cached after a successful login for offline use. Catalog PDF opening/downloading requires an online Firebase session unless the device/browser itself has already cached the file.
+
+UOM SETUP
+- Owner defines product unit conversions from Inventory > units.
+- Example: Box = 12 Pcs, Carton = 120 Pcs.
+- When restricted access is published, final customer rates for Native / Pc / configured alternate UOMs are calculated and stored in the restricted payload.
+- The sales/customer UOM selector only switches between those already-calculated rates; it does not receive the pricing/costing engine.
+
+IMPORTANT
+- Price Book/rate/UOM/catalog assignment changes auto-refresh already-created cloud users when the owner is online and signed in. “Publish / update all users” remains available as a manual force-refresh.
+- Restricted offline rate access expires after 24 hours; after expiry the user must reconnect and authenticate again.
+
+
+=== v2.28 IMPORTANT SECURITY / SYNC SETUP ===
+1. Deploy the included firestore.rules and storage.rules.
+2. In Firebase Authentication enable Email/Password.
+3. Create/sign-in your OWNER Firebase account and copy its UID from Authentication > Users.
+4. In Firestore Console manually create collection `bootstrapOwners`, document ID = your OWNER UID, with any field such as `enabled: true`. This document cannot be created by the web app.
+5. Back in the app open Users & access > Initialize security. The app can now create `meta/security` only for that pre-authorized UID.
+6. Owner cloud state is stored under users/<uid>/appData as a manifest + versioned chunks; the old ~900 KB single-document limit no longer applies.
+7. Restricted viewer payloads are also stored as manifest + chunk parts. Deleted users are revoked and their payload is removed; offline viewer cache expires automatically (24 hours by default).
+8. For offline operation, open the deployed app online once after each new version so the service worker can cache PDF.js, jsPDF, XLSX, QR and Firebase SDK files. After that, core tools work offline from cache.
+
+
+=== v2.28 REGRESSION HARDENING ===
+- Owner cloud manifest now uses a transaction-backed revision counter so two devices cannot both overwrite the same cloud revision.
+- Restricted-user deletion is fail-safe: if cloud revoke cannot be confirmed, the local user record is kept instead of falsely reporting success.
+- Offline/failed restricted-user auto-publish is retained as pending and retried when connectivity returns.
+- Price Book exclusions and customer-column defaults are preserved correctly.
+- Manual rate editing follows the Price Book product UOM while storing a normalized native-unit rate internally.
+- Purchase Return / Reversal cost replay uses the recorded purchase cost where possible, with a non-negative fallback for inconsistent legacy histories.
+
+V2.29 ACCESS / RATE NOTICE
+- In Users & access > Change access, you can change each restricted user's assigned Price Books and PDF catalogs at any time.
+- Optional "Show rate-update notice on login" lets you set an effective date and custom message.
+- Assigned users auto-refresh through the existing secure publish flow; no additional Firebase rules are required for this feature.
+
+=== v2.30 COMMERCIAL PRICE-LIST WORKFLOW ===
+IMPORTANT: Publish the included firestore.rules AND storage.rules after upgrading. v2.30 adds access-expiry enforcement and restricted-user login-activity records. Existing v2.29 profiles without an expiry field remain compatible.
+
+NEW RATE WORKFLOW
+- Price Books can be scheduled with a future effective date. Publish/sync the scheduled Price Book while online before that date so assigned users already have the future version. On/after the effective date, the restricted portal automatically selects the scheduled version.
+- Saving/updating a Price Book shows a publish preview with changed / increased / decreased / new / removed product counts before confirmation.
+- Sales users can open “What changed?” for published Price Books. Customer logins do not get the internal change-summary button.
+- Customer Rate Templates can save/reapply a pricing setup. Product-level manual-rate exceptions are visibly marked for the owner.
+- The UOM preview matrix shows the owner the calculated rates for available UOMs before publishing.
+- “Rate on request” can be set per product. Restricted users see “Rate on request” instead of a numeric price, including in PDF output.
+
+CUSTOMER / SALES ACCESS
+- Per-user announcements can be enabled with optional show-from/show-until dates.
+- Access expiry can be set per user and is enforced online, by live-session monitoring, and against the restricted offline cache.
+- Restricted users get Favorites, Recent products, recent-search chips, stronger tokenized search and category/Price-Book filters. These convenience preferences stay local to that device/user.
+- Successful cloud logins update loginActivity/<uid> so the owner can see basic last-login time, device class and login count.
+
+PDF BRANDING
+- Owner can create reusable PDF branding templates (header/firm name, subtitle, contact line, footer and effective-date display) and assign one to a Price Book.
+
+SIMPLIFIED OWNER DESIGN
+- The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
+

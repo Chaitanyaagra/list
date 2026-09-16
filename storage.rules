@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function securityExists() { return firestore.exists(/databases/(default)/documents/meta/security); }
+    function ownerUid() { return firestore.get(/databases/(default)/documents/meta/security).data.ownerUid; }
+    function isOwner() { return signedIn() && securityExists() && request.auth.uid == ownerUid(); }
+    function profileExists() { return signedIn() && firestore.exists(/databases/(default)/documents/accessProfiles/$(request.auth.uid)); }
+    function profile() { return firestore.get(/databases/(default)/documents/accessProfiles/$(request.auth.uid)).data; }
+    function canReadCatalog(catalogId) {
+      return profileExists() && profile().active == true
+        && profile().ownerUid == ownerUid()
+        && (!('expiresAt' in profile()) || profile().expiresAt == null || profile().expiresAt > request.time)
+        && profile().allowedCatalogFileIds is list
+        && catalogId in profile().allowedCatalogFileIds;
+    }
+
+    match /catalogs/{owner}/{catalogId}/{fileName} {
+      allow read: if (isOwner() && owner == ownerUid()) || (owner == ownerUid() && canReadCatalog(catalogId));
+      allow create, update: if isOwner() && owner == ownerUid()
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow delete: if isOwner() && owner == ownerUid();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

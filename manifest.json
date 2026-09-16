@@ -1,7 +1,7 @@
 {
   "name": "Tota Price Manager",
   "short_name": "Tota Prices",
-  "description": "Wholesale price list, billing and khata manager",
+  "description": "Supplier costing, customer price books, purchase inventory, and secure sales/customer rate portal",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,8 +9,21 @@
   "theme_color": "#C42A1C",
   "orientation": "any",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

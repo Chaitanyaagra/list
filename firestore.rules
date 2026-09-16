@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function securityExists(){ return exists(/databases/$(database)/documents/meta/security); }
+    function ownerUid(){ return get(/databases/$(database)/documents/meta/security).data.ownerUid; }
+    function isOwner(){ return signedIn() && securityExists() && request.auth.uid == ownerUid(); }
+    function bootstrapAllowed(){ return signedIn() && exists(/databases/$(database)/documents/bootstrapOwners/$(request.auth.uid)); }
+    function profileExists(uid){ return exists(/databases/$(database)/documents/accessProfiles/$(uid)); }
+    function activeRestricted(uid){ return signedIn() && request.auth.uid == uid && profileExists(uid) && get(/databases/$(database)/documents/accessProfiles/$(uid)).data.active == true && (!('expiresAt' in get(/databases/$(database)/documents/accessProfiles/$(uid)).data) || get(/databases/$(database)/documents/accessProfiles/$(uid)).data.expiresAt == null || get(/databases/$(database)/documents/accessProfiles/$(uid)).data.expiresAt > request.time); }
+
+    // Create bootstrapOwners/<OWNER_UID> manually in Firebase Console once.
+    // Client code cannot create or modify bootstrap authorization.
+    match /bootstrapOwners/{uid} { allow read: if signedIn() && request.auth.uid == uid; allow write: if false; }
+    match /meta/security {
+      allow create: if signedIn() && !securityExists() && bootstrapAllowed() && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update, delete: if isOwner();
+    }
+    match /accessProfiles/{uid} { allow read: if isOwner() || (signedIn() && request.auth.uid == uid); allow create, update, delete: if isOwner(); }
+    match /viewerPayloads/{uid} { allow read: if isOwner() || activeRestricted(uid); allow create, update, delete: if isOwner(); }
+    match /viewerPayloads/{uid}/parts/{partId} { allow read: if isOwner() || activeRestricted(uid); allow create, update, delete: if isOwner(); }
+    match /loginActivity/{uid} {
+      allow read, delete: if isOwner();
+      allow create, update: if activeRestricted(uid) && request.resource.data.ownerUid == ownerUid();
+    }
+    match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && !profileExists(uid); }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

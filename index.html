@@ -160,9 +160,11 @@ td input.qty{width:60px;text-align:right}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="firebase-config.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
 <script>
 /* global debounce shim -- several later feature blocks (search boxes on Inventory and
    Purchase Costing) call debounce(fn, wait) but only one of the many patch blocks
@@ -260,7 +262,7 @@ function findByCode(code){ const key=pmNormCode(code); return key?S.products.fin
    5. column roles decided by majority vote, fields pulled by regex
 ============================================================================== */
 const RX = {
-  code:/\b([A-Z]{2}\d{1,4})\b/,
+  code:/\b((?=[A-Z0-9-]{3,20}\b)(?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*\d)[A-Z0-9]+(?:-[A-Z0-9]+)*)\b/,
   price:/(?:Rs\.?\s*)([\d,]+(?:\.\d+)?)\s*(?:\/\s*([A-Za-z][A-Za-z .]*))?/,
   bare:/\b([\d,]+(?:\.\d+)?)\s*\/\s*([A-Za-z]+)/,
   bar:/\b(\d{10,15})\b/,
@@ -3388,12 +3390,47 @@ function feedPurchase28(){ensure28();const P=ui.purchase28,supplier=String(P.sup
   if(P.editingPurchaseId){const old=S.purchases.find(x=>x.id===P.editingPurchaseId);if(old&&!reversePurchase28(old,true))return}
   const po={id:uid(),date:d,supplier,invoiceNo:inv,sourceFile:P.filename||'',sheetName:P.sheetName||'',status:'active',rateIncludesGST:!!P.rateIncludesGST,itcEligible:!!P.itcEligible,freight:+P.freight||0,other:+P.other||0,roundOff:+P.roundOff||0,statedTotal:v.rec.stated,calculatedTotal:v.rec.calc,reconciliationDiff:v.rec.diff||0,items:[],createdAt:Date.now()};
   v.active.forEach(r=>{const p=r.p,a=avgState28(p),beforeCost=a.replacementCost,stockQty=r._calc.stockQty,avgUpd=updateAvgIn28(p,stockQty,r.landed,{purchaseUnitRate:r.rate,supplier,date:d});p.stock=avgUpd.newStock;p.purchaseFactor=r.factor;p.purchaseUom=r.uom||p.purchaseUom||'';p.updatedAt=Date.now();const pc=S.purchaseCosts[p.id]||{},basePerStock=r.factor>0&&r.rate!=null?r.rate/r.factor:null;S.purchaseCosts[p.id]={...pc,base:basePerStock,discountPct:r.discount,freight:r.allocFreight/stockQty,other:r.allocOther/stockQty,override:r.landed,updatedAt:Date.now()};S.costHistory.unshift({id:uid(),at:d,productId:p.id,code:p.code,name:p.name,catalog:p.catalog,old:beforeCost,now:r.landed,field:'purchase landed cost',note:`${supplier} · ${inv}`});S.stockMoves.unshift({id:uid(),at:d,productId:p.id,code:p.code,type:'Purchase Inward',qty:stockQty,before:avgUpd.beforeStock,after:p.stock,ref:inv,party:supplier,rate:r.landed});const item={productId:p.id,code:p.code,name:p.name,purchaseQty:r.qty,freeQty:r.freeQty,factor:r.factor,stockQty,purchaseUnitRate:r.rate,discountPct:r.discount,gst:r.gst,uom:r.uom,landedUnitCost:r.landed,invoiceLine:r._calc.lineInvoice,freightAllocated:r.allocFreight,otherAllocated:r.allocOther,supplierUnitValue:r._calc.stockQty>0?((r._calc.lineInvoice||0)+r.allocFreight+r.allocOther)/r._calc.stockQty:null,mrp:r.mrp,batch:r.batch,beforeAvg:avgUpd.oldAvg,afterAvg:avgUpd.newAvg};po.items.push(item);if(r.batch||r.mrp!=null)S.batches.unshift({id:uid(),purchaseId:po.id,productId:p.id,code:p.code,batchNo:r.batch||('PO-'+inv),mrp:r.mrp??p.mrp,qty:stockQty,initialQty:stockQty,cost:r.landed,supplier,date:d,status:'active'});queueReview28(p,beforeCost,r.landed,po);saveSupplierMap28(supplier,r.row,P.map,p.id)});
-  S.purchases.unshift(po);let sup=S.suppliers.find(x=>norm28(x.name)===norm28(supplier));if(!sup){sup={id:uid(),name:supplier,createdAt:Date.now()};S.suppliers.push(sup)}audit28('purchase-feed',`${supplier} · ${inv} · ${po.items.length} items · ${CUR()}${money(po.calculatedTotal)}`,{purchaseId:po.id});P.headers=[];P.rows=[];P.edits={};P._workbook=null;P._rawAoa=null;P.filename='';P.invoice='';P.invoiceTotal='';P.forceMismatch=false;P.editingPurchaseId=null;save();render();toast('Purchase fed · stock, average cost and price review updated')}
-function reversePurchase28(po,silent=false){if(!po||po.status==='cancelled')return true;for(const it of po.items||[]){const p=S.products.find(x=>x.id===it.productId);if(p&&(+p.stock||0)<(+it.stockQty||0)-1e-9){if(!silent)toast(`Cannot reverse ${po.invoiceNo}: ${p.code} stock already consumed. Use Purchase Return / adjustment.`);return false}const bs=S.batches.filter(b=>b.purchaseId===po.id&&b.productId===it.productId&&b.status!=='cancelled');if(bs.length&&bs.reduce((a,b)=>a+(+b.qty||0),0)<(+it.stockQty||0)-1e-9){if(!silent)toast(`Cannot fully reverse ${po.invoiceNo}: batch stock for ${it.code} has already been sold. Use Purchase Return.`);return false}}
-  if(!silent&&!confirm(`Cancel & reverse purchase ${po.invoiceNo}? Stock will reduce and the bill will remain in history as Cancelled.`))return false;(po.items||[]).forEach(it=>{const p=S.products.find(x=>x.id===it.productId);if(!p)return;const before=+p.stock||0,rem=removeAvg28(p,+it.stockQty||0,+it.landedUnitCost||0);p.stock=Math.max(0,before-(+it.stockQty||0));p.updatedAt=Date.now();S.stockMoves.unshift({id:uid(),at:Date.now(),productId:p.id,code:p.code,type:'Purchase Reversal',qty:-(+it.stockQty||0),before,after:p.stock,ref:po.invoiceNo,party:po.supplier,rate:it.landedUnitCost});S.costHistory.unshift({id:uid(),at:Date.now(),productId:p.id,code:p.code,name:p.name,old:avgState28(p).replacementCost,now:rem.newAvg,field:'purchase reversal',note:`Reverse ${po.supplier} · ${po.invoiceNo}`})});S.batches.filter(b=>b.purchaseId===po.id).forEach(b=>{b.status='cancelled';b.qty=0});po.status='cancelled';po.cancelledAt=Date.now();S.priceReviewQueue.filter(x=>x.purchaseId===po.id&&x.status==='open').forEach(x=>{x.status='ignored';x.resolvedAt=Date.now();x.note='Purchase reversed'});audit28('purchase-reverse',`${po.supplier} · ${po.invoiceNo}`,{purchaseId:po.id});save();if(!silent){render();toast('Purchase reversed')}return true}
+  S.purchases.unshift(po);let sup=S.suppliers.find(x=>norm28(x.name)===norm28(supplier));if(!sup){sup={id:uid(),name:supplier,createdAt:Date.now()};S.suppliers.push(sup)}audit28('purchase-feed',`${supplier} · ${inv} · ${po.items.length} items · ${CUR()}${money(po.calculatedTotal)}`,{purchaseId:po.id});P.headers=[];P.rows=[];P.edits={};P._workbook=null;P._rawAoa=null;P.filename='';P.invoice='';P.invoiceTotal='';P.forceMismatch=false;P.editingPurchaseId=null;if(window.recomputeInventoryCost227)[...new Set((po.items||[]).map(i=>i.productId))].forEach(window.recomputeInventoryCost227);save();render();toast('Purchase fed · stock, average cost and price review updated')}
+function groupedPurchaseItems28(po){const m=new Map();for(const it of (po&&po.items)||[]){if(!it||!it.productId)continue;const q=Math.max(0,+it.stockQty||0),g=m.get(it.productId)||{...it,stockQty:0,_landed:0,_supplier:0,_base:0,_freight:0,_other:0};g.stockQty+=q;g._landed+=q*(+it.landedUnitCost||0);g._supplier+=q*(+(it.supplierUnitValue??it.landedUnitCost)||0);const f=+it.factor||1;g._base+=q*((+it.purchaseUnitRate||0)/f);g._freight+=+it.freightAllocated||0;g._other+=+it.otherAllocated||0;m.set(it.productId,g)}return [...m.values()].map(g=>{const q=g.stockQty||1;return {...g,landedUnitCost:g._landed/q,supplierUnitValue:g._supplier/q,purchaseUnitRate:g._base/q,factor:1,freightAllocated:g._freight,otherAllocated:g._other}})}
+function reversePurchase28(po,silent=false){
+  if(!po||po.status==='cancelled')return true;
+  for(const it of groupedPurchaseItems28(po)){
+    const p=S.products.find(x=>x.id===it.productId),need=+it.stockQty||0;
+    const remain=window.purchaseRemainingQty227?window.purchaseRemainingQty227(it.productId,po.id):Math.min(need,p?+p.stock||0:0);
+    if(remain+1e-9<need){if(!silent)toast(`Cannot reverse ${po.invoiceNo}: ${it.code} from this purchase has already been consumed/returned. Use Purchase Return for the remaining quantity.`);return false}
+    if(p&&(+p.stock||0)<need-1e-9){if(!silent)toast(`Cannot reverse ${po.invoiceNo}: ${p.code} stock already consumed. Use Purchase Return / adjustment.`);return false}
+  }
+  if(!silent&&!confirm(`Cancel & reverse purchase ${po.invoiceNo}? Stock will reduce and the bill will remain in history as Cancelled.`))return false;
+  const affected=[];
+  (po.items||[]).forEach(it=>{const p=S.products.find(x=>x.id===it.productId);if(!p)return;affected.push(p.id);const before=+p.stock||0;p.stock=Math.max(0,before-(+it.stockQty||0));p.updatedAt=Date.now();S.stockMoves.unshift({id:uid(),at:Date.now(),productId:p.id,code:p.code,type:'Purchase Reversal',qty:-(+it.stockQty||0),before,after:p.stock,ref:po.invoiceNo,party:po.supplier,rate:it.landedUnitCost});S.costHistory.unshift({id:uid(),at:Date.now(),productId:p.id,code:p.code,name:p.name,old:avgState28(p).replacementCost,now:null,field:'purchase reversal',note:`Reverse ${po.supplier} · ${po.invoiceNo}`})});
+  S.batches.filter(b=>b.purchaseId===po.id).forEach(b=>{b.status='cancelled';b.qty=0});
+  po.status='cancelled';po.cancelledAt=Date.now();
+  S.priceReviewQueue.filter(x=>x.purchaseId===po.id&&x.status==='open').forEach(x=>{x.status='ignored';x.resolvedAt=Date.now();x.note='Purchase reversed'});
+  if(window.recomputeInventoryCost227)[...new Set(affected)].forEach(window.recomputeInventoryCost227);
+  audit28('purchase-reverse',`${po.supplier} · ${po.invoiceNo}`,{purchaseId:po.id});save();if(!silent){render();toast('Purchase reversed')}return true
+}
 function loadPurchaseEdit28(po){if(!po||po.status==='cancelled')return;const P=ui.purchase28;P.supplier=po.supplier;P.invoice=po.invoiceNo;P.date=iso28(po.date);P.filename='Edit '+po.invoiceNo;P.sheetName='Internal';P.headerRow=0;P.headers=['Internal Code','Product','Qty','Free Qty','Factor','Rate','Discount %','GST %','MRP','Batch'];P.map={code:0,name:1,qty:2,freeQty:3,factor:4,rate:5,discount:6,gst:7,mrp:8,batch:9,barcode:-1,amount:-1,uom:-1};P.rows=(po.items||[]).map(i=>[i.code,i.name,i.purchaseQty,i.freeQty,i.factor,i.purchaseUnitRate,i.discountPct,i.gst,i.mrp??'',i.batch||'']);P.edits={};P.rateIncludesGST=!!po.rateIncludesGST;P.itcEligible=!!po.itcEligible;P.freight=po.freight||0;P.other=po.other||0;P.roundOff=po.roundOff||0;P.invoiceTotal=po.statedTotal??'';P.editingPurchaseId=po.id;page='purchase';render();toast('Purchase loaded for safe replace/edit')}
-function alreadyReturned28(purchaseId,productId){return (S.purchaseReturns||[]).filter(r=>r.purchaseId===purchaseId).reduce((sum,r)=>sum+((r.items||[]).filter(x=>x.productId===productId).reduce((s,x)=>s+(+x.qty||0),0)),0)}
-function purchaseReturnDialog28(po){if(!po||po.status==='cancelled')return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:820px"><div class="hd"><h2 style="margin:0">Purchase Return / Debit Note</h2><div class="spacer"></div><span class="tag">${e28(po.supplier)} · ${e28(po.invoiceNo)}</span></div><div class="bd"><div class="cols2"><div class="field"><label>Debit note / reference</label><input id="PR28_ref" value="DR-${e28(po.invoiceNo)}"></div><div class="field"><label>Date</label><input id="PR28_date" type="date" value="${iso28(Date.now())}"></div></div><table><thead><tr><th>Product</th><th class="r">Purchased qty</th><th class="r">Already returned</th><th class="r">Current stock</th><th class="r">Return qty</th><th class="r">Cost</th></tr></thead><tbody>${(po.items||[]).map(i=>{const p=S.products.find(x=>x.id===i.productId),already=alreadyReturned28(po.id,i.productId),remaining=Math.max(0,(+i.stockQty||0)-already);return `<tr><td><b>${e28(i.code)}</b> · ${e28(i.name)}</td><td class="r">${money(i.stockQty)}</td><td class="r">${already?money(already):'—'}</td><td class="r">${money(p?+p.stock||0:0)}</td><td class="r"><input inputmode="decimal" class="qty" data-pr28="${i.productId}" max="${Math.min(remaining,p?+p.stock||0:0)}"></td><td class="r">${cur28(i.landedUnitCost)}</td></tr>`}).join('')}</tbody></table></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Post Purchase Return</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b)return;if(b.dataset.x==='close')return m.remove();const items=[];m.querySelectorAll('[data-pr28]').forEach(inp=>{const q=n28(inp.value)||0;if(q>0){const it=po.items.find(x=>x.productId===inp.dataset.pr28),p=S.products.find(x=>x.id===it.productId),already=alreadyReturned28(po.id,it.productId),remaining=Math.max(0,(+it.stockQty||0)-already),mx=Math.min(remaining,p?+p.stock||0:0);if(q>mx){items.push({__invalid:true,code:it.code,max:mx});return}items.push({productId:it.productId,code:it.code,name:it.name,qty:q,cost:it.landedUnitCost,supplierUnitValue:it.supplierUnitValue??it.landedUnitCost,amount:q*(it.supplierUnitValue??it.landedUnitCost)})}});if(items.some(x=>x.__invalid))return toast('Return quantity exceeds what is left to return for '+items.find(x=>x.__invalid).code);if(!items.length)return toast('Enter return quantity');if(!confirm(`Return ${items.length} item(s) to ${po.supplier}?`))return;items.forEach(it=>{const p=S.products.find(x=>x.id===it.productId),before=+p.stock||0;removeAvg28(p,it.qty,it.cost);p.stock=before-it.qty;let left=it.qty;const bs=S.batches.filter(b=>b.purchaseId===po.id&&b.productId===it.productId&&b.status!=='cancelled'&&+b.qty>0).sort((a,b)=>a.date-b.date);for(const bt of bs){if(left<=0)break;const use=Math.min(left,+bt.qty||0);bt.qty-=use;left-=use}S.stockMoves.unshift({id:uid(),at:Date.now(),productId:p.id,code:p.code,type:'Purchase Return',qty:-it.qty,before,after:p.stock,ref:m.querySelector('#PR28_ref').value,party:po.supplier,rate:it.cost})});const r={id:uid(),purchaseId:po.id,supplier:po.supplier,ref:m.querySelector('#PR28_ref').value.trim(),date:new Date(m.querySelector('#PR28_date').value).getTime(),items,total:items.reduce((a,x)=>a+x.amount,0),status:'posted'};S.purchaseReturns.unshift(r);audit28('purchase-return',`${po.supplier} · ${r.ref} · ${CUR()}${money(r.total)}`,{returnId:r.id});save();m.remove();render();toast('Purchase return posted')}}
+function alreadyReturned28(purchaseId,productId){return (S.purchaseReturns||[]).filter(r=>r.purchaseId===purchaseId&&r.status!=='cancelled').reduce((sum,r)=>sum+((r.items||[]).filter(x=>x.productId===productId).reduce((s,x)=>s+(+x.qty||0),0)),0)}
+function purchaseReturnDialog28(po){
+  if(!po||po.status==='cancelled')return;
+  const minDate=iso28(po.date),maxDate=iso28(Date.now()),grouped=groupedPurchaseItems28(po);
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="box" style="max-width:820px"><div class="hd"><h2 style="margin:0">Purchase Return / Debit Note</h2><div class="spacer"></div><span class="tag">${e28(po.supplier)} · ${e28(po.invoiceNo)}</span></div><div class="bd"><div class="cols2"><div class="field"><label>Debit note / reference</label><input id="PR28_ref" value="DR-${e28(po.invoiceNo)}"></div><div class="field"><label>Date</label><input id="PR28_date" type="date" min="${minDate}" max="${maxDate}" value="${maxDate}"></div></div><table><thead><tr><th>Product</th><th class="r">Purchased qty</th><th class="r">Available from this purchase</th><th class="r">Current stock</th><th class="r">Return qty</th><th class="r">Cost</th></tr></thead><tbody>${grouped.map(i=>{const p=S.products.find(x=>x.id===i.productId),fallback=Math.max(0,(+i.stockQty||0)-alreadyReturned28(po.id,i.productId)),remaining=window.purchaseRemainingQty227?window.purchaseRemainingQty227(i.productId,po.id):fallback;return `<tr><td><b>${e28(i.code)}</b> · ${e28(i.name)}</td><td class="r">${money(i.stockQty)}</td><td class="r">${money(remaining)}</td><td class="r">${money(p?+p.stock||0:0)}</td><td class="r"><input inputmode="decimal" class="qty" data-pr28="${i.productId}" max="${Math.min(remaining,p?+p.stock||0:0)}"></td><td class="r">${cur28(i.landedUnitCost)}</td></tr>`}).join('')}</tbody></table></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Post Purchase Return</button></div></div>`;
+  document.body.appendChild(m);
+  m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b)return;if(b.dataset.x==='close')return m.remove();
+    const dateVal=m.querySelector('#PR28_date').value,rd=new Date(dateVal+'T00:00:00').getTime(),purchaseDay=new Date(iso28(po.date)+'T00:00:00').getTime(),todayEnd=new Date();todayEnd.setHours(23,59,59,999);
+    if(!dateVal||!Number.isFinite(rd)||rd<purchaseDay||rd>todayEnd.getTime())return toast('Return date must be between purchase date and today');
+    const items=[];
+    m.querySelectorAll('[data-pr28]').forEach(inp=>{const q=n28(inp.value)||0;if(q>0){const it=grouped.find(x=>x.productId===inp.dataset.pr28),p=it&&S.products.find(x=>x.id===it.productId);if(!it||!p)return;const fallback=Math.max(0,(+it.stockQty||0)-alreadyReturned28(po.id,it.productId)),remaining=window.purchaseRemainingQty227?window.purchaseRemainingQty227(it.productId,po.id):fallback,mx=Math.min(remaining,+p.stock||0);if(q>mx+1e-9){items.push({__invalid:true,code:it.code,max:mx});return}items.push({productId:it.productId,code:it.code,name:it.name,qty:q,cost:it.landedUnitCost,supplierUnitValue:it.supplierUnitValue??it.landedUnitCost,amount:q*(it.supplierUnitValue??it.landedUnitCost)})}});
+    if(items.some(x=>x.__invalid))return toast('Return quantity exceeds stock remaining from this purchase for '+items.find(x=>x.__invalid).code);
+    if(!items.length)return toast('Enter return quantity');if(!confirm(`Return ${items.length} item(s) to ${po.supplier}?`))return;
+    const ref=m.querySelector('#PR28_ref').value.trim()||('DR-'+po.invoiceNo),affected=[];
+    items.forEach(it=>{const p=S.products.find(x=>x.id===it.productId),before=+p.stock||0;affected.push(p.id);p.stock=Math.max(0,before-it.qty);p.updatedAt=Date.now();let left=it.qty;const bs=S.batches.filter(x=>x.purchaseId===po.id&&x.productId===it.productId&&x.status!=='cancelled'&&+x.qty>0).sort((a,b)=>a.date-b.date);for(const bt of bs){if(left<=0)break;const use=Math.min(left,+bt.qty||0);bt.qty-=use;left-=use}S.stockMoves.unshift({id:uid(),at:rd,productId:p.id,code:p.code,type:'Purchase Return',qty:-it.qty,before,after:p.stock,ref,party:po.supplier,rate:it.cost})});
+    const r={id:uid(),purchaseId:po.id,supplier:po.supplier,ref,date:rd,items,total:items.reduce((a,x)=>a+x.amount,0),status:'posted'};S.purchaseReturns.unshift(r);
+    if(window.recomputeInventoryCost227)[...new Set(affected)].forEach(window.recomputeInventoryCost227);
+    audit28('purchase-return',`${po.supplier} · ${r.ref} · ${CUR()}${money(r.total)}`,{returnId:r.id});save();m.remove();render();toast('Purchase return posted')
+  }
+}
 
 /* ---------------- original workbook fill ---------------- */
 function downloadFilled28(){const P=ui.purchase28,rows=mappedPurchase28();if(!P.headers.length)return toast('Upload purchase Excel/CSV first');if(P._workbook&&window.XLSX){const wb=P._workbook,sn=P.sheetName,ws=wb.Sheets[sn];let rateCol=P.map.rate;if(rateCol<0){rateCol=P.headers.length;XLSX.utils.sheet_add_aoa(ws,[['Purchase Rate']],{origin:{r:P.headerRow,c:rateCol}})}let codeCol=P.map.code;if(codeCol<0){codeCol=Math.max(P.headers.length,rateCol+1);XLSX.utils.sheet_add_aoa(ws,[['Matched Code']],{origin:{r:P.headerRow,c:codeCol}})}rows.forEach(r=>{const rr=P.headerRow+1+r.idx;if(r.rate!=null)XLSX.utils.sheet_add_aoa(ws,[[Math.round(r.rate*10000)/10000]],{origin:{r:rr,c:rateCol}});if(r.p)XLSX.utils.sheet_add_aoa(ws,[[r.p.code]],{origin:{r:rr,c:codeCol}})});const base=(P.filename||'purchase').replace(/\.[^.]+$/,'')+'-filled.xlsx';XLSX.writeFile(wb,base,{cellStyles:true});toast('Original workbook filled and downloaded');return}
@@ -5149,198 +5186,99 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 </script>
 <script id="pm-v41-firebase-sync-script">
 (()=>{
-  const PM_VERSION_41 = '2.20 optional Firebase cloud sync (cross-device backup)';
-  const CONFIG_KEY = 'firebaseConfig';
-  const SIZE_WARN = 900000; // bytes -- Firestore's per-document hard limit is ~1,048,576
-  let app = null, authRef = null, dbRef = null;
+  const PM_VERSION_41 = '2.28 transactional Firebase sync + serial queue';
+  const CONFIG_KEY='firebaseConfig', SCHEMA=2, CHUNK_CHARS=180000;
+  let app=null,authRef=null,dbRef=null,saveDebounce=null,cloudQueue=Promise.resolve(),suppressAuto=false;
 
-  async function getSavedConfig(){
-    try{ const r = await window.storage.get(CONFIG_KEY); return r ? r.value : null; }catch(e){ return null; }
-  }
-  async function saveConfigLocal(cfg){ try{ await window.storage.set(CONFIG_KEY, cfg); }catch(e){} }
-  async function clearConfigLocal(){ try{ await window.storage.remove(CONFIG_KEY); }catch(e){} }
-
+  async function getSavedConfig(){try{const r=await window.storage.get(CONFIG_KEY);return r?r.value:(window.PM_FIREBASE_CONFIG||null)}catch(e){return window.PM_FIREBASE_CONFIG||null}}
+  async function saveConfigLocal(cfg){try{await window.storage.set(CONFIG_KEY,cfg)}catch(e){}}
+  async function clearConfigLocal(){try{await window.storage.remove(CONFIG_KEY)}catch(e){}}
   function ensureFirebase(cfg){
-    if(typeof firebase === 'undefined') throw new Error('Firebase library did not load — check your internet connection and reload');
-    if(!app){
-      app = firebase.initializeApp(cfg);
-      authRef = firebase.auth();
-      dbRef = firebase.firestore();
-      try{ dbRef.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
-    }
-    return {authRef, dbRef};
+    if(typeof firebase==='undefined')throw new Error('Firebase library is unavailable. Open the deployed app online once so its offline cache can be installed.');
+    if(!app){app=firebase.initializeApp(cfg);authRef=app.auth();dbRef=app.firestore();try{dbRef.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}}
+    return {authRef,dbRef};
   }
-  function stateDocRef(uid){ return dbRef.collection('users').doc(uid).collection('appData').doc('state'); }
-
-  function refreshIfOnSettings(){ if(typeof page !== 'undefined' && page === 'set' && document.getElementById('view')) render(); }
-
-  window.firebaseConnect30 = async function(cfg){
-    try{
-      ensureFirebase(cfg);
-      await saveConfigLocal(cfg);
-      authRef.onAuthStateChanged(()=> refreshIfOnSettings());
-      toast('Connected to Firebase project "'+(cfg.projectId||'')+'"');
-      refreshIfOnSettings();
-    }catch(e){ toast('Could not connect: ' + e.message); }
-  };
-
-  window.firebaseForget30 = async function(){
-    try{ if(authRef) await authRef.signOut(); }catch(e){}
-    await clearConfigLocal();
-    app = null; authRef = null; dbRef = null;
-    toast('Cloud sync disconnected on this device');
-    refreshIfOnSettings();
-  };
-
-  window.firebaseSignUp30 = async function(email, pw){
-    if(!authRef) return toast('Connect to a project first');
-    try{ await authRef.createUserWithEmailAndPassword(email, pw); toast('Account created and signed in'); refreshIfOnSettings(); }
-    catch(e){ toast(e.message); }
-  };
-  window.firebaseSignIn30 = async function(email, pw){
-    if(!authRef) return toast('Connect to a project first');
-    try{ await authRef.signInWithEmailAndPassword(email, pw); toast('Signed in'); refreshIfOnSettings(); }
-    catch(e){ toast(e.message); }
-  };
-  window.firebaseSignOut30 = async function(){
-    try{ await authRef.signOut(); toast('Signed out — cloud sync paused'); refreshIfOnSettings(); }
-    catch(e){ toast(e.message); }
-  };
-
-  window.firebasePullNow30 = async function(){
-    const user = authRef && authRef.currentUser;
-    if(!user) return toast('Sign in first');
-    try{
-      const snap = await stateDocRef(user.uid).get();
-      if(!snap.exists) return toast('No cloud data saved for this account yet');
-      const cloud = snap.data();
-      if(!confirm('Replace the data on THIS device with the cloud copy'+(cloud.updatedAtReadable?' from '+cloud.updatedAtReadable:'')+'? This cannot be undone locally.')) return;
-      S = {...S, ...cloud.state};
-      S.settings.lastKnownCloudUpdatedAt = cloud.updatedAt || Date.now();
-      save(); render();
-      toast('Loaded from cloud');
-    }catch(e){ toast('Could not load: ' + e.message); }
-  };
-
-  window.firebasePushNow30 = async function(){
-    const user = authRef && authRef.currentUser;
-    if(!user) return toast('Sign in first');
-    if(S.settings.privacyEnabled) return toast('Turn off Privacy Mode first — cloud sync would otherwise send unencrypted data off this device');
-    const json = JSON.stringify(S);
-    if(json.length > SIZE_WARN) return toast('Your data (' + Math.round(json.length/1024) + ' KB) is close to Firebase\u2019s per-document limit \u2014 ask for the multi-document version before this grows further');
-    try{
-      const ref = stateDocRef(user.uid);
-      const existing = await ref.get();
-      if(existing.exists){
-        const cloudUpdatedAt = existing.data().updatedAt || 0;
-        const known = S.settings.lastKnownCloudUpdatedAt || 0;
-        if(cloudUpdatedAt > known){
-          if(!confirm('The cloud copy was updated'+(existing.data().updatedAtReadable?' ('+existing.data().updatedAtReadable+')':'')+' — possibly from another device — since this device last synced. Overwrite it with THIS device\u2019s data anyway? (Load from cloud first if you want to check what changed.)')) return;
-        }
-      }
-      const now = Date.now();
-      await ref.set({ state: JSON.parse(json), updatedAt: now, updatedAtReadable: new Date().toLocaleString('en-IN') });
-      S.settings.lastCloudSyncAt = now;
-      S.settings.lastKnownCloudUpdatedAt = now;
-      save(); render();
-      toast('Saved to cloud');
-    }catch(e){ toast('Could not save to cloud: ' + e.message); }
-  };
-
-  /* best-effort background sync on every save -- never blocks or breaks the
-     existing local save, which remains the source of truth on this device */
-  const prevSave41 = save;
-  save = function(){
-    const out = prevSave41();
-    (async ()=>{
-      try{
-        if(!dbRef || !authRef || !authRef.currentUser) return;
-        if(S.settings.privacyEnabled){
-          if(!window.__cloudPrivacyWarned41){ window.__cloudPrivacyWarned41 = true; toast('Cloud sync is paused while Privacy Mode is on, to avoid sending unencrypted data off this device'); }
-          return;
-        }
-        const json = JSON.stringify(S);
-        if(json.length > SIZE_WARN) return; // stay silent here; the explicit "save to cloud" button explains why
-        const ref = stateDocRef(authRef.currentUser.uid);
-        const existing = await ref.get();
-        if(existing.exists){
-          const cloudUpdatedAt = existing.data().updatedAt || 0;
-          const known = S.settings.lastKnownCloudUpdatedAt || 0;
-          if(cloudUpdatedAt > known){
-            if(!window.__cloudConflictWarned41){ window.__cloudConflictWarned41 = true; toast('Another device has newer cloud data — auto-sync paused. Use "Save to cloud now" in Settings to resolve.'); }
-            return;
-          }
-        }
-        const now = Date.now();
-        await ref.set({ state: JSON.parse(json), updatedAt: now, updatedAtReadable: new Date().toLocaleString('en-IN') });
-        S.settings.lastKnownCloudUpdatedAt = now;
-      }catch(e){ /* silent -- local save already succeeded */ }
-    })();
-    return out;
-  };
-
-  // reconnect automatically if a project was configured in an earlier session
-  (async ()=>{
-    const cfg = await getSavedConfig();
-    if(!cfg) return;
-    try{
-      ensureFirebase(cfg);
-      authRef.onAuthStateChanged(()=> refreshIfOnSettings());
-    }catch(e){ /* offline or bad config -- the rest of the app works fully without this */ }
-  })();
-
-  const prevViewSet41 = (typeof viewSet === 'function') ? viewSet : null;
-  if(prevViewSet41){
-    viewSet = function(v,t,sub,act){
-      prevViewSet41(v,t,sub,act);
-      if(v.querySelector('#L_cloudBox41')) return;
-      const connected = !!dbRef;
-      const signedIn = authRef && authRef.currentUser;
-      const box = document.createElement('div');
-      box.className = 'card'; box.id = 'L_cloudBox41'; box.style.marginTop = '14px';
-      box.innerHTML = `<div class="hd"><h2>Cloud sync (Firebase)</h2></div><div class="bd">
-        ${!connected ? `
-          <div class="note" style="margin-bottom:8px">Paste your Firebase project's web config to turn on cross-device backup. Get it from <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> → your project → Project settings → your web app → SDK setup and configuration.</div>
-          <textarea id="CF_config" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;font-family:monospace;font-size:12px;border-radius:8px;border:1px solid var(--line);padding:8px"></textarea>
-          <button class="btn primary sm" style="margin-top:8px" data-act="cloud-connect-41">Connect</button>
-        ` : !signedIn ? `
-          <div class="note" style="margin-bottom:8px">Connected. Sign in (or create an account) to start syncing this device.</div>
-          <div class="cols2"><div class="field"><label>Email</label><input id="CF_email"></div><div class="field"><label>Password</label><input id="CF_pw" type="password"></div></div>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <button class="btn primary sm" data-act="cloud-signin-41">Sign in</button>
-            <button class="btn ghost sm" data-act="cloud-signup-41">Create account</button>
-            <button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button>
-          </div>
-        ` : `
-          <div class="note" style="margin-bottom:8px">Signed in as <b>${esc(signedIn.email)}</b>. Every save also writes to the cloud.${S.settings.lastCloudSyncAt ? ' Last synced ' + new Date(S.settings.lastCloudSyncAt).toLocaleString('en-IN') : ''}</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn ghost sm" data-act="cloud-push-41">Save to cloud now</button>
-            <button class="btn ghost sm" data-act="cloud-pull-41">Load from cloud</button>
-            <button class="btn ghost sm" data-act="cloud-signout-41">Sign out</button>
-          </div>
-        `}
-      </div>`;
-      const anchor = v.querySelector('.card');
-      if(anchor) anchor.after(box); else v.appendChild(box);
-    };
-  }
-
-  document.addEventListener('click', e=>{
-    const box = e.target.closest('.card');
-    if(e.target.closest('[data-act="cloud-connect-41"]')){
-      const raw = (box.querySelector('#CF_config') || {}).value?.trim();
-      try{ window.firebaseConnect30(JSON.parse(raw)); }
-      catch(err){ toast('Could not read that config — paste the exact {...} object from Firebase'); }
+  function base(uid){return dbRef.collection('users').doc(uid).collection('appData')}
+  function legacyRef(uid){return base(uid).doc('state')}
+  function manifestRef(uid){return base(uid).doc('manifest')}
+  function splitState(str){const out=[];for(let i=0;i<str.length;i+=CHUNK_CHARS)out.push(str.slice(i,i+CHUNK_CHARS));return out}
+  function versionId(){return Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
+  async function readCloud(uid){
+    const man=await manifestRef(uid).get();
+    if(man.exists && man.data().schema===SCHEMA){
+      const m=man.data(),ids=Array.isArray(m.chunkIds)?m.chunkIds:[];
+      if(!ids.length)throw new Error('Cloud manifest is incomplete');
+      const docs=await Promise.all(ids.map(id=>base(uid).doc(id).get()));
+      if(docs.some(d=>!d.exists))throw new Error('Cloud save is incomplete. Try again after the other device finishes syncing.');
+      const ordered=docs.map((d,i)=>({id:ids[i],d:d.data()}));
+      if(ordered.some((x,i)=>x.d.version!==m.version||(+x.d.index||0)!==i))throw new Error('Cloud save parts do not match the active manifest. Publish again from the latest device.');
+      const json=ordered.map(x=>x.d.data||'').join('');
+      return {state:JSON.parse(json),updatedAt:m.updatedAt||0,updatedAtReadable:m.updatedAtReadable||'',revision:+m.revision||0,schema:SCHEMA};
     }
-    if(e.target.closest('[data-act="cloud-signin-41"]')) window.firebaseSignIn30(box.querySelector('#CF_email').value.trim(), box.querySelector('#CF_pw').value);
-    if(e.target.closest('[data-act="cloud-signup-41"]')) window.firebaseSignUp30(box.querySelector('#CF_email').value.trim(), box.querySelector('#CF_pw').value);
-    if(e.target.closest('[data-act="cloud-signout-41"]')) window.firebaseSignOut30();
-    if(e.target.closest('[data-act="cloud-forget-41"]')) window.firebaseForget30();
-    if(e.target.closest('[data-act="cloud-push-41"]')) window.firebasePushNow30();
-    if(e.target.closest('[data-act="cloud-pull-41"]')) window.firebasePullNow30();
-  }, true);
+    const old=await legacyRef(uid).get();
+    if(!old.exists)return null;
+    const d=old.data();return {state:d.state,updatedAt:d.updatedAt||0,updatedAtReadable:d.updatedAtReadable||'',revision:0,schema:1};
+  }
+  async function writeCloud(uid,json,opts={}){
+    const chunks=splitState(json),ver=versionId(),ids=chunks.map((_,i)=>`chunk_${ver}_${String(i).padStart(4,'0')}`),now=Date.now();
+    const written=[];try{for(let i=0;i<chunks.length;i++){await base(uid).doc(ids[i]).set({schema:SCHEMA,version:ver,index:i,data:chunks[i]});written.push(ids[i])}}catch(e){for(const id of written)base(uid).doc(id).delete().catch(()=>{});throw e}
+    let committed=null;
+    try{
+      await dbRef.runTransaction(async tx=>{
+        const ref=manifestRef(uid),snap=await tx.get(ref),cm=snap.exists?snap.data():null;
+        const cloudRev=+cm?.revision||0,knownRev=+S.settings.lastKnownCloudRevision||0,cloudUpdated=+cm?.updatedAt||0,knownUpdated=+S.settings.lastKnownCloudUpdatedAt||0;
+        if(opts.checkConflict!==false){
+          const conflict=cloudRev>0?(knownRev!==cloudRev):(cloudUpdated>knownUpdated);
+          if(conflict){const err=new Error('Another device has newer cloud data. Load from cloud first, or use manual Save to cloud and confirm overwrite.');err.code='cloud-conflict';throw err}
+        }
+        const nextRev=cloudRev+1,oldIds=cm&&Array.isArray(cm.chunkIds)?cm.chunkIds:[];
+        tx.set(ref,{schema:SCHEMA,version:ver,revision:nextRev,chunkIds:ids,chunkCount:ids.length,updatedAt:now,updatedAtReadable:new Date(now).toLocaleString('en-IN')});
+        committed={revision:nextRev,oldIds};
+      });
+    }catch(e){for(const id of ids)base(uid).doc(id).delete().catch(()=>{});throw e}
+    for(const id of (committed?.oldIds||[]))if(!ids.includes(id))base(uid).doc(id).delete().catch(()=>{});
+    S.settings.lastKnownCloudRevision=committed?.revision||0;S.settings.lastKnownCloudUpdatedAt=now;S.settings.lastCloudSyncAt=now;try{if(typeof prevSave41==='function')prevSave41()}catch(e){}return {updatedAt:now,revision:committed?.revision||0};
+  }
+  function enqueue(fn){const run=()=>fn();cloudQueue=cloudQueue.then(run,run);return cloudQueue}
+  async function pushSnapshot({manual=false,force=false}={}){
+    if(window.__restrictedFirebaseSession46)return;
+    const user=authRef&&authRef.currentUser;if(!user)throw new Error('Sign in first');
+    if(S.settings.privacyEnabled)throw new Error('Turn off Privacy Mode first — cloud sync sends the owner state to Firebase.');
+    const json=JSON.stringify(S);
+    if(manual && !force){
+      const m=await manifestRef(user.uid).get();
+      if(m.exists){const d=m.data(),cloudRev=+d.revision||0,knownRev=+S.settings.lastKnownCloudRevision||0,cloud=+d.updatedAt||0,known=+S.settings.lastKnownCloudUpdatedAt||0,conflict=cloudRev>0?(cloudRev!==knownRev):(cloud>known);if(conflict){if(!confirm('The cloud copy is newer or was changed by another device. Overwrite it with THIS device anyway?'))return false;force=true}}
+    }
+    suppressAuto=true;
+    try{await writeCloud(user.uid,json,{checkConflict:!force});return true}
+    finally{suppressAuto=false}
+  }
+  function scheduleAuto(){
+    if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
+    clearTimeout(saveDebounce);saveDebounce=setTimeout(()=>enqueue(async()=>{try{await pushSnapshot({manual:false})}catch(e){if(e.code==='cloud-conflict'){if(!window.__cloudConflictWarned41){window.__cloudConflictWarned41=true;toast('Another device has newer cloud data — automatic sync paused until you resolve it in Settings.')}}}}),1200);
+  }
+  window.PMFirebase41={get auth(){return authRef},get db(){return dbRef},get app(){return app},getSavedConfig,ensureFirebase,isConnected:()=>!!dbRef,readCloudState:readCloud,queueCloudSave:()=>enqueue(()=>pushSnapshot({manual:false}))};
+  function refreshIfOnSettings(){if(typeof page!=='undefined'&&page==='set'&&document.getElementById('view'))render()}
 
-  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_41};
+  window.firebaseConnect30=async cfg=>{try{ensureFirebase(cfg);await saveConfigLocal(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings());toast('Connected to Firebase project "'+(cfg.projectId||'')+'"');refreshIfOnSettings()}catch(e){toast('Could not connect: '+e.message)}};
+  window.firebaseForget30=async()=>{try{if(authRef)await authRef.signOut()}catch(e){}try{if(app)await app.delete()}catch(e){}await clearConfigLocal();app=null;authRef=null;dbRef=null;toast('Cloud sync disconnected on this device');refreshIfOnSettings()};
+  window.firebaseSignUp30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.createUserWithEmailAndPassword(email,pw);toast('Account created and signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
+  window.firebaseSignIn30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.signInWithEmailAndPassword(email,pw);window.__cloudConflictWarned41=false;toast('Signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
+  window.firebaseSignOut30=async()=>{try{await authRef.signOut();toast('Signed out — cloud sync paused');refreshIfOnSettings()}catch(e){toast(e.message)}};
+  window.firebasePullNow30=async()=>{if(window.__restrictedFirebaseSession46)return toast('Restricted login cannot load owner cloud data');const user=authRef&&authRef.currentUser;if(!user)return toast('Sign in first');try{const cloud=await readCloud(user.uid);if(!cloud)return toast('No cloud data saved for this account yet');if(!confirm('Replace the data on THIS device with the cloud copy'+(cloud.updatedAtReadable?' from '+cloud.updatedAtReadable:'')+'?'))return;S={...S,...cloud.state};S.settings={...DEF_SETTINGS,...(S.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};window.__cloudConflictWarned41=false;suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}render();toast('Loaded from cloud')}catch(e){toast('Could not load: '+e.message)}};
+  window.firebasePushNow30=async()=>{try{const ok=await enqueue(()=>pushSnapshot({manual:true}));if(ok){suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}render();toast('Saved to cloud in '+(await manifestRef(authRef.currentUser.uid).get()).data().chunkCount+' chunk(s)')}}catch(e){toast('Could not save to cloud: '+e.message)}};
+
+  const prevSave41=save;
+  save=function(){const out=prevSave41();scheduleAuto();return out};
+
+  (async()=>{const cfg=await getSavedConfig();if(!cfg)return;try{ensureFirebase(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings())}catch(e){}})();
+
+  const prevViewSet41=typeof viewSet==='function'?viewSet:null;
+  if(prevViewSet41){viewSet=function(v,t,sub,act){prevViewSet41(v,t,sub,act);if(v.querySelector('#L_cloudBox41'))return;const connected=!!dbRef,signedIn=authRef&&authRef.currentUser,box=document.createElement('div');box.className='card';box.id='L_cloudBox41';box.style.marginTop='14px';box.innerHTML=`<div class="hd"><h2>Cloud sync (Firebase)</h2></div><div class="bd">
+    ${!connected?`<div class="note" style="margin-bottom:8px">Paste your Firebase web config. The owner state is saved as versioned chunks, so it can grow beyond one Firestore document and rapid saves cannot overwrite newer local saves out of order.</div><textarea id="CF_config" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;font-family:monospace;font-size:12px;border-radius:8px;border:1px solid var(--line);padding:8px"></textarea><button class="btn primary sm" style="margin-top:8px" data-act="cloud-connect-41">Connect</button>`:!signedIn?`<div class="note" style="margin-bottom:8px">Connected. Sign in (or create an owner account) to start syncing.</div><div class="cols2"><div class="field"><label>Email</label><input id="CF_email"></div><div class="field"><label>Password</label><input id="CF_pw" type="password"></div></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="cloud-signin-41">Sign in</button><button class="btn ghost sm" data-act="cloud-signup-41">Create account</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`:`<div class="note" style="margin-bottom:8px">Signed in as <b>${esc(signedIn.email)}</b>. Saves are debounced and serialized; cloud state uses multiple versioned documents.${S.settings.lastCloudSyncAt?' Last synced '+new Date(S.settings.lastCloudSyncAt).toLocaleString('en-IN'):''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloud-push-41">Save to cloud now</button><button class="btn ghost sm" data-act="cloud-pull-41">Load from cloud</button><button class="btn ghost sm" data-act="cloud-signout-41">Sign out</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`}
+    </div>`;const anchor=v.querySelector('.card');if(anchor)anchor.after(box);else v.appendChild(box)}}
+  document.addEventListener('click',e=>{const box=e.target.closest('.card');if(e.target.closest('[data-act="cloud-connect-41"]')){const raw=(box.querySelector('#CF_config')||{}).value?.trim();try{window.firebaseConnect30(JSON.parse(raw))}catch(err){toast('Could not read that config — paste the exact {...} object from Firebase')}}if(e.target.closest('[data-act="cloud-signin-41"]'))window.firebaseSignIn30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signup-41"]'))window.firebaseSignUp30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signout-41"]'))window.firebaseSignOut30();if(e.target.closest('[data-act="cloud-forget-41"]'))window.firebaseForget30();if(e.target.closest('[data-act="cloud-push-41"]'))window.firebasePushNow30();if(e.target.closest('[data-act="cloud-pull-41"]'))window.firebasePullNow30()},true);
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_41};
 })();
 </script>
 <script id="pm-v42-delete-safety-script">
@@ -5426,6 +5364,8 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
     return row ? row.pcsPerUnit : null;
   }
   function piecesPerNativeUnit43(p){
+    const native=String(p.priceUnit||'').trim().toLowerCase();
+    if(['pc','pcs','piece','pieces'].includes(native)) return 1;       // a piece-priced product is already the base unit
     if(p.uom && p.uom.perUnit) return +p.uom.perUnit;                 // manually confirmed/guessed value
     const master = uomFactorDirect43(p.id, p.priceUnit);
     if(master) return master;                                         // structured UOM master entry
@@ -5606,7 +5546,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   ui.viewerSession = ui.viewerSession || null;
 
   /* ================= Price Book: save/reuse a named price-list configuration ================= */
-  const LIST_KEYS_44 = ['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','land','heading','targetUnit30'];
+  const LIST_KEYS_44 = ['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','title','targetUnit30','extraPct','overrides','qtyBasis26','changedOnly26','productUoms227'];
 
   window.saveAsPriceBook44 = function(editId){
     const existing = editId ? S.priceBooks.find(x=>x.id===editId) : null;
@@ -5695,6 +5635,9 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   if(prevViewSet44){
     viewSet = function(v,t,sub,act){
       prevViewSet44(v,t,sub,act);
+      // v2.28+: restricted-user management lives only in Users & access.
+      // Keep the old code for data migration, but do not expose a second conflicting editor.
+      if(window.__PM_SECURE_ACCESS_ONLY!==false) return;
       if(v.querySelector('#L_viewerBox44')) return;
       const box = document.createElement('div');
       box.className = 'card'; box.id = 'L_viewerBox44'; box.style.marginTop = '14px';
@@ -5882,7 +5825,6 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
             <b style="display:block;margin-bottom:8px">${esc(pb.name)}</b>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn ghost sm" data-v44-pdf="${pb.id}" style="flex:1;min-width:130px">Download PDF</button>
-              <button class="btn ghost sm" data-v44-xlsx="${pb.id}" style="flex:1;min-width:130px">Download Excel</button>
             </div>
           </div></div>
         `).join('')}
@@ -5894,7 +5836,6 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
             <b style="display:block;margin-bottom:8px">${esc(cat)}</b>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn ghost sm" data-v44-cat-pdf="${esc(cat)}" style="flex:1;min-width:130px">Download PDF</button>
-              <button class="btn ghost sm" data-v44-cat-xlsx="${esc(cat)}" style="flex:1;min-width:130px">Download Excel</button>
             </div>
           </div></div>
         `).join('')}
@@ -5902,9 +5843,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
     </div>`;
     el.querySelector('#V44_logout').onclick = window.viewerLogout44;
     el.querySelectorAll('[data-v44-pdf]').forEach(b=>b.onclick=()=>window.downloadPriceBookPDF44(b.dataset.v44Pdf));
-    el.querySelectorAll('[data-v44-xlsx]').forEach(b=>b.onclick=()=>window.downloadPriceBookExcel44(b.dataset.v44Xlsx));
     el.querySelectorAll('[data-v44-cat-pdf]').forEach(b=>b.onclick=()=>window.downloadCatalogPDF44(b.dataset.v44CatPdf));
-    el.querySelectorAll('[data-v44-cat-xlsx]').forEach(b=>b.onclick=()=>window.downloadCatalogExcel44(b.dataset.v44CatXlsx));
   }
 
   const prevRender44 = render;
@@ -5917,6 +5856,8 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 
   /* "Viewer login" entry points: sidebar footer + the encrypted lock screen */
   function viewerLoginPrompt44(){
+    // Once the secure Firebase portal is loaded, every legacy entry point routes there.
+    if(window.secureViewerPrompt46) return window.secureViewerPrompt46();
     const m = document.createElement('div'); m.className='modal';
     m.innerHTML = `<div class="box" style="max-width:360px"><div class="hd"><h2 style="margin:0">Viewer login</h2></div>
       <div class="bd"><div class="field"><label>Name</label><input id="VL44_name"></div><div class="field"><label>PIN</label><input id="VL44_pin" inputmode="numeric" type="password"></div></div>
@@ -5964,3 +5905,283 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 })();
 </script>
 
+
+<script id="pm-v45-simplified-core-workflow">
+(()=>{
+  const PM_VERSION_45='2.24 Simplified core workflow';
+  const oldRender45=render, oldRenderNav45=renderNav;
+  S.viewerUsers=S.viewerUsers||[]; S.priceBooks=S.priceBooks||[]; S.catalogFiles=S.catalogFiles||[];
+  S.viewerUsers.forEach(u=>{ if(!u.role) u.role='customer'; u.allowedCatalogFileIds=u.allowedCatalogFileIds||[]; });
+
+  const css=document.createElement('style');
+  css.textContent=`
+    body{background:#f6f2e9}
+    .main{background:#f6f2e9}
+    .top{background:rgba(250,247,240,.94)}
+    .core45-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .core45-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px;text-align:left;cursor:pointer;box-shadow:0 3px 14px rgba(35,31,25,.04)}
+    .core45-card:hover{transform:translateY(-1px);box-shadow:0 7px 20px rgba(35,31,25,.08)}
+    .core45-card b{display:block;font-size:13px;margin-bottom:5px}.core45-card span{font-size:11.5px;color:var(--muted);line-height:1.45}
+    .core45-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}.core45-step{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:11.5px}.core45-step b{display:block;margin-bottom:3px}
+    .role45{font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--line);padding:2px 6px;border-radius:999px;color:var(--muted)}
+    @media(max-width:900px){.core45-grid{grid-template-columns:1fr 1fr}.core45-flow{grid-template-columns:1fr 1fr}}
+    @media(max-width:560px){.core45-grid,.core45-flow{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(css);
+
+  function coreNav45(){
+    const nav=$('#nav'); if(!nav) return;
+    const items=[
+      ['', 'core45','Home'],
+      ['Supplier','import','Import supplier price list'],
+      ['Supplier','cost','Purchase costing'],
+      ['Pricing','disc','Discount rules'],
+      ['Customer','list','Make customer price list'],
+      ['Stock','purchase','Purchase bill / inward'],
+      ['Stock','inv','Inventory'],
+      ['Access','access45','Users & access'],
+      ['','set','Settings']
+    ];
+    let last=null,out='';
+    items.forEach(([g,id,label])=>{if(g&&g!==last){out+=`<div class="nav-section">${g}</div>`;last=g}if(!g)last=null;out+=`<button data-nav="${id}" class="${page===id?'on':''}"><span>${label}</span></button>`});
+    nav.innerHTML=out;
+  }
+
+  function viewCore45(v,t,sub,act){
+    t.textContent='Price & Stock Manager';sub.textContent='Supplier rate → net costing → customer price books → controlled access';act.innerHTML='';
+    v.innerHTML=`
+      <div class="card"><div class="bd">
+        <div class="section-title">Your core workflow</div>
+        <div class="core45-flow">
+          <div class="core45-step"><b>1 · Supplier list</b>Import PDF and keep products category-wise.</div>
+          <div class="core45-step"><b>2 · Net costing</b>Apply category/product discounts and manual cost overrides.</div>
+          <div class="core45-step"><b>3 · Customer rates</b>Create Wholesale / Distributor / Retail or customer-specific rates.</div>
+          <div class="core45-step"><b>4 · Price Books</b>Choose products, category, UOM and final rate; save reusable lists.</div>
+          <div class="core45-step"><b>5 · Restricted login</b>Sales/customer sees only assigned lists/catalogs.</div>
+        </div>
+      </div></div>
+      <div class="core45-grid" style="margin-top:14px">
+        <button class="core45-card" data-nav="import"><b>Import supplier price list</b><span>PDF import, category detection and product master.</span></button>
+        <button class="core45-card" data-nav="cost"><b>Purchase costing</b><span>Supplier rate, discount, scheme, freight and manual net-cost edit.</span></button>
+        <button class="core45-card" data-nav="disc"><b>Discount rules</b><span>Different discounts by list/category/product/customer.</span></button>
+        <button class="core45-card" data-nav="list"><b>Create customer price list</b><span>Final-rate only list; manual rates and product UOM selection supported.</span></button>
+        <button class="core45-card" data-nav="purchase"><b>Upload purchase bill</b><span>Excel/CSV bill, product mapping, quantities, rates and stock inward.</span></button>
+        <button class="core45-card" data-nav="inv"><b>Inventory</b><span>Edit stock, products, master rates, UOM and packing.</span></button>
+        <button class="core45-card" data-nav="access45"><b>Sales & customer access</b><span>Create username + PIN and assign only selected Price Books/catalogs.</span></button>
+      </div>
+      <div class="private-note" style="margin-top:14px"><b>Simplified mode:</b> quotations, billing, khata, GST reports and other non-core modules are hidden from the main navigation. Existing stored data is not deleted.</div>`;
+  }
+
+  function roleLabel45(u){return u.role==='sales'?'Sales team':'Customer'}
+  function userEditor45(id){
+    const u=id?S.viewerUsers.find(x=>x.id===id):null;
+    const m=document.createElement('div');m.className='modal';
+    const catalogFiles=(S.catalogFiles||[]).slice().sort((a,b)=>String(a.category||'Other').localeCompare(String(b.category||'Other'))||String(a.title||a.filename||'').localeCompare(String(b.title||b.filename||'')));
+    const groups={};S.priceBooks.forEach(pb=>{(groups[pb.category||'Other']=groups[pb.category||'Other']||[]).push(pb)});
+    m.innerHTML=`<div class="box" style="max-width:560px"><div class="hd"><h2 style="margin:0">${u?'Edit':'Create'} restricted login</h2></div><div class="bd">
+      <div class="cols3"><div class="field"><label>Role</label><select id="A45_role"><option value="sales" ${u&&u.role==='sales'?'selected':''}>Sales team</option><option value="customer" ${!u||u.role!=='sales'?'selected':''}>Customer</option></select></div><div class="field"><label>Username</label><input id="A45_name" value="${u?esc(u.name):''}"></div><div class="field"><label>PIN</label><input id="A45_pin" type="password" inputmode="numeric" value="${u?esc(u.pin):''}"></div></div>
+      <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input id="A45_active" type="checkbox" ${!u||u.active!==false?'checked':''}> <b>Login active</b><span class="note">Uncheck to revoke online access without deleting the user.</span></label>
+      <div class="field"><label>Access expiry <span class="mut">(optional)</span></label><input id="A45_expiry" type="date" value="${u?esc(u.accessExpiresOn||''):''}"><div class="metric-sub">After this date the login is rejected online and from cached/offline access.</div></div>
+      <div class="field"><label>Allowed price lists</label>${Object.keys(groups).length?Object.keys(groups).sort().map(c=>`<div class="metric-sub" style="font-weight:700;margin-top:7px">${esc(c)}</div>${groups[c].map(pb=>`<label style="display:block;font-size:12.5px;margin:4px 0"><input type="checkbox" data-a45-pb="${pb.id}" ${u&&(u.allowedPriceBookIds||[]).includes(pb.id)?'checked':''}> ${esc(pb.name)}</label>`).join('')}`).join(''):'<div class="note">No Price Book yet. Create one from “Make customer price list”.</div>'}</div>
+      <div class="field" style="margin-top:10px"><label>Allowed PDF product catalogs</label>${catalogFiles.length?catalogFiles.map(c=>`<label style="display:block;font-size:12.5px;margin:5px 0"><input type="checkbox" data-a45-catfile="${c.id}" ${u&&(u.allowedCatalogFileIds||[]).includes(c.id)?'checked':''}> <b>${esc(c.title||c.filename||'Catalog')}</b> <span class="metric-sub">· ${esc(c.category||'Other')}</span></label>`).join(''):'<div class="note">No PDF catalog uploaded yet. Upload one from Product catalog library below.</div>'}</div>
+      <div class="card" style="margin-top:12px;background:var(--soft,#faf7ef)"><div class="bd">
+        <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input id="A45_notice_enabled" type="checkbox" ${u&&u.rateNotice&&u.rateNotice.enabled?'checked':''}> <b>Show rate-update notice on login</b></label>
+        <div class="cols2"><div class="field"><label>Effective date</label><input id="A45_notice_date" type="date" value="${u&&u.rateNotice?esc(u.rateNotice.effectiveDate||''):''}"></div><div class="field"><label>Notice text (optional)</label><input id="A45_notice_text" value="${u&&u.rateNotice?esc(u.rateNotice.text||''):''}" placeholder="New rates implemented from effective date"></div></div>
+        <div class="note">If enabled, this message is shown prominently every time this customer/sales login opens. Leave text blank to use the automatic “New rates implemented from …” message.</div>
+      </div></div>
+      <div class="card" style="margin-top:12px;background:var(--soft,#faf7ef)"><div class="bd">
+        <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input id="A45_ann_enabled" type="checkbox" ${u&&u.announcement&&u.announcement.enabled?'checked':''}> <b>Customer-specific announcement</b></label>
+        <div class="field"><label>Announcement title</label><input id="A45_ann_title" value="${u&&u.announcement?esc(u.announcement.title||''):''}" placeholder="Important update"></div>
+        <div class="field"><label>Message</label><textarea id="A45_ann_text" rows="3" placeholder="New catalog added / scheme valid till...">${u&&u.announcement?esc(u.announcement.text||''):''}</textarea></div>
+        <div class="cols2"><div class="field"><label>Show from <span class="mut">(optional)</span></label><input id="A45_ann_from" type="date" value="${u&&u.announcement?esc(u.announcement.from||''):''}"></div><div class="field"><label>Show until <span class="mut">(optional)</span></label><input id="A45_ann_until" type="date" value="${u&&u.announcement?esc(u.announcement.until||''):''}"></div></div>
+      </div></div>
+      <div class="private-note"><b>Permission:</b> this login can only view/download/share assigned Price Books and allowed catalogs. You can change these assignments any time; cloud users auto-refresh. It cannot open costing, inventory, supplier rates, settings or other owner screens.</div>
+      </div><div class="ft">${u?'<button class="btn ghost" data-x="delete">Delete</button>':''}<button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save login</button></div></div>`;
+    document.body.appendChild(m);
+    m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();if(b.dataset.x==='delete'){S.viewerUsers=S.viewerUsers.filter(x=>x.id!==id);save();m.remove();render();return}const name=m.querySelector('#A45_name').value.trim(),pin=m.querySelector('#A45_pin').value.trim(),role=m.querySelector('#A45_role').value;if(!name)return toast('Enter username');if(pin.length<4)return toast('PIN must be at least 4 digits/characters');if(S.viewerUsers.some(x=>x.id!==id&&x.name.trim().toLowerCase()===name.toLowerCase()))return toast('Username already exists');const noticeEnabled=!!m.querySelector('#A45_notice_enabled')?.checked,noticeDate=m.querySelector('#A45_notice_date')?.value||'';if(noticeEnabled&&!noticeDate)return toast('Choose the effective date for the rate-update notice');const expiry=m.querySelector('#A45_expiry')?.value||'',annEnabled=!!m.querySelector('#A45_ann_enabled')?.checked,annFrom=m.querySelector('#A45_ann_from')?.value||'',annUntil=m.querySelector('#A45_ann_until')?.value||'';if(annFrom&&annUntil&&annUntil<annFrom)return toast('Announcement end date cannot be before start date');const data={role,name,pin,active:m.querySelector('#A45_active')?.checked!==false,accessExpiresOn:expiry,allowedPriceBookIds:[...m.querySelectorAll('[data-a45-pb]:checked')].map(x=>x.dataset.a45Pb),allowedCatalogFileIds:[...m.querySelectorAll('[data-a45-catfile]:checked')].map(x=>x.dataset.a45Catfile),allowedCatalogCategories:[],rateNotice:{enabled:noticeEnabled,effectiveDate:noticeDate,text:m.querySelector('#A45_notice_text')?.value.trim()||''},announcement:{enabled:annEnabled,title:m.querySelector('#A45_ann_title')?.value.trim()||'',text:m.querySelector('#A45_ann_text')?.value.trim()||'',from:annFrom,until:annUntil}};if(u)Object.assign(u,data);else S.viewerUsers.push({id:uid(),createdAt:Date.now(),...data});save();m.remove();render();toast('Login saved')};
+  }
+
+  function viewAccess45(v,t,sub,act){
+    t.textContent='Users & access';sub.textContent='Username + PIN based restricted access';act.innerHTML=`<button class="btn ghost sm" data-act="viewer-login45">Open login</button><button class="btn primary sm" data-act="add-user45">Create login</button>`;
+    v.innerHTML=`<div class="card"><div class="hd"><h2>Restricted users</h2></div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Assigned price lists</th><th>Catalogs</th><th></th></tr></thead><tbody>${S.viewerUsers.length?S.viewerUsers.map(u=>`<tr><td><b>${esc(u.name)}</b><div class="metric-sub">PIN ${'•'.repeat(Math.max(4,String(u.pin||'').length))}</div></td><td><span class="role45">${roleLabel45(u)}</span>${u.active===false?' <span class="tag" style="margin-left:5px">Disabled</span>':''}</td><td>${(u.allowedPriceBookIds||[]).map(id=>{const p=S.priceBooks.find(x=>x.id===id);return p?esc(p.name):null}).filter(Boolean).join(', ')||'—'}</td><td>${(u.allowedCatalogFileIds||[]).map(id=>{const c=(S.catalogFiles||[]).find(x=>x.id===id);return c?esc(c.title||c.filename||'Catalog'):null}).filter(Boolean).join(', ')||'—'}</td><td class="r"><button class="link" data-a45-edit="${u.id}">change access</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty-mini">No restricted login created yet.</td></tr>'}</tbody></table></div></div>
+    <div class="card" style="margin-top:14px"><div class="hd"><h2>Saved Price Books</h2><div class="spacer"></div><button class="btn ghost sm" data-nav="list">Create / update</button></div><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Category</th><th class="r">Actions</th></tr></thead><tbody>${S.priceBooks.length?S.priceBooks.map(pb=>`<tr><td><b>${esc(pb.name)}</b></td><td>${esc(pb.category||'Other')}</td><td class="r"><button class="link" data-pb-load="${pb.id}">edit</button> · <button class="link" data-pb-pdf="${pb.id}">PDF</button> · <button class="link" data-a45-share="${pb.id}">share</button></td></tr>`).join(''):'<tr><td colspan="3" class="empty-mini">Create a customer price list and use “Save as Price Book”.</td></tr>'}</tbody></table></div></div>`;
+    v.querySelectorAll('[data-a45-edit]').forEach(b=>b.onclick=()=>userEditor45(b.dataset.a45Edit));
+  }
+
+  async function shareBook45(id){
+    const pb=S.priceBooks.find(x=>x.id===id);if(!pb)return;
+    try{
+      const cfg=window.priceBookListConfig44(pb),doc=buildPDF(cfg),blob=doc.output('blob'),safe=(pb.name||'price-list').replace(/[^\w\- ]+/g,'').trim()||'price-list',file=new File([blob],safe+'.pdf',{type:'application/pdf'});
+      if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:pb.name,text:pb.name,files:[file]});return}
+      doc.save(safe+'.pdf');toast('PDF downloaded. Share it from WhatsApp / Files.');
+    }catch(e){if(e&&e.name==='AbortError')return;toast('Could not open share sheet; downloading instead');window.downloadPriceBookPDF44(id)}
+  }
+  window.shareBook45=shareBook45;
+
+  renderNav=function(){oldRenderNav45(); if(!ui.viewerSession) coreNav45();};
+  render=function(){
+    if(page==='core45'||page==='access45'){
+      renderNav();$('#brandName').textContent=S.settings.firm||'Price & Stock Manager';const bs=document.querySelector('.brand span');if(bs)bs.textContent='costing · price books · stock · access';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='core45')viewCore45(v,t,sub,act);else viewAccess45(v,t,sub,act);return;
+    }
+    const out=oldRender45(); if(!ui.viewerSession) coreNav45();
+    const bs=document.querySelector('.brand span');if(bs)bs.textContent='costing · price books · stock · access';
+    setTimeout(()=>{ if(ui.viewerSession){
+      const ov=document.getElementById('viewerMode44');if(!ov)return;
+      const u=S.viewerUsers.find(x=>x.id===ui.viewerSession.userId);const note=ov.querySelector('.note');if(note&&u)note.textContent=`${roleLabel45(u)} · ${u.name}`;
+      ov.querySelectorAll('[data-v44-pdf]').forEach(b=>{if(b.parentElement.querySelector(`[data-share45="${b.dataset.v44Pdf}"]`))return;const s=document.createElement('button');s.className='btn primary sm';s.dataset.share45=b.dataset.v44Pdf;s.style.cssText='flex:1;min-width:130px';s.textContent='Share / WhatsApp';s.onclick=()=>shareBook45(s.dataset.share45);b.parentElement.appendChild(s)});
+    }},0);return out;
+  };
+
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('[data-act]');if(a&&a.dataset.act==='add-user45'){e.preventDefault();e.stopImmediatePropagation();return userEditor45()}
+    if(a&&a.dataset.act==='viewer-login45'){e.preventDefault();e.stopImmediatePropagation();return window.viewerLoginPrompt44()}
+    const sh=e.target.closest('[data-a45-share]');if(sh){e.preventDefault();return shareBook45(sh.dataset.a45Share)}
+  },true);
+
+  // Start new simplified builds on Home while preserving user data and old modules in storage.
+  if(!sessionStorage.getItem('pm45-started')){sessionStorage.setItem('pm45-started','1');page='core45';}
+  setTimeout(()=>render(),0);
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_45};
+})();
+</script>
+
+
+<script id="pm-v227-architecture-fixes">
+(()=>{
+  const PM_VERSION_227='2.29 access switching + effective-date rate notice';
+  const n=x=>String(x??'').trim().toLowerCase(),clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+  S.purchaseReturns=S.purchaseReturns||[];S.inventoryCost=S.inventoryCost||{};S.uomMaster=S.uomMaster||[];ui.list=ui.list||{};ui.list.productUoms227=ui.list.productUoms227||{};
+
+  /* ---------- discount rule determinism: one rule per party + scope + target ---------- */
+  const saveBefore227=save;
+  save=function(){
+    const before=(S.rules||[]).length,last=new Map();(S.rules||[]).forEach((r,i)=>last.set([r.party||'',r.scope||'all',n(r.target||'')].join('|'),i));
+    S.rules=(S.rules||[]).filter((r,i)=>last.get([r.party||'',r.scope||'all',n(r.target||'')].join('|'))===i);
+    if((S.rules||[]).length<before&&!window.__dupRuleWarn227){window.__dupRuleWarn227=true;setTimeout(()=>{toast('Duplicate discount rule detected — the newest rule was kept and the older duplicate removed.');window.__dupRuleWarn227=false},0)}
+    return saveBefore227();
+  };
+
+  /* ---------- price-book isolation + per-book product UOM ---------- */
+  const BOOK_KEYS227=['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','title','targetUnit30','extraPct','overrides','qtyBasis26','changedOnly26','productUoms227'];
+  function clearBookUi227(){BOOK_KEYS227.forEach(k=>{if(k==='cats'||k==='excluded')ui.list[k]=[];else if(k==='customerCols')ui.list[k]={code:true,size:true,packing:true,mrp:true,barcode:false,netWt:false};else if(k==='overrides'||k==='productUoms227')ui.list[k]={};else if(['hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','changedOnly26'].includes(k))ui.list[k]=false;else ui.list[k]=''})}
+  window.loadPriceBook44=function(id){const pb=S.priceBooks.find(x=>x.id===id);if(!pb)return;clearBookUi227();Object.keys(pb.config||{}).forEach(k=>ui.list[k]=clone(pb.config[k]));page='list';render();toast('Loaded "'+pb.name+'" into the list builder')};
+  window.priceBookListConfig44=function(pb){const saved={};BOOK_KEYS227.forEach(k=>saved[k]=clone(ui.list[k]));clearBookUi227();Object.keys(pb.config||{}).forEach(k=>ui.list[k]=clone(pb.config[k]));let cfg;try{cfg=listConfig()}finally{BOOK_KEYS227.forEach(k=>{if(saved[k]===undefined)delete ui.list[k];else ui.list[k]=saved[k]})}return cfg};
+
+  function uomFactor227(p,unit){if(n(unit)==='pc')return 1;const row=(S.uomMaster||[]).find(x=>x.productId===p.id&&n(x.unit)===n(unit));if(row&&+row.pcsPerUnit>0)return +row.pcsPerUnit;if(n(unit)===n(p.priceUnit)){try{const x=+window.piecesPerNativeUnit43(p);if(x>0)return x}catch(e){}}return null}
+  function availableUoms227(p){const a=[];const add=u=>{u=String(u||'').trim();if(u&&!a.some(x=>n(x)===n(u)))a.push(u)};add(p.priceUnit||'Unit');try{if(+window.piecesPerNativeUnit43(p)>0)add('Pc')}catch(e){}(S.uomMaster||[]).filter(x=>x.productId===p.id&&+x.pcsPerUnit>0).forEach(x=>add(x.unit));return a}
+  const listConfigBefore227=listConfig;
+  listConfig=function(){
+    const saved=S.products.map(p=>[p,p.priceListUnit]);S.products.forEach(p=>p.priceListUnit=null);
+    let cfg;try{cfg=listConfigBefore227()}finally{saved.forEach(([p,u])=>p.priceListUnit=u)}
+    const fi=(cfg.columns||[]).findIndex(c=>c.key==='final');if(fi<0)return cfg;
+    const items=listItems(),map=ui.list.productUoms227||{};let ix=0;
+    (cfg.groups||[]).forEach(g=>(g.rows||[]).forEach(row=>{const p=items[ix++];if(!p)return;const target=map[p.id]||p.priceListUnit||'';if(!target||n(target)===n(p.priceUnit))return;const m=String(row[fi]||'').match(/[\d,]+(?:\.\d+)?/);if(!m)return;const raw=parseFloat(m[0].replace(/,/g,''));let nativePcs;try{nativePcs=+window.piecesPerNativeUnit43(p)}catch(e){}if(!(nativePcs>0))return;const perPc=raw/nativePcs,targetPcs=uomFactor227(p,target);if(!(targetPcs>0))return;const val=Math.round(perPc*targetPcs*100)/100,fmt=(typeof money2dp33==='function'&&ui.list.exactDecimal30!==false)?money2dp33(val):money(val);row[fi]=S.settings.currency+fmt+'/'+target}));return cfg;
+  };
+
+  function uomBookDialog227(){const items=listItems();if(!items.length)return toast('No products in the current price list');const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:760px"><div class="hd"><h2 style="margin:0">Price Book product UOM</h2></div><div class="bd"><div class="note">These UOM choices belong to this price-list configuration only. The same product can be /Box in Wholesale and /Pc in Retail.</div><input id="U227q" type="search" placeholder="Search product" style="width:100%;margin:10px 0"><div id="U227rows" style="max-height:520px;overflow:auto"></div></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`;document.body.appendChild(m);const rows=m.querySelector('#U227rows'),draw=()=>{const q=n(m.querySelector('#U227q').value);const map=ui.list.productUoms227||(ui.list.productUoms227={});rows.innerHTML=items.filter(p=>!q||n(p.code+' '+p.name+' '+p.category).includes(q)).slice(0,500).map(p=>{const us=availableUoms227(p),cur=map[p.id]||p.priceListUnit||p.priceUnit||'';return `<div style="display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:10px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line-2)"><div><b>${esc(p.code)} · ${esc(p.name)}</b><div class="metric-sub">${esc(p.category||'')} · native ${esc(p.priceUnit||'Unit')}</div></div><select data-u227="${p.id}">${us.map(u=>`<option value="${esc(u)}" ${n(u)===n(cur)?'selected':''}>${esc(u)}</option>`).join('')}</select></div>`}).join('');rows.querySelectorAll('[data-u227]').forEach(sel=>sel.onchange=e=>{map[e.target.dataset.u227]=e.target.value;save()})};draw();m.querySelector('#U227q').oninput=draw;m.onclick=e=>{if(e.target.closest('[data-x="close"]')||e.target===m){m.remove();render()}}}
+  function nativeToDisplay227(p,rate,unit){if(rate==null||isNaN(rate))return null;unit=unit||p.priceUnit||'Unit';if(n(unit)===n(p.priceUnit))return +rate;let nativePcs;try{nativePcs=+window.piecesPerNativeUnit43(p)}catch(e){}const targetPcs=uomFactor227(p,unit);if(!(nativePcs>0)||!(targetPcs>0))return +rate;return Math.round((+rate/nativePcs*targetPcs)*100)/100}
+  function displayToNative227(p,rate,unit){if(rate==null||isNaN(rate))return null;unit=unit||p.priceUnit||'Unit';if(n(unit)===n(p.priceUnit))return +rate;let nativePcs;try{nativePcs=+window.piecesPerNativeUnit43(p)}catch(e){}const targetPcs=uomFactor227(p,unit);if(!(nativePcs>0)||!(targetPcs>0))return +rate;return Math.round((+rate/targetPcs*nativePcs)*10000)/10000}
+  const viewListBefore227=viewList;viewList=function(v,t,sub,act){
+    viewListBefore227(v,t,sub,act);
+    const unitMap=ui.list.productUoms227||{};
+    v.querySelectorAll('[data-list-rate]').forEach(inp=>{const p=S.products.find(x=>x.id===inp.dataset.listRate);if(!p)return;const unit=unitMap[p.id]||p.priceListUnit||p.priceUnit||'Unit',native=(window.PriceManagerAPI&&window.PriceManagerAPI.priceListRate)?window.PriceManagerAPI.priceListRate(p):p.price,shown=nativeToDisplay227(p,native,unit);inp.value=shown==null?'':shown;inp.title='Final rate per '+unit;let note=inp.parentElement&&inp.parentElement.querySelector('.uom-edit-note-228');if(!note&&inp.parentElement){note=document.createElement('div');note.className='metric-sub uom-edit-note-228';inp.parentElement.appendChild(note)}if(note)note.textContent='Editing '+unit+' rate';inp.onchange=e=>{const val=nz(e.target.value);if(val==null)return;ui.list.overrides=ui.list.overrides||{};ui.list.overrides[p.id]=displayToNative227(p,val,unit);render()}});
+    if(act&&!act.querySelector('[data-act="uom-book-227"]')){const b=document.createElement('button');b.className='btn ghost sm';b.dataset.act='uom-book-227';b.textContent='Product UOM for this list';act.appendChild(b)}
+  };
+  document.addEventListener('click',e=>{if(e.target.closest('[data-act="uom-book-227"]')){e.preventDefault();uomBookDialog227()}},true);
+
+  /* ---------- inventory-cost replay and purchase lineage ---------- */
+  function qty227(x){return Math.max(0,+x||0)}
+  function purchaseLots227(productId){
+    const events=[];
+    (S.purchases||[]).filter(po=>po.status!=='cancelled').forEach(po=>{const its=(po.items||[]).filter(i=>i.productId===productId),q=its.reduce((a,i)=>a+qty227(i.stockQty),0);if(q>0){const value=its.reduce((a,i)=>a+qty227(i.stockQty)*(+i.landedUnitCost||0),0);events.push({at:+po.date||+po.createdAt||0,type:'buy',purchaseId:po.id,qty:q,cost:value/q})}});
+    (S.purchaseReturns||[]).filter(r=>r.status!=='cancelled').forEach(r=>(r.items||[]).filter(i=>i.productId===productId).forEach(i=>events.push({at:+r.date||0,type:'return',purchaseId:r.purchaseId,qty:qty227(i.qty)})));
+    (S.invoices||[]).filter(inv=>!inv.cancelled).forEach(inv=>(inv.items||[]).filter(i=>i.id===productId).forEach(i=>events.push({at:+inv.date||0,type:'consume',qty:qty227(i.qty)})));
+    (S.stockMoves||[]).filter(m=>m.productId===productId&&!['Purchase Inward','Purchase Return','Purchase Reversal','Sale','Sale cancelled','Sale restored'].includes(m.type)).forEach(m=>{const q=+m.qty||0;if(q)events.push({at:+m.at||0,type:q<0?'consume':'adjustAdd',qty:Math.abs(q)})});
+    events.sort((a,b)=>a.at-b.at||({buy:0,adjustAdd:1,consume:2,return:3}[a.type]-{buy:0,adjustAdd:1,consume:2,return:3}[b.type]));
+    const lots=[];const consume=q=>{let left=q;for(const l of lots){if(left<=1e-9)break;const take=Math.min(left,l.rem);l.rem-=take;left-=take}};
+    for(const ev of events){if(ev.type==='buy')lots.push({purchaseId:ev.purchaseId,rem:ev.qty,cost:ev.cost});else if(ev.type==='adjustAdd')lots.push({purchaseId:null,rem:ev.qty,cost:null});else if(ev.type==='consume')consume(ev.qty);else if(ev.type==='return'){const l=lots.find(x=>x.purchaseId===ev.purchaseId);if(l)l.rem=Math.max(0,l.rem-ev.qty)}}
+    return lots;
+  }
+  window.purchaseRemainingQty227=(productId,purchaseId)=>{const l=purchaseLots227(productId).find(x=>x.purchaseId===purchaseId);return l?Math.max(0,l.rem):0};
+  function latestActivePurchase227(productId){const arr=[];(S.purchases||[]).filter(po=>po.status!=='cancelled').forEach(po=>{const its=(po.items||[]).filter(i=>i.productId===productId);if(!its.length)return;const stockQty=its.reduce((a,i)=>a+qty227(i.stockQty),0),returned=(S.purchaseReturns||[]).filter(r=>r.status!=='cancelled'&&r.purchaseId===po.id).reduce((a,r)=>a+(r.items||[]).filter(i=>i.productId===productId).reduce((z,i)=>z+(+i.qty||0),0),0);if(stockQty-returned<=1e-9)return;const w=(field,perStock=false)=>{let den=0,num=0;for(const i of its){const q=qty227(i.stockQty);if(!q)continue;let v=+i[field];if(perStock)v=(+i.purchaseUnitRate||0)/(+i.factor||1);if(Number.isFinite(v)){den+=q;num+=q*v}}return den?num/den:null},it={...its[its.length-1],stockQty,landedUnitCost:w('landedUnitCost'),purchaseUnitRate:w('purchaseUnitRate',true),factor:1,freightAllocated:its.reduce((a,i)=>a+(+i.freightAllocated||0),0),otherAllocated:its.reduce((a,i)=>a+(+i.otherAllocated||0),0)};arr.push({po,it})});return arr.sort((a,b)=>(+b.po.date||0)-(+a.po.date||0))[0]||null}
+  window.recomputeInventoryCost227=function(productId){const p=S.products.find(x=>x.id===productId);if(!p)return;const moves=(S.stockMoves||[]).filter(m=>m.productId===productId).slice().sort((a,b)=>(+a.at||0)-(+b.at||0));let q=0,value=0,avg=null;for(const m of moves){const dq=+m.qty||0;if(!dq)continue;if(dq>0){const cost=(m.type==='Purchase Inward'&&m.rate!=null)?+m.rate:(avg ?? (+m.rate||0));value+=dq*(Number.isFinite(cost)?cost:0);q+=dq}else{const take=Math.min(q,Math.abs(dq));let outCost=avg??0;if((m.type==='Purchase Return'||m.type==='Purchase Reversal')&&m.rate!=null&&Number.isFinite(+m.rate))outCost=+m.rate;let nextValue=value-take*outCost,nextQ=q-take;if(nextQ<=1e-9){q=0;value=0}else{if(!Number.isFinite(nextValue)||nextValue<0)nextValue=nextQ*(avg??0);q=nextQ;value=nextValue}}avg=q>0?Math.max(0,value/q):null}const latest=latestActivePurchase227(productId),ic=S.inventoryCost[productId]||{};if(latest){const {po,it}=latest;S.inventoryCost[productId]={...ic,avgCost:avg,lastPurchaseCost:+it.landedUnitCost||null,replacementCost:+it.landedUnitCost||null,lastPurchaseRate:+it.purchaseUnitRate||null,lastSupplier:po.supplier||'',lastPurchaseAt:po.date||0};const pc=S.purchaseCosts[productId]||{},f=+it.factor||1;S.purchaseCosts[productId]={...pc,base:it.purchaseUnitRate!=null?(+it.purchaseUnitRate/f):pc.base,discountPct:it.discountPct??pc.discountPct,override:it.landedUnitCost!=null?+it.landedUnitCost:pc.override,freight:it.stockQty?((+it.freightAllocated||0)/+it.stockQty):pc.freight,other:it.stockQty?((+it.otherAllocated||0)/+it.stockQty):pc.other,updatedAt:Date.now()}}else{S.inventoryCost[productId]={...ic,avgCost:avg,lastPurchaseCost:null,replacementCost:avg,lastPurchaseRate:null,lastSupplier:'',lastPurchaseAt:null};const pc=S.purchaseCosts[productId]||{};if(pc){delete pc.override;delete pc.base;delete pc.discountPct;delete pc.freight;delete pc.other;pc.updatedAt=Date.now()}}};
+  function recomputeMany227(ids){[...new Set(ids)].forEach(window.recomputeInventoryCost227)}
+
+  /* Purchase reverse/return/feed are patched inside the v2.8 purchase module above; recompute helpers remain global. */
+
+  /* ---------- multi-file supplier import history ---------- */
+  handleFiles=async function(files){if(!files.length)return;const prog=$('#prog');let got=[],sources=[];for(const file of files){prog.innerHTML=`<div class="card"><div class="bd">Reading <b>${esc(file.name)}</b>…<div class="bar" style="margin-top:8px"><i id="pb" style="width:5%"></i></div></div></div>`;try{let arr;if(/\.csv$/i.test(file.name))arr=csvToProducts(await file.text(),file.name.replace(/\.csv$/i,''));else arr=await parsePriceListPDF(file,(p,n)=>{const b=$('#pb');if(b)b.style.width=Math.round(p/n*100)+'%'});arr=arr.map(x=>({...x,__sourceFile:file.name,__sourceCatalog:x.catalog||file.name.replace(/\.[^.]+$/,'')}));sources.push({file:file.name,count:arr.length});got=got.concat(arr)}catch(err){prog.innerHTML=`<div class="warn">${esc(file.name)}: ${esc(err.message||err)}</div>`;return}}if(!got.length){prog.innerHTML='<div class="warn">No product rows found. The file may be a scan, or use a layout this reader does not recognise.</div>';return}ui.review={items:got,mode:'merge',drop:new Set(),sources};render()};
+  confirmImport=function(){const R=ui.review;let added=0,updated=0;const changes=[],newOnes=[],stats={};const r2=x=>(x==null||isNaN(x))?null:Math.round(x*100)/100;R.items.forEach(p=>{p.price=r2(p.price);p.mrp=r2(p.mrp)});R.items.forEach((p,i)=>{if(R.drop.has(i))return;const src=p.__sourceFile||p.catalog||'Import';stats[src]=stats[src]||{added:0,updated:0,catalogs:new Set()};stats[src].catalogs.add(p.catalog||'');const ex=findByCode(p.code);if(ex&&R.mode!=='dupe'){if(R.mode==='merge'){if(p.price!=null&&p.price!==ex.price)changes.push({code:ex.code,name:ex.name,catalog:ex.catalog,old:ex.price,now:p.price});ex.price=p.price!=null?p.price:ex.price;ex.mrp=p.mrp!=null?p.mrp:ex.mrp;ex.packing=p.packing||ex.packing;ex.size=p.size||ex.size;ex.netWt=p.netWt||ex.netWt;ex.barcode=p.barcode||ex.barcode;ex.priceUnit=p.priceUnit||ex.priceUnit;ex.category=p.category||ex.category;ex.updatedAt=Date.now();updated++;stats[src].updated++}return}delete p.__sourceFile;delete p.__sourceCatalog;S.products.push(p);added++;stats[src].added++;newOnes.push(p.code)});Object.entries(stats).forEach(([file,z])=>S.imports.unshift({at:Date.now(),catalog:[...z.catalogs].filter(Boolean).join(', ')||file,sourceFile:file,added:z.added,updated:z.updated}));logHistory({type:'import',title:Object.keys(stats).join(' + '),sources:Object.entries(stats).map(([file,z])=>({file,added:z.added,updated:z.updated})),added,updated,newCodes:newOnes.slice(0,60),changes});ui.review=null;save();go('inv');toast(`${added} added, ${updated} updated from ${Object.keys(stats).length} file(s)`)};
+
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_227};
+})();
+</script>
+<script src="secure-access.js"></script>
+<script id="pm-v230-commercial-suite">
+(()=>{
+  const V='2.30 Commercial price-list workflow';
+  const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+  const norm=x=>String(x??'').trim().toLowerCase();
+  const n2=x=>{x=+x;return Number.isFinite(x)?Math.round(x*100)/100:null};
+  S.customerRateTemplates230=S.customerRateTemplates230||[];
+  S.pdfBrandTemplates230=S.pdfBrandTemplates230||[];
+  if(!S.pdfBrandTemplates230.length)S.pdfBrandTemplates230.push({id:'default',name:'Standard',firm:S.settings.firm||'',subtitle:'',contact:'',footer:S.settings.footer||'',showEffective:true});
+  S.priceBooks=S.priceBooks||[];S.viewerUsers=S.viewerUsers||[];
+  ui.list=ui.list||{};ui.list.rateOnRequest230=ui.list.rateOnRequest230||{};ui.list.brandingTemplateId230=ui.list.brandingTemplateId230||'default';
+
+  const CFG_KEYS=['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','title','targetUnit30','extraPct','overrides','qtyBasis26','changedOnly26','productUoms227','rateOnRequest230','brandingTemplateId230'];
+  const TEMPLATE_KEYS=['party','extraPct','qtyBasis26','customerCols','exactDecimal30','productUoms227','brandingTemplateId230'];
+  function cfgNow(){const o={};CFG_KEYS.forEach(k=>o[k]=clone(ui.list[k]));return o}
+  function withCfg(cfg,fn){const saved={};CFG_KEYS.forEach(k=>saved[k]=clone(ui.list[k]));CFG_KEYS.forEach(k=>{if(k==='cats'||k==='excluded')ui.list[k]=[];else if(k==='customerCols')ui.list[k]={code:true,size:true,packing:true,mrp:true,barcode:false,netWt:false};else if(['overrides','productUoms227','rateOnRequest230'].includes(k))ui.list[k]={};else if(['hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','changedOnly26'].includes(k))ui.list[k]=false;else ui.list[k]=''});Object.entries(cfg||{}).forEach(([k,v])=>ui.list[k]=clone(v));try{return fn()}finally{CFG_KEYS.forEach(k=>{if(saved[k]===undefined)delete ui.list[k];else ui.list[k]=saved[k]})}}
+  function activeBrand(cfg=ui.list){const id=cfg.brandingTemplateId230||'default';return S.pdfBrandTemplates230.find(x=>x.id===id)||S.pdfBrandTemplates230[0]||null}
+  function rateNative(p){try{return window.PriceManagerAPI?.priceListRate?.(p)??p.price}catch(e){return p.price}}
+  function piecesNative(p){try{const x=+window.piecesPerNativeUnit43(p);if(x>0)return x}catch(e){}if(norm(p.priceUnit)==='pc'||norm(p.priceUnit)==='piece')return 1;const r=(S.uomMaster||[]).find(x=>x.productId===p.id&&norm(x.unit)===norm(p.priceUnit));return r&&+r.pcsPerUnit>0?+r.pcsPerUnit:null}
+  function uomRows(p,rate){if(rate==null||!Number.isFinite(+rate))return[];const out=[],seen=new Set(),add=(u,pcs)=>{u=String(u||'').trim();pcs=+pcs;if(!u||!(pcs>0)||seen.has(norm(u)))return;seen.add(norm(u));const nativePcs=piecesNative(p);if(!(nativePcs>0))return;out.push({unit:u,rate:n2(+rate/nativePcs*pcs)})};const nativePcs=piecesNative(p);if(nativePcs>0){add(p.priceUnit||'Unit',nativePcs);add('Pc',1);(S.uomMaster||[]).filter(x=>x.productId===p.id&&+x.pcsPerUnit>0).forEach(x=>add(x.unit,+x.pcsPerUnit))}else out.push({unit:p.priceUnit||'Unit',rate:n2(rate)});return out}
+  function snapshot(cfg){return withCfg(cfg,()=>{const ror=ui.list.rateOnRequest230||{},uoms=ui.list.productUoms227||{};return (typeof listItems==='function'?listItems():[]).map(p=>({id:p.id,code:p.code,name:p.name,rate:ror[p.id]?null:n2(rateNative(p)),onRequest:!!ror[p.id],uom:uoms[p.id]||p.priceListUnit||p.priceUnit||'Unit'}))})}
+  function diffSnap(oldRows,newRows){const a=new Map((oldRows||[]).map(x=>[x.id||x.code,x])),b=new Map((newRows||[]).map(x=>[x.id||x.code,x]));let changed=0,increased=0,decreased=0,added=0,removed=0;const details=[];for(const [k,n] of b){const o=a.get(k);if(!o){added++;details.push({...n,type:'added',oldRate:null,newRate:n.rate});continue}const stateChanged=!!o.onRequest!==!!n.onRequest||Math.abs((+o.rate||0)-(+n.rate||0))>.009||norm(o.uom)!==norm(n.uom);if(stateChanged){changed++;if(!o.onRequest&&!n.onRequest&&n.rate>o.rate)increased++;if(!o.onRequest&&!n.onRequest&&n.rate<o.rate)decreased++;details.push({...n,type:'changed',oldRate:o.rate,newRate:n.rate,oldOnRequest:o.onRequest,newOnRequest:n.onRequest,oldUom:o.uom,newUom:n.uom})}}for(const [k,o] of a)if(!b.has(k)){removed++;details.push({...o,type:'removed',oldRate:o.rate,newRate:null})}return {changed,increased,decreased,added,removed,total:newRows.length,details:details.slice(0,250)}}
+  function fmtD(s){if(!s)return'—';try{return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return s}}
+  function bookCurrentCfg(pb){if(pb?.scheduled230&&new Date(pb.scheduled230.effectiveDate+'T00:00:00').getTime()<=Date.now())return pb.scheduled230.config;return pb?.config||{}}
+  function promoteDue(){let n=0;for(const pb of S.priceBooks){const sc=pb.scheduled230;if(!sc)continue;const at=new Date(sc.effectiveDate+'T00:00:00').getTime();if(at<=Date.now()){pb.previousConfig230=clone(pb.config);pb.config=clone(sc.config);pb.lastChange230=clone(sc.summary||diffSnap(snapshot(pb.previousConfig230),snapshot(pb.config)));pb.effectiveFrom230=sc.effectiveDate;pb.version230=(+pb.version230||1)+1;delete pb.scheduled230;pb.updatedAt=Date.now();n++}}if(n){try{save()}catch(e){}}return n}
+  promoteDue();setInterval(promoteDue,60000);
+
+  // Customer-facing PDF: branding + Rate on Request.
+  const listConfigBefore230=listConfig;
+  listConfig=function(){const cfg=listConfigBefore230();const items=typeof listItems==='function'?listItems():[],ror=ui.list.rateOnRequest230||{},fi=(cfg.columns||[]).findIndex(c=>c.key==='final');if(fi>=0){let i=0;(cfg.groups||[]).forEach(g=>(g.rows||[]).forEach(row=>{const p=items[i++];if(p&&ror[p.id])row[fi]='Rate on request'}))}const b=activeBrand();if(b){if(b.firm)cfg.firm=b.firm;const meta=[b.subtitle,b.contact,cfg.meta].filter(Boolean).join('  ·  ');cfg.meta=meta;cfg.footer=b.footer||cfg.footer;if(b.showEffective!==false&&ui.list.effectiveDate230)cfg.sub=[cfg.sub,'Effective '+fmtD(ui.list.effectiveDate230)].filter(Boolean).join('  ·  ')}return cfg};
+
+  // Preserve new config keys whenever an existing Price Book is loaded/rendered as PDF.
+  const oldLoad=window.loadPriceBook44;
+  window.loadPriceBook44=function(id){ui.editingPriceBook230=id;const pb=S.priceBooks.find(x=>x.id===id);if(pb&&pb.scheduled230&&new Date(pb.scheduled230.effectiveDate+'T00:00:00').getTime()<=Date.now())promoteDue();oldLoad(id);const now=S.priceBooks.find(x=>x.id===id);if(now){ui.list.rateOnRequest230=clone(now.config?.rateOnRequest230||{});ui.list.brandingTemplateId230=now.config?.brandingTemplateId230||'default';ui.list.effectiveDate230=now.effectiveFrom230||''}}
+  window.priceBookListConfig44=function(pb){return withCfg(bookCurrentCfg(pb),()=>listConfig())};
+
+  function previewModal(existing,name,category,newCfg,onCommit){const old=snapshot(existing?bookCurrentCfg(existing):{}),neu=snapshot(newCfg),d=existing?diffSnap(old,neu):{changed:0,increased:0,decreased:0,added:neu.length,removed:0,total:neu.length,details:neu.slice(0,20).map(x=>({...x,type:'added'}))};const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:720px"><div class="hd"><div><h2 style="margin:0">Publish preview · ${esc(name)}</h2><div class="note">Confirm what will change before this Price Book is saved.</div></div></div><div class="bd"><div class="core45-grid" style="grid-template-columns:repeat(5,minmax(0,1fr))"><div class="core45-step"><b>${d.changed}</b>changed</div><div class="core45-step"><b>${d.increased}</b>increased</div><div class="core45-step"><b>${d.decreased}</b>decreased</div><div class="core45-step"><b>${d.added}</b>new</div><div class="core45-step"><b>${d.removed}</b>removed</div></div><div class="tbl-wrap" style="margin-top:12px;max-height:320px"><table><thead><tr><th>Product</th><th>Change</th><th class="r">Old</th><th class="r">New</th></tr></thead><tbody>${d.details.slice(0,30).map(x=>`<tr><td><b>${esc(x.code||'')}</b> · ${esc(x.name||'')}</td><td>${esc(x.type)}${x.newOnRequest?' · Rate on request':''}</td><td class="r">${x.oldOnRequest?'On request':x.oldRate==null?'—':money(x.oldRate)}</td><td class="r">${x.newOnRequest?'On request':x.newRate==null?'—':money(x.newRate)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No rate differences.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="publish">Confirm & save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();m.remove();onCommit(d)}}
+  window.saveAsPriceBook44=function(){const existing=ui.editingPriceBook230?S.priceBooks.find(x=>x.id===ui.editingPriceBook230):null;const m=document.createElement('div');m.className='modal';const cats=[...new Set(S.priceBooks.map(x=>x.category).filter(Boolean))];m.innerHTML=`<div class="box" style="max-width:520px"><div class="hd"><h2 style="margin:0">${existing?'Update':'Save'} Price Book</h2></div><div class="bd"><div class="field"><label>Name</label><input id="PB230name" value="${esc(existing?.name||'')}"></div><div class="field"><label>Category</label><input id="PB230cat" list="PB230cats" value="${esc(existing?.category||ui.list.catalog||'Other')}"><datalist id="PB230cats">${cats.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>${existing?'<label class="note"><input id="PB230copy" type="checkbox"> Save as a new copy instead of updating this Price Book</label>':''}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="next">Preview changes</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const name=m.querySelector('#PB230name').value.trim(),category=m.querySelector('#PB230cat').value.trim()||'Other',copy=!!m.querySelector('#PB230copy')?.checked;if(!name)return toast('Enter Price Book name');const newCfg=cfgNow(),target=copy?null:existing;m.remove();previewModal(target,name,category,newCfg,d=>{if(target){target.previousConfig230=clone(target.config);target.config=clone(newCfg);target.name=name;target.category=category;target.lastChange230=d;target.version230=(+target.version230||1)+1;target.updatedAt=Date.now();target.effectiveFrom230=new Date().toISOString().slice(0,10)}else{const pb={id:uid(),name,category,config:clone(newCfg),createdAt:Date.now(),updatedAt:Date.now(),version230:1,effectiveFrom230:new Date().toISOString().slice(0,10),lastChange230:d};S.priceBooks.push(pb);ui.editingPriceBook230=pb.id}save();render();toast('Price Book saved after preview')})}}
+
+  function scheduleDialog(){const pb=S.priceBooks.find(x=>x.id===ui.editingPriceBook230);if(!pb)return toast('Load an existing Price Book first, make the new rates, then schedule them.');const m=document.createElement('div');m.className='modal';const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);m.innerHTML=`<div class="box" style="max-width:560px"><div class="hd"><h2 style="margin:0">Schedule new rates · ${esc(pb.name)}</h2></div><div class="bd"><div class="field"><label>Effective from</label><input id="SCH230date" type="date" min="${tomorrow}" value="${pb.scheduled230?.effectiveDate||tomorrow}"></div><div class="field"><label>Internal note</label><input id="SCH230note" value="${esc(pb.scheduled230?.note||'')}" placeholder="October rate revision"></div><div class="private-note">The current Price Book stays live until the effective date. Assigned customer/sales logins receive the future version too and switch automatically on that date.</div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Preview & schedule</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const date=m.querySelector('#SCH230date').value,note=m.querySelector('#SCH230note').value.trim(),at=new Date(date+'T00:00:00').getTime();if(!date||!(at>Date.now()))return toast('Choose a future effective date');const proposed=cfgNow(),d=diffSnap(snapshot(bookCurrentCfg(pb)),snapshot(proposed));m.remove();previewModal(pb,pb.name,pb.category,proposed,()=>{pb.scheduled230={effectiveDate:date,config:clone(proposed),summary:d,note,createdAt:Date.now()};save();render();toast('New rates scheduled for '+fmtD(date))})}}
+
+  function templateDialog(){const m=document.createElement('div');m.className='modal';const draw=()=>{m.innerHTML=`<div class="box" style="max-width:650px"><div class="hd"><h2 style="margin:0">Customer rate templates</h2></div><div class="bd"><div class="note">Save reusable Wholesale / Distributor / Retail pricing setup. Product selection and manual exception rates stay separate.</div><div class="field"><label>New template name</label><div style="display:flex;gap:8px"><input id="RT230name" placeholder="Distributor standard"><button class="btn primary sm" data-x="save-current">Save current setup</button></div></div><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Extra discount</th><th>Qty basis</th><th></th></tr></thead><tbody>${S.customerRateTemplates230.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.config?.extraPct||0)}%</td><td>${esc(t.config?.qtyBasis26||1)}</td><td class="r"><button class="link" data-apply="${t.id}">apply</button> · <button class="link" data-del="${t.id}">delete</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No templates yet.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`};draw();document.body.appendChild(m);m.onclick=e=>{const ap=e.target.closest('[data-apply]');if(ap){const t=S.customerRateTemplates230.find(x=>x.id===ap.dataset.apply);if(t){Object.entries(t.config||{}).forEach(([k,v])=>ui.list[k]=clone(v));m.remove();render();toast('Template applied')}return}const del=e.target.closest('[data-del]');if(del){S.customerRateTemplates230=S.customerRateTemplates230.filter(x=>x.id!==del.dataset.del);save();draw();return}const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();if(b.dataset.x==='save-current'){const name=m.querySelector('#RT230name').value.trim();if(!name)return toast('Enter template name');const c={};TEMPLATE_KEYS.forEach(k=>c[k]=clone(ui.list[k]));S.customerRateTemplates230.push({id:uid(),name,config:c,createdAt:Date.now()});save();draw();toast('Rate template saved')}}}
+
+  function brandingDialog(){const m=document.createElement('div');m.className='modal';const draw=()=>{m.innerHTML=`<div class="box" style="max-width:720px"><div class="hd"><h2 style="margin:0">PDF branding templates</h2></div><div class="bd"><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Header</th><th>Footer</th><th></th></tr></thead><tbody>${S.pdfBrandTemplates230.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.firm||'Default firm')}<div class="metric-sub">${esc(t.subtitle||'')}</div></td><td>${esc(t.footer||'—')}</td><td class="r"><button class="link" data-edit="${t.id}">edit</button>${t.id!=='default'?` · <button class="link" data-del="${t.id}">delete</button>`:''}</td></tr>`).join('')}</tbody></table></div><button class="btn primary sm" data-x="new" style="margin-top:10px">New branding template</button></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`};const edit=id=>{const t=S.pdfBrandTemplates230.find(x=>x.id===id)||{id:uid(),name:'',firm:'',subtitle:'',contact:'',footer:'',showEffective:true};m.innerHTML=`<div class="box" style="max-width:580px"><div class="hd"><h2 style="margin:0">PDF branding</h2></div><div class="bd"><div class="field"><label>Template name</label><input id="BR230name" value="${esc(t.name)}"></div><div class="field"><label>Firm / heading</label><input id="BR230firm" value="${esc(t.firm)}"></div><div class="field"><label>Subtitle</label><input id="BR230sub" value="${esc(t.subtitle)}"></div><div class="field"><label>Contact line</label><input id="BR230contact" value="${esc(t.contact)}"></div><div class="field"><label>Footer</label><input id="BR230footer" value="${esc(t.footer)}"></div><label class="note"><input id="BR230eff" type="checkbox" ${t.showEffective!==false?'checked':''}> Show effective date when available</label></div><div class="ft"><button class="btn ghost" data-x="back">Back</button><button class="btn primary" data-x="save-brand">Save</button></div></div>`;m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b)return;if(b.dataset.x==='back'){draw();return}if(b.dataset.x==='save-brand'){const data={name:m.querySelector('#BR230name').value.trim(),firm:m.querySelector('#BR230firm').value.trim(),subtitle:m.querySelector('#BR230sub').value.trim(),contact:m.querySelector('#BR230contact').value.trim(),footer:m.querySelector('#BR230footer').value.trim(),showEffective:m.querySelector('#BR230eff').checked};if(!data.name)return toast('Enter template name');const ex=S.pdfBrandTemplates230.find(x=>x.id===t.id);if(ex)Object.assign(ex,data);else S.pdfBrandTemplates230.push({id:t.id,...data});save();draw();toast('Branding template saved')}}};draw();document.body.appendChild(m);m.onclick=e=>{const ed=e.target.closest('[data-edit]');if(ed)return edit(ed.dataset.edit);const del=e.target.closest('[data-del]');if(del){S.pdfBrandTemplates230=S.pdfBrandTemplates230.filter(x=>x.id!==del.dataset.del);save();draw();return}const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();if(b.dataset.x==='new')edit(null)}}
+
+  // Enrich Price List builder.
+  const viewListBefore230=viewList;
+  viewList=function(v,t,sub,act){viewListBefore230(v,t,sub,act);if(act){const add=(id,label,fn,cls='ghost')=>{if(act.querySelector(`[data-act="${id}"]`))return;const b=document.createElement('button');b.className=`btn ${cls} sm`;b.dataset.act=id;b.textContent=label;b.onclick=fn;act.appendChild(b)};add('rate-templates-230','Rate templates',templateDialog);add('branding-230','PDF branding',brandingDialog);if(ui.editingPriceBook230)add('schedule-book-230','Schedule new rates',scheduleDialog,'primary')}
+    const firstCard=v.querySelector('.split .card .bd');if(firstCard&&!v.querySelector('#L_brand230')){const d=document.createElement('div');d.className='field';d.innerHTML=`<label>PDF branding template</label><select id="L_brand230">${S.pdfBrandTemplates230.map(x=>`<option value="${x.id}" ${ui.list.brandingTemplateId230===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select>`;firstCard.appendChild(d);d.querySelector('select').onchange=e=>{ui.list.brandingTemplateId230=e.target.value;render()}}
+    v.querySelectorAll('[data-list-rate]').forEach(inp=>{const id=inp.dataset.listRate,p=S.products.find(x=>x.id===id);if(!p)return;const tr=inp.closest('tr'),prod=tr?.children?.[1],cell=inp.closest('td');const manual=Object.prototype.hasOwnProperty.call(ui.list.overrides||{},id),ror=!!ui.list.rateOnRequest230?.[id];if(prod&&!prod.querySelector(`[data-ex230="${id}"]`)){const badges=document.createElement('div');badges.dataset.ex230=id;badges.className='metric-sub';badges.innerHTML=`${manual?'<span class="tag">Manual rate</span> ':''}${ror?'<span class="tag">Rate on request</span> ':''}<label style="margin-left:5px"><input type="checkbox" data-ror230="${id}" ${ror?'checked':''}> Rate on request</label>`;prod.appendChild(badges);badges.querySelector('[data-ror230]').onchange=e=>{ui.list.rateOnRequest230=ui.list.rateOnRequest230||{};if(e.target.checked)ui.list.rateOnRequest230[id]=true;else delete ui.list.rateOnRequest230[id];render()}}
+      if(cell&&!cell.querySelector('.uom-matrix230')){const rate=rateNative(p),rows=uomRows(p,rate),box=document.createElement('div');box.className='metric-sub uom-matrix230';box.style.cssText='margin-top:4px;max-width:240px;white-space:normal';box.textContent=rows.length?rows.map(x=>`${x.unit} ${S.settings.currency||'₹'}${money(x.rate)}`).join(' · '):'';cell.appendChild(box)}})
+  };
+
+  // 5-section owner navigation + hubs.
+  const renderBefore230=render;
+  const navBefore230=renderNav;
+  function nav230(){const nav=$('#nav');if(!nav)return;const items=[['supplier230','Supplier & Costing'],['pricing230','Price Lists'],['stock230','Purchase & Inventory'],['access45','Users & Access'],['catalog230','Catalogs']];nav.innerHTML=`<button data-nav="core45" class="${page==='core45'?'on':''}"><span>Home</span></button>`+items.map(([id,l])=>`<button data-nav="${id}" class="${page===id?'on':''}"><span>${l}</span></button>`).join('')+`<div class="nav-section">Other</div><button data-nav="set" class="${page==='set'?'on':''}"><span>Settings</span></button><button id="viewerLoginLink44"><span>Viewer login</span></button>`;const vl=nav.querySelector('#viewerLoginLink44');if(vl)vl.onclick=window.viewerLoginPrompt44}
+  renderNav=nav230;
+  function hub(v,t,sub,act,kind){const cards={supplier230:[['import','Import supplier price list','PDF/CSV supplier lists and product master.'],['cost','Purchase costing','Net purchase cost, discount, freight and overrides.'],['disc','Discount rules','Category/product/customer discount rules.']],pricing230:[['list','Create / update Price List','Customer final rates, UOM, exceptions and Rate on Request.'],['access45','Saved Price Books','Assign published Price Books to restricted users.']],stock230:[['purchase','Purchase bill / inward','Excel/CSV bills, landed cost and stock inward.'],['inv','Inventory','Stock, product master, units and current rates.']],catalog230:[['access45','Product catalog library','Upload category-wise PDF catalogs and assign users.']]};t.textContent={supplier230:'Supplier & Costing',pricing230:'Price Lists',stock230:'Purchase & Inventory',catalog230:'Catalogs'}[kind];sub.textContent='Focused tools only';act.innerHTML='';const extra=kind==='pricing230'?`<div class="card" style="margin-top:14px"><div class="hd"><h2>Price Book control</h2><div class="spacer"></div><button class="btn ghost sm" id="RT230manage">Rate templates</button><button class="btn ghost sm" id="BR230manage">PDF branding</button></div><div class="tbl-wrap"><table><thead><tr><th>Price Book</th><th>Version</th><th>Current / scheduled</th><th>Last change</th><th class="r">Action</th></tr></thead><tbody>${S.priceBooks.map(pb=>`<tr><td><b>${esc(pb.name)}</b><div class="metric-sub">${esc(pb.category||'Other')}</div></td><td>v${pb.version230||1}</td><td>${pb.scheduled230?`Current + scheduled ${esc(fmtD(pb.scheduled230.effectiveDate))}`:`Effective ${esc(fmtD(pb.effectiveFrom230))}`}</td><td>${pb.lastChange230?`${pb.lastChange230.changed||0} changed · ${pb.lastChange230.added||0} new · ${pb.lastChange230.removed||0} removed`:'—'}</td><td class="r"><button class="link" data-load230="${pb.id}">open</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty-mini">No Price Book yet.</td></tr>'}</tbody></table></div></div>`:'';v.innerHTML=`<div class="core45-grid">${(cards[kind]||[]).map(([id,a,b])=>`<button class="core45-card" data-nav="${id}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>${extra}`;v.querySelector('#RT230manage')?.addEventListener('click',templateDialog);v.querySelector('#BR230manage')?.addEventListener('click',brandingDialog);v.querySelectorAll('[data-load230]').forEach(b=>b.onclick=()=>window.loadPriceBook44(b.dataset.load230))}
+  render=function(){promoteDue();if(['supplier230','pricing230','stock230','catalog230'].includes(page)){renderNav();$('#brandName').textContent=S.settings.firm||'Price & Stock Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');hub(v,t,sub,act,page);return}const out=renderBefore230();setTimeout(()=>{renderNav();if(page==='core45'){const v=$('#view');if(v){const cards=v.querySelector('.core45-grid');if(cards)cards.innerHTML=`<button class="core45-card" data-nav="supplier230"><b>Supplier & Costing</b><span>Supplier lists, net costing and discount rules.</span></button><button class="core45-card" data-nav="pricing230"><b>Price Lists</b><span>Templates, schedules, publish preview, UOM and customer rates.</span></button><button class="core45-card" data-nav="stock230"><b>Purchase & Inventory</b><span>Purchase bills, stock inward and inventory control.</span></button><button class="core45-card" data-nav="access45"><b>Users & Access</b><span>Sales/customer logins, expiry, announcements and activity.</span></button><button class="core45-card" data-nav="catalog230"><b>Catalogs</b><span>Category-wise PDF product catalog library.</span></button>`}}},0);return out};
+
+  // Hub and schedule actions.
+  document.addEventListener('click',e=>{const l=e.target.closest('[data-load230]');if(l){e.preventDefault();window.loadPriceBook44(l.dataset.load230)}},true);
+  save();setTimeout(()=>render(),0);
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V,feature230:{cfgNow,snapshot,diffSnap,uomRows,bookCurrentCfg}};
+})();
+
+</script>
