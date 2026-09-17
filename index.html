@@ -7523,3 +7523,77 @@ Amit, 5566,"></textarea>
   }, 500);
 })();
 </script>
+<script id="pm-v240-install-prompt">
+(()=>{
+  const PM_VERSION_240 = '2.48 mobile install prompt (Install now / Later)';
+  const SNOOZE_DAYS = 3;
+  const SNOOZE_KEY = 'pm-install-snooze-240';
+
+  function isStandalone240(){
+    return window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS Safari's own flag when added to home screen
+  }
+  function isSnoozed240(){
+    try{
+      const until = +localStorage.getItem(SNOOZE_KEY) || 0;
+      return Date.now() < until;
+    }catch(e){ return false; }
+  }
+  function snooze240(){
+    try{ localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS*24*60*60*1000)); }catch(e){}
+  }
+  function isIOS240(){
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+  function isMobile240(){
+    return /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  }
+
+  function showBanner240(kind, deferredPrompt){
+    if(document.getElementById('installBanner240')) return;
+    const el = document.createElement('div');
+    el.id = 'installBanner240';
+    el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:400000;background:#fff;box-shadow:0 -6px 20px rgba(0,0,0,.15);padding:14px 16px;padding-bottom:calc(14px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px';
+    const brandName = (typeof S !== 'undefined' && S.settings && S.settings.firmName) || 'this app';
+    if(kind === 'android'){
+      el.innerHTML = `<div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px">Install ${esc(brandName)}?</div>
+        <div class="note" style="margin-top:2px">Adds an icon to your home screen — opens faster, works offline.</div>
+      </div>
+      <button class="btn ghost sm" id="ib240later">Later</button>
+      <button class="btn primary sm" id="ib240install">Install now</button>`;
+    } else { // ios instructions -- no programmatic prompt is possible on iOS Safari
+      el.innerHTML = `<div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px">Install ${esc(brandName)}?</div>
+        <div class="note" style="margin-top:2px">Tap the Share icon <b>⬆️</b> below, then "Add to Home Screen".</div>
+      </div>
+      <button class="btn ghost sm" id="ib240later">Later</button>
+      <button class="btn primary sm" id="ib240install">Got it</button>`;
+    }
+    document.body.appendChild(el);
+    el.querySelector('#ib240later').onclick = () => { snooze240(); el.remove(); };
+    el.querySelector('#ib240install').onclick = async () => {
+      if(kind === 'android' && deferredPrompt){
+        el.remove();
+        deferredPrompt.prompt();
+        try{ await deferredPrompt.userChoice; }catch(e){}
+      } else {
+        snooze240(); el.remove(); // iOS: nothing to trigger, just dismiss after showing instructions
+      }
+    };
+  }
+
+  if(!isStandalone240() && isMobile240() && !isSnoozed240()){
+    if(isIOS240()){
+      setTimeout(() => showBanner240('ios'), 1500);
+    } else {
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        setTimeout(() => showBanner240('android', e), 800);
+      });
+    }
+  }
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_240};
+})();
+</script>

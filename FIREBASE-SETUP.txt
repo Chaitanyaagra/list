@@ -83,15 +83,14 @@ SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
 
-=== v2.47 FIX: catalog View/Download blocked by CORS ===
-- Found and fixed the exact bug: clicking View or Download on a catalog
-  worked in every way EXCEPT actually fetching the file -- the browser
-  blocked the fetch() request to Firebase Storage with a CORS error, even
-  though the file existed and permissions were correct. This is Firebase
-  Storage's default behaviour for a domain that isn't specifically
-  configured.
-- Fixed in the app: View and Download now fall back to a direct browser
-  navigation to the file's Storage URL when the fetch-based approach is
-  blocked. A plain navigation isn't subject to the same CORS restriction, so
-  this works immediately with no Firebase configuration changes needed.
-- No firestore.rules or storage.rules changes needed for this fix.
+=== v2.48 NEW: mobile "Install app" prompt ===
+- On mobile (Android or iPhone), if the app isn't already installed, a
+  banner appears at the bottom: "Install this app?" with "Later" and
+  "Install now" (Android) / "Got it" (iPhone) buttons.
+  - Android: "Install now" triggers the real, native install dialog.
+  - iPhone (Safari): there's no programmatic install API, so it shows
+    instructions instead ("Tap Share, then Add to Home Screen").
+  - "Later" hides it for 3 days, then it will offer again if still not
+    installed. It never shows once the app is actually installed, and never
+    shows on desktop.
+- No firestore.rules or storage.rules changes in this pass.
