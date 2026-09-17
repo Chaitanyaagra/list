@@ -7199,3 +7199,53 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_235};
 })();
 </script>
+<script id="pm-v236-entry-gate">
+(()=>{
+  const PM_VERSION_236 = '2.39 entry gate: choose Owner or Sales/Customer login on open';
+
+  function privacyLockPending236(){
+    // if Privacy Mode's own PIN lock is already going to show, let that handle the gate --
+    // don't double-gate on top of it.
+    return !!(window.__PM_VAULT_PENDING || (typeof S !== 'undefined' && S.settings && S.settings.privacyEnabled && typeof SEC !== 'undefined' && !SEC.dek));
+  }
+
+  function showEntryGate236(){
+    if(window.__entryGate236Resolved) return;
+    if(document.getElementById('entryGate236')) return;
+    if(privacyLockPending236()) return; // Privacy Mode's own lock screen is the gate in this case
+    if(document.getElementById('cloudViewer46')) return; // a viewer session is already active (e.g. mid-flow reload)
+    const brandName = (typeof S !== 'undefined' && S.settings && S.settings.firmName) || 'Price & Stock Manager';
+    const el = document.createElement('div');
+    el.id = 'entryGate236';
+    el.style.cssText = 'position:fixed;inset:0;z-index:300000;background:var(--bg,#F3EEE3);display:flex;align-items:center;justify-content:center;padding:20px';
+    el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px;text-align:center">
+      <div style="font-weight:800;font-size:17px;letter-spacing:-.01em;margin-bottom:4px">${esc(brandName)}</div>
+      <div class="note" style="margin-bottom:22px">Who's opening this?</div>
+      <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-bottom:10px" data-gate236="owner">I'm the Owner</button>
+      <button class="btn ghost" style="width:100%;padding:12px;font-size:14px" data-gate236="viewer">Sales / Customer login</button>
+    </div>`;
+    document.body.appendChild(el);
+    el.onclick = e => {
+      const b = e.target.closest('[data-gate236]');
+      if(!b) return;
+      window.__entryGate236Resolved = true;
+      el.remove();
+      if(b.dataset.gate236 === 'viewer'){
+        if(window.viewerLoginPrompt44) window.viewerLoginPrompt44();
+        else if(window.secureViewerPrompt46) window.secureViewerPrompt46();
+      }
+      // "owner" needs no further action -- the normal app underneath is already there
+      // (or Privacy Mode's own lock will show on the next render if applicable)
+    };
+  }
+
+  // Show immediately, as early as this script executes, so the underlying dashboard is
+  // never meaningfully visible first. Also re-check shortly after in case Privacy Mode's
+  // pending state wasn't resolved yet at this exact moment.
+  showEntryGate236();
+  setTimeout(showEntryGate236, 50);
+  setTimeout(showEntryGate236, 300);
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_236};
+})();
+</script>
