@@ -18,7 +18,7 @@ service firebase.storage {
     match /catalogs/{owner}/{catalogId}/{fileName} {
       allow read: if (isOwner() && owner == ownerUid()) || (owner == ownerUid() && canReadCatalog(catalogId));
       allow create, update: if isOwner() && owner == ownerUid()
-        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.size < 150 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
       allow delete: if isOwner() && owner == ownerUid();
     }

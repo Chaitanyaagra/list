@@ -83,13 +83,14 @@ SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
 
-=== v2.39 NEW: entry gate on app open ===
-- Opening the app (the link, or the installed/downloaded PWA) now shows a
-  screen first: "I'm the Owner" / "Sales / Customer login" -- before any
-  dashboard content.
-  - "I'm the Owner" dismisses it and goes straight into the normal app.
-  - "Sales / Customer login" opens the existing name+PIN viewer login.
-- If Privacy Mode (PIN-encrypted data) is enabled, that lock screen is shown
-  instead -- this gate does not double up with it, since unlocking with the
-  Owner PIN already proves who you are.
-- No firestore.rules changes in this pass.
+=== v2.43 NEW: compress PDF catalogs before uploading ===
+- The catalog upload dialog now has a "Compress before uploading" checkbox,
+  checked by default. It re-renders each page at a screen-friendly
+  resolution and re-saves it as a smaller PDF before uploading -- for
+  photo-heavy catalogs this often cuts the file size dramatically.
+- Trade-off: this rebuilds the PDF from page images, so any selectable text
+  in the original PDF will no longer be selectable/searchable in the
+  compressed version. Uncheck the box to upload the original file as-is if
+  that matters for a particular catalog.
+- Shows before/after size once compression finishes, then uploads the
+  smaller file with the same progress bar as before.

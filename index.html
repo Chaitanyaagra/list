@@ -7199,53 +7199,280 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_235};
 })();
 </script>
-<script id="pm-v236-entry-gate">
+<script id="pm-v238-login-gate-hardened">
 (()=>{
-  const PM_VERSION_236 = '2.39 entry gate: choose Owner or Sales/Customer login on open';
+  const PM_VERSION_238 = '2.40 login gate: attempt lockout + PIN recovery code';
+  const DEFAULT_OWNER_USERNAME = 'owner';
+  const DEFAULT_OWNER_PIN = '447426';
+  const MAX_ATTEMPTS = 5, LOCKOUT_MS = 30000;
+  const ATTEMPT_KEY = 'pm-gate-attempts-238';
 
-  function privacyLockPending236(){
-    // if Privacy Mode's own PIN lock is already going to show, let that handle the gate --
-    // don't double-gate on top of it.
+  async function sha256_238(s){
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('');
+  }
+  function genRecoveryCode238(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+    const randChar = () => {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return chars[arr[0] % chars.length];
+    };
+    const group = () => Array.from({length:4}, randChar).join('');
+    return [group(), group(), group()].join('-');
+  }
+
+  function ensureOwnerCreds238(){
+    if(typeof S === 'undefined' || !S.settings) return;
+    if(!S.settings.ownerUsername) S.settings.ownerUsername = DEFAULT_OWNER_USERNAME;
+    if(!S.settings.ownerPin) S.settings.ownerPin = DEFAULT_OWNER_PIN;
+  }
+
+  function getAttemptState238(){
+    try{ return JSON.parse(localStorage.getItem(ATTEMPT_KEY) || '{}'); }catch(e){ return {}; }
+  }
+  function setAttemptState238(st){
+    try{ localStorage.setItem(ATTEMPT_KEY, JSON.stringify(st)); }catch(e){}
+  }
+  function recordFailedAttempt238(){
+    const st = getAttemptState238();
+    st.count = (st.count || 0) + 1;
+    if(st.count >= MAX_ATTEMPTS){ st.blockedUntil = Date.now() + LOCKOUT_MS; st.count = 0; }
+    setAttemptState238(st);
+    return st;
+  }
+  function clearAttempts238(){ setAttemptState238({}); }
+  function blockedRemaining238(){
+    const st = getAttemptState238();
+    const left = (st.blockedUntil || 0) - Date.now();
+    return left > 0 ? left : 0;
+  }
+
+  async function setNewOwnerPin238(newPin){
+    S.settings.ownerPin = newPin;
+    const code = genRecoveryCode238();
+    S.settings.ownerRecoveryHash = await sha256_238(code);
+    save();
+    return code;
+  }
+
+  function privacyLockPending238(){
     return !!(window.__PM_VAULT_PENDING || (typeof S !== 'undefined' && S.settings && S.settings.privacyEnabled && typeof SEC !== 'undefined' && !SEC.dek));
   }
 
-  function showEntryGate236(){
-    if(window.__entryGate236Resolved) return;
-    if(document.getElementById('entryGate236')) return;
-    if(privacyLockPending236()) return; // Privacy Mode's own lock screen is the gate in this case
-    if(document.getElementById('cloudViewer46')) return; // a viewer session is already active (e.g. mid-flow reload)
+  function showEntryGate238(){
+    if(window.__entryGate238Resolved) return;
+    if(document.getElementById('entryGate238')) return;
+    if(privacyLockPending238()) return;
+    if(document.getElementById('cloudViewer46')) return;
+    ensureOwnerCreds238();
     const brandName = (typeof S !== 'undefined' && S.settings && S.settings.firmName) || 'Price & Stock Manager';
     const el = document.createElement('div');
-    el.id = 'entryGate236';
+    el.id = 'entryGate238';
     el.style.cssText = 'position:fixed;inset:0;z-index:300000;background:var(--bg,#F3EEE3);display:flex;align-items:center;justify-content:center;padding:20px';
-    el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px;text-align:center">
-      <div style="font-weight:800;font-size:17px;letter-spacing:-.01em;margin-bottom:4px">${esc(brandName)}</div>
-      <div class="note" style="margin-bottom:22px">Who's opening this?</div>
-      <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-bottom:10px" data-gate236="owner">I'm the Owner</button>
-      <button class="btn ghost" style="width:100%;padding:12px;font-size:14px" data-gate236="viewer">Sales / Customer login</button>
-    </div>`;
     document.body.appendChild(el);
-    el.onclick = e => {
-      const b = e.target.closest('[data-gate236]');
-      if(!b) return;
-      window.__entryGate236Resolved = true;
-      el.remove();
-      if(b.dataset.gate236 === 'viewer'){
-        if(window.viewerLoginPrompt44) window.viewerLoginPrompt44();
-        else if(window.secureViewerPrompt46) window.secureViewerPrompt46();
+    renderNormal();
+
+    function renderNormal(){
+      const blocked = blockedRemaining238();
+      el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:800;font-size:17px;letter-spacing:-.01em;margin-bottom:4px;text-align:center">${esc(brandName)}</div>
+        <div class="note" style="margin-bottom:20px;text-align:center">Sign in to continue</div>
+        <div class="field"><label>Username</label><input id="eg238_user" autocomplete="username" ${blocked?'disabled':''}></div>
+        <div class="field" style="margin-top:10px"><label>PIN</label><input id="eg238_pin" type="password" inputmode="numeric" autocomplete="current-password" ${blocked?'disabled':''}></div>
+        <div id="eg238_msg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):''}</div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_go" ${blocked?'disabled':''}>Log in</button>
+        <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_forgot">Forgot PIN?</button>
+      </div>`;
+      const userEl = el.querySelector('#eg238_user'), pinEl = el.querySelector('#eg238_pin'), msgEl = el.querySelector('#eg238_msg'), goBtn = el.querySelector('#eg238_go');
+      if(!blocked) userEl.focus();
+      else setTimeout(renderNormal, Math.min(blocked, 5000) + 50); // re-render once the lockout clears (or check again soon)
+
+      function isNetworkError238(e){
+        const msg = (e && e.message) || String(e || '');
+        const code = (e && e.code) || '';
+        return /could not reach firebase/i.test(msg) || /network-request-failed/i.test(msg) || code === 'auth/network-request-failed' || /failed to fetch/i.test(msg);
       }
-      // "owner" needs no further action -- the normal app underneath is already there
-      // (or Privacy Mode's own lock will show on the next render if applicable)
-    };
+      async function attempt(){
+        const u = userEl.value.trim(), p = pinEl.value;
+        if(!u || !p){ msgEl.textContent = 'Enter both username and PIN.'; return; }
+        if(blockedRemaining238() > 0){ renderNormal(); return; }
+        goBtn.disabled = true; msgEl.textContent = 'Checking…';
+        ensureOwnerCreds238();
+        if(u.toLowerCase() === String(S.settings.ownerUsername||'').toLowerCase().trim() && p === String(S.settings.ownerPin||'')){
+          clearAttempts238();
+          window.__entryGate238Resolved = true;
+          el.remove();
+          return;
+        }
+        try{
+          await window.secureViewerLogin46(u, p);
+          clearAttempts238();
+          window.__entryGate238Resolved = true;
+          el.remove();
+          return;
+        }catch(e){
+          if(isNetworkError238(e)){
+            goBtn.disabled = false;
+            msgEl.textContent = 'No internet connection right now — check your network and try again. (This attempt was not counted.)';
+            return;
+          }
+          const st = recordFailedAttempt238();
+          if(st.blockedUntil && st.blockedUntil > Date.now()){ renderNormal(); return; }
+          goBtn.disabled = false;
+          msgEl.textContent = 'Incorrect username or PIN.';
+          pinEl.select();
+        }
+      }
+      goBtn.onclick = attempt;
+      pinEl.onkeydown = e => { if(e.key === 'Enter') attempt(); };
+      userEl.onkeydown = e => { if(e.key === 'Enter') pinEl.focus(); };
+      el.querySelector('#eg238_forgot').onclick = renderRecovery;
+    }
+
+    function renderRecovery(){
+      el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:800;font-size:15px;margin-bottom:4px;text-align:center">Reset Owner PIN</div>
+        <div class="note" style="margin-bottom:16px;text-align:center">This only works for the Owner login. Sales/customer PINs are reset by the owner from Users &amp; Access.</div>
+        <div class="field"><label>Recovery code</label><input id="eg238_rec" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase"></div>
+        <div id="eg238_recmsg" class="pm-lock-msg" style="margin-top:8px"></div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_recgo">Verify code</button>
+        <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_back">Back to login</button>
+      </div>`;
+      el.querySelector('#eg238_back').onclick = renderNormal;
+      el.querySelector('#eg238_recgo').onclick = async () => {
+        const codeEl = el.querySelector('#eg238_rec'), msgEl = el.querySelector('#eg238_recmsg');
+        const entered = codeEl.value.trim().toUpperCase();
+        if(!entered){ msgEl.textContent = 'Enter your recovery code.'; return; }
+        if(!S.settings.ownerRecoveryHash){ msgEl.textContent = 'No recovery code was ever set up for this device — recovery is not available. Ask whoever set up the app, or check for a backup.'; return; }
+        const h = await sha256_238(entered);
+        if(h !== S.settings.ownerRecoveryHash){ msgEl.textContent = 'That code is not recognised.'; return; }
+        renderSetNewPin();
+      };
+    }
+
+    function renderSetNewPin(){
+      el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:800;font-size:15px;margin-bottom:16px;text-align:center">Set a new PIN</div>
+        <div class="field"><label>New PIN (at least 4 characters)</label><input id="eg238_newpin" type="password" inputmode="numeric"></div>
+        <div class="field" style="margin-top:10px"><label>Confirm new PIN</label><input id="eg238_newpin2" type="password" inputmode="numeric"></div>
+        <div id="eg238_npmsg" class="pm-lock-msg" style="margin-top:8px"></div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_npgo">Save and log in</button>
+      </div>`;
+      el.querySelector('#eg238_npgo').onclick = async () => {
+        const p1 = el.querySelector('#eg238_newpin').value, p2 = el.querySelector('#eg238_newpin2').value, msgEl = el.querySelector('#eg238_npmsg');
+        if(p1.length < 4){ msgEl.textContent = 'PIN must be at least 4 characters.'; return; }
+        if(p1 !== p2){ msgEl.textContent = 'PINs do not match.'; return; }
+        const newCode = await setNewOwnerPin238(p1);
+        clearAttempts238();
+        window.__entryGate238Resolved = true;
+        el.remove();
+        showNewRecoveryCodeModal238(newCode);
+      };
+    }
   }
 
-  // Show immediately, as early as this script executes, so the underlying dashboard is
-  // never meaningfully visible first. Also re-check shortly after in case Privacy Mode's
-  // pending state wasn't resolved yet at this exact moment.
-  showEntryGate236();
-  setTimeout(showEntryGate236, 50);
-  setTimeout(showEntryGate236, 300);
+  window.showNewRecoveryCodeModal238 = function(code){
+    const m = document.createElement('div'); m.className = 'modal'; m.style.zIndex = '300010';
+    m.innerHTML = `<div class="box" style="max-width:420px"><div class="hd"><h2 style="margin:0">Your new recovery code</h2></div>
+      <div class="bd">
+        <div class="note" style="margin-bottom:10px">Write this down or save it somewhere safe. If you ever forget your Owner PIN, this code is the only way back in. It won't be shown again after you close this.</div>
+        <div style="font-family:monospace;font-size:20px;font-weight:700;letter-spacing:1px;text-align:center;background:var(--paper2,#F6F2E9);border-radius:10px;padding:16px;margin-bottom:10px">${esc(code)}</div>
+        <button class="btn ghost sm" id="eg238_copy" style="width:100%">Copy to clipboard</button>
+      </div>
+      <div class="ft"><button class="btn primary" data-x="close">I've saved it</button></div></div>`;
+    document.body.appendChild(m);
+    m.querySelector('#eg238_copy').onclick = () => { navigator.clipboard?.writeText(code).then(()=>toast('Copied')).catch(()=>{}); };
+    m.onclick = e => { if(e.target.closest('[data-x="close"]') || e.target === m) m.remove(); };
+  };
 
-  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_236};
+  showEntryGate238();
+  setTimeout(showEntryGate238, 50);
+  setTimeout(showEntryGate238, 300);
+
+  /* ---------- online/offline indicator ---------- */
+  function netDotHtml238(){
+    const online = navigator.onLine;
+    return `<span id="netStatus238" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:${online?'var(--good,#2E7D32)':'var(--kumkum-d,#8f1f14)'}">
+      <span style="width:7px;height:7px;border-radius:50%;background:${online?'#2E7D32':'#C42A1C'};display:inline-block"></span>${online?'Online':'Offline'}
+    </span>`;
+  }
+  function updateNetDots238(){
+    document.querySelectorAll('.net-dot-238').forEach(el => { el.innerHTML = netDotHtml238(); });
+  }
+  window.addEventListener('online', updateNetDots238);
+  window.addEventListener('offline', updateNetDots238);
+
+  const netObserver238 = new MutationObserver(() => {
+    // owner: a small fixed badge, top-right, reliable regardless of sidebar's own layout
+    if(!document.getElementById('ownerNetBadge238') && document.getElementById('view') && !document.getElementById('cloudViewer46')){
+      const badge = document.createElement('div');
+      badge.id = 'ownerNetBadge238';
+      badge.className = 'net-dot-238';
+      badge.style.cssText = 'position:fixed;bottom:14px;left:14px;z-index:500;background:#fff;border:1px solid var(--line-2,#e5ddca);border-radius:999px;padding:4px 10px;box-shadow:var(--shadow-xs,0 1px 4px rgba(0,0,0,.08))';
+      badge.innerHTML = netDotHtml238();
+      document.body.appendChild(badge);
+    }
+    // viewer header: this one IS reliably in normal flow, keep as before
+    const viewerHead = document.querySelector('#cloudViewer46 .cv47-head');
+    if(viewerHead && !viewerHead.querySelector('.net-dot-238')){
+      const span = document.createElement('span');
+      span.className = 'net-dot-238';
+      span.style.cssText = 'margin-right:10px;align-self:center';
+      span.innerHTML = netDotHtml238();
+      const logout = viewerHead.querySelector('#cv46out');
+      if(logout) logout.before(span); else viewerHead.appendChild(span);
+    }
+  });
+  netObserver238.observe(document.body, {childList:true, subtree:true});
+
+  /* ---------- Settings: view/change owner login, and manage the recovery code ---------- */
+  const prevRender238 = render;
+  render = function(){
+    const out = prevRender238();
+    setTimeout(() => {
+      if(page !== 'set') return;
+      const v = document.getElementById('view');
+      if(!v || v.querySelector('#ownerCreds238')) return;
+      ensureOwnerCreds238();
+      const card = document.createElement('div');
+      card.className = 'card'; card.id = 'ownerCreds238'; card.style.marginTop = '14px';
+      card.innerHTML = `<div class="hd"><h2>Your login (Owner)</h2></div><div class="bd">
+        <div class="note" style="margin-bottom:10px">This is what you type on the login screen every time you open the app.</div>
+        <div class="cols2">
+          <div class="field"><label>Username</label><input id="oc238_user" value="${esc(S.settings.ownerUsername)}"></div>
+          <div class="field"><label>New PIN <span class="mut">(leave blank to keep current)</span></label><input id="oc238_pin" type="password" placeholder="••••••"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn ghost sm" id="oc238_save">Save</button>
+          <button class="btn ghost sm" id="oc238_getrecovery">${S.settings.ownerRecoveryHash ? 'Show a new recovery code' : 'Set up a recovery code'}</button>
+        </div>
+        <div class="note" style="margin-top:8px">${S.settings.ownerRecoveryHash ? '✓ A recovery code is set up for this login.' : '⚠ No recovery code yet — if you forget your PIN, there is no way back in. Set one up now.'}</div>
+      </div>`;
+      const anchor = v.querySelector('.card');
+      if(anchor) anchor.after(card); else v.appendChild(card);
+      card.querySelector('#oc238_save').onclick = () => {
+        const u = card.querySelector('#oc238_user').value.trim();
+        const p = card.querySelector('#oc238_pin').value.trim();
+        if(!u){ toast('Username is required'); return; }
+        S.settings.ownerUsername = u;
+        if(p){
+          if(p.length < 4){ toast('PIN must be at least 4 characters'); return; }
+          S.settings.ownerPin = p;
+        }
+        save(); toast('Login updated'); render();
+      };
+      card.querySelector('#oc238_getrecovery').onclick = async () => {
+        const code = genRecoveryCode238();
+        S.settings.ownerRecoveryHash = await sha256_238(code);
+        save();
+        window.showNewRecoveryCodeModal238(code);
+        render();
+      };
+    }, 60);
+    return out;
+  };
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_238};
 })();
 </script>
