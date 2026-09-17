@@ -7093,3 +7093,109 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_234};
 })();
 </script>
+<script id="pm-v235-connection-diagnostics">
+(()=>{
+  const PM_VERSION_235 = '2.38 Firebase connection diagnostics + simplified owner bootstrap';
+
+  function describeFirestoreError235(e){
+    const code = e && e.code || '';
+    const msg = (e && e.message) || String(e);
+    if(code === 'permission-denied' || /insufficient permission|missing or insufficient/i.test(msg)){
+      return 'Firestore rejected this with "permission denied". This usually means the Firestore Rules have not been published correctly, or your account is not actually authenticated when the request reaches Firestore (see the sign-in check above — if it failed, fix that first, since a stale/expired session causes this exact error even when Rules are correct).';
+    }
+    if(/network-request-failed/i.test(msg)){
+      return 'Network request failed — check your internet connection and try again.';
+    }
+    return msg;
+  }
+
+  async function runDiagnostics235(container){
+    const steps = [];
+    function render(){
+      container.innerHTML = steps.map(s => `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line-2)">
+        <div style="font-size:14px;line-height:1.4">${s.ok===null?'⏳':s.ok?'✅':'❌'}</div>
+        <div><div style="font-weight:600;font-size:12.5px">${esc(s.label)}</div>${s.detail?`<div class="metric-sub" style="margin-top:2px;white-space:pre-wrap">${esc(s.detail)}</div>`:''}</div>
+      </div>`).join('');
+    }
+    function step(label, ok, detail){ steps.push({label, ok, detail}); render(); }
+
+    const a = window.PMFirebase41;
+    if(!a){ step('Firebase module loaded', false, 'The app\'s own Firebase module did not load. Try reloading the page.'); return; }
+    step('Firebase module loaded', true);
+
+    let cfg;
+    try{ cfg = await a.getSavedConfig(); }catch(e){}
+    if(!cfg){ step('Firebase config saved', false, 'No config found yet. Paste your config above and click Connect first.'); return; }
+    step('Firebase config saved', true, 'Project ID: ' + (cfg.projectId || '(missing)'));
+
+    try{ a.ensureFirebase(cfg); }catch(e){ step('Firebase SDK initialized', false, e.message); return; }
+    step('Firebase SDK initialized', true);
+
+    if(!a.auth){ step('Signed in', false, 'Auth is not available.'); return; }
+    // give Firebase a brief moment in case auth state is still resolving on first load
+    if(!a.auth.currentUser) await new Promise(r => setTimeout(r, 400));
+    if(!a.auth.currentUser){
+      step('Signed in', false, 'No signed-in user. Go to the Cloud sync card above and sign in (or create an account) first.');
+      return;
+    }
+    step('Signed in', true, a.auth.currentUser.email + '  ·  uid: ' + a.auth.currentUser.uid);
+
+    // token freshness check -- this specifically catches the "looks signed in but token calls are failing" pattern
+    try{
+      const token = await a.auth.currentUser.getIdToken(true);
+      step('Auth token refreshes correctly', true, 'Token length: ' + token.length + ' characters');
+    }catch(e){
+      step('Auth token refreshes correctly', false,
+        'Refreshing your sign-in token failed: "' + (e.message||e) + '"\n\nThis points to a Google Cloud / Identity Toolkit problem, not a Firestore Rules problem. In Google Cloud Console for this project: (1) check API key restrictions allow "Identity Toolkit API", (2) confirm "Identity Toolkit API" is enabled, (3) confirm billing/quota is not blocked. Firestore checks below will likely also fail until this is fixed.');
+    }
+
+    try{
+      const snap = await a.db.collection('meta').doc('security').get();
+      if(!snap.exists){
+        step('Can read from Firestore', true, 'Security is not initialized yet on this project (expected before first-time setup).');
+        try{
+          await a.db.collection('meta').doc('security').set({ownerUid: a.auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+          step('Owner initialized', true, 'This account is now the owner of this Firebase project. You can close this and use Users & Access normally.');
+        }catch(e){
+          step('Owner initialized', false, describeFirestoreError235(e));
+        }
+      }else{
+        step('Can read from Firestore', true);
+        const owner = snap.data().ownerUid;
+        if(owner === a.auth.currentUser.uid) step('You are the owner of this project', true);
+        else step('You are the owner of this project', false, 'This project already has a different owner (uid: '+owner+'). Sign in with that account instead, or start fresh with a new Firebase project.');
+      }
+    }catch(e){
+      step('Can read from Firestore', false, describeFirestoreError235(e));
+    }
+  }
+
+  const prevRender235 = render;
+  render = function(){
+    const out = prevRender235();
+    setTimeout(() => {
+      if(page !== 'set') return;
+      const v = document.getElementById('view');
+      if(!v || v.querySelector('#fbDiag235')) return;
+      const cloudCard = v.querySelector('#L_cloudBox41');
+      if(!cloudCard) return; // wait until the Cloud sync card itself exists
+      const card = document.createElement('div');
+      card.className = 'card'; card.id = 'fbDiag235'; card.style.marginTop = '14px';
+      card.innerHTML = `<div class="hd"><h2>Firebase connection diagnostics</h2></div><div class="bd">
+        <div class="note" style="margin-bottom:8px">If "Initialize security" or cloud sync isn't working, run this — it checks each step and tells you exactly which one is failing, instead of a generic error.</div>
+        <button class="btn primary sm" id="runDiag235">Run diagnostics</button>
+        <div id="diagResults235" style="margin-top:10px"></div>
+      </div>`;
+      cloudCard.after(card);
+      card.querySelector('#runDiag235').onclick = () => {
+        const results = card.querySelector('#diagResults235');
+        results.innerHTML = '<div class="note">Running…</div>';
+        runDiagnostics235(results);
+      };
+    }, 60);
+    return out;
+  };
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_235};
+})();
+</script>

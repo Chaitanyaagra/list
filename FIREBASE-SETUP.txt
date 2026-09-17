@@ -83,15 +83,19 @@ SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
 
-=== v2.37 NEW: create your own products with UOM + carton size in one step ===
-- Inventory > "Add product" (and editing an existing product) now has a
-  proper "Rate unit" dropdown (Pc, Box, Carton, Dozen, Kg, Gram, Tray, Bag,
-  Set, Pack, Bottle, Unit, or Custom...) instead of free text.
-- A new "Pieces per unit" field sits right next to it -- fill it in (e.g. "1
-  Carton = 24 Pc") and the product's unit conversion (carton size) is set up
-  automatically, without a separate trip to the "units" dialog afterward.
-  Leave it blank if the product doesn't need per-piece conversion.
-- Works the same way whether you're creating a brand new product or adding
-  this to an existing one later -- the field pre-fills with whatever
-  conversion is already saved, if any.
-- No firestore.rules changes in this pass.
+=== v2.38 SIMPLIFIED SETUP + connection diagnostics ===
+- The "bootstrapOwners" manual Firestore-document step is GONE. The first
+  account to sign in and click "Initialize security" on a fresh Firebase
+  project automatically becomes the owner -- no manual UID-matching step,
+  which was the most error-prone part of setup.
+- IMPORTANT: this requires the updated firestore.rules (included) -- publish
+  it again in Firebase Console. If you already have a bootstrapOwners
+  collection from before, it's now unused and can be deleted (optional).
+- New: Settings has a "Firebase connection diagnostics" card with a
+  "Run diagnostics" button. It checks, one step at a time: config saved →
+  SDK initialized → signed in → auth token actually refreshes → Firestore
+  read works → owner setup. Each step shows a clear pass/fail with specific
+  guidance -- in particular it catches "looks signed in but token calls are
+  silently failing" (a Google Cloud API-restriction/Identity-Toolkit issue),
+  which otherwise just shows as a generic "missing or insufficient
+  permissions" error with no clue why.

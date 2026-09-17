@@ -27,9 +27,7 @@
   }
   async function ensureOwner(db,uid){
     const sec=db.collection('meta').doc('security'),snap=await sec.get();
-    if(snap.exists){if(snap.data().ownerUid!==uid)throw Error('This Firebase project is linked to a different owner account.');return true}
-    const boot=await db.collection('bootstrapOwners').doc(uid).get();
-    if(!boot.exists)throw Error('Owner bootstrap is not authorized. In Firestore Console create bootstrapOwners/'+uid+' first, then tap Initialize security again.');
+    if(snap.exists){if(snap.data().ownerUid!==uid)throw Error('This Firebase project is linked to a different owner account (uid on file: '+snap.data().ownerUid+'). Sign in with that account, or start a fresh Firebase project for a new owner.');return true}
     await sec.set({ownerUid:uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});return true;
   }
   async function secondary(cfg,label){const app=firebase.initializeApp(cfg,'pm227-'+label+'-'+Date.now()+'-'+Math.random().toString(36).slice(2));return {app,auth:app.auth(),db:app.firestore(),storage:firebase.storage?app.storage():null}}
