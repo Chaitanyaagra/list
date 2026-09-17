@@ -5214,12 +5214,29 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 <script id="pm-v41-firebase-sync-script">
 (()=>{
   const PM_VERSION_41 = '2.28 transactional Firebase sync + serial queue';
-  const CONFIG_KEY='firebaseConfig', SCHEMA=2, CHUNK_CHARS=180000;
+  const CONFIG_KEY='firebaseConfig', CONFIG_KEY_LOCAL='pm-firebaseConfig-local', SCHEMA=2, CHUNK_CHARS=180000;
   let app=null,authRef=null,dbRef=null,saveDebounce=null,cloudQueue=Promise.resolve(),suppressAuto=false;
 
-  async function getSavedConfig(){try{const r=await window.storage.get(CONFIG_KEY);return r?r.value:(window.PM_FIREBASE_CONFIG||null)}catch(e){return window.PM_FIREBASE_CONFIG||null}}
-  async function saveConfigLocal(cfg){try{await window.storage.set(CONFIG_KEY,cfg)}catch(e){}}
-  async function clearConfigLocal(){try{await window.storage.remove(CONFIG_KEY)}catch(e){}}
+  async function getSavedConfig(){
+    try{
+      const r=await window.storage.get(CONFIG_KEY);
+      if(r && r.value) return r.value;
+    }catch(e){}
+    try{
+      const raw=localStorage.getItem(CONFIG_KEY_LOCAL);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return window.PM_FIREBASE_CONFIG||null;
+  }
+  async function saveConfigLocal(cfg){
+    let primaryOk=false;
+    try{ await window.storage.set(CONFIG_KEY,cfg); primaryOk=true; }catch(e){}
+    let mirrorOk=false;
+    try{ localStorage.setItem(CONFIG_KEY_LOCAL, JSON.stringify(cfg)); mirrorOk=true; }catch(e){}
+    if(!primaryOk && !mirrorOk) throw new Error('Could not save the Firebase config on this device (storage may be full or blocked). Try again, or use a different browser.');
+  }
+  async function clearConfigLocal(){try{await window.storage.remove(CONFIG_KEY)}catch(e){} try{localStorage.removeItem(CONFIG_KEY_LOCAL)}catch(e){}}
+  window.saveConfigLocal41 = saveConfigLocal;
   function ensureFirebase(cfg){
     if(typeof firebase==='undefined')throw new Error('Firebase library is unavailable. Open the deployed app online once so its offline cache can be installed.');
     if(!app){app=firebase.initializeApp(cfg);authRef=app.auth();dbRef=app.firestore();try{dbRef.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}}
@@ -7331,22 +7348,33 @@ Amit, 5566,"></textarea>
     }
 
     function renderRecovery(){
+      const blocked = blockedRemaining238();
       el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
         <div style="font-weight:800;font-size:15px;margin-bottom:4px;text-align:center">Reset Owner PIN</div>
         <div class="note" style="margin-bottom:16px;text-align:center">This only works for the Owner login. Sales/customer PINs are reset by the owner from Users &amp; Access.</div>
-        <div class="field"><label>Recovery code</label><input id="eg238_rec" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase"></div>
-        <div id="eg238_recmsg" class="pm-lock-msg" style="margin-top:8px"></div>
-        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_recgo">Verify code</button>
+        <div class="field"><label>Recovery code</label><input id="eg238_rec" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase" ${blocked?'disabled':''}></div>
+        <div id="eg238_recmsg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):''}</div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_recgo" ${blocked?'disabled':''}>Verify code</button>
         <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_back">Back to login</button>
       </div>`;
+      if(blocked) setTimeout(renderRecovery, Math.min(blocked, 5000) + 50);
       el.querySelector('#eg238_back').onclick = renderNormal;
       el.querySelector('#eg238_recgo').onclick = async () => {
-        const codeEl = el.querySelector('#eg238_rec'), msgEl = el.querySelector('#eg238_recmsg');
+        const codeEl = el.querySelector('#eg238_rec'), msgEl = el.querySelector('#eg238_recmsg'), goBtn2 = el.querySelector('#eg238_recgo');
+        if(blockedRemaining238() > 0){ renderRecovery(); return; }
         const entered = codeEl.value.trim().toUpperCase();
         if(!entered){ msgEl.textContent = 'Enter your recovery code.'; return; }
         if(!S.settings.ownerRecoveryHash){ msgEl.textContent = 'No recovery code was ever set up for this device — recovery is not available. Ask whoever set up the app, or check for a backup.'; return; }
+        goBtn2.disabled = true; msgEl.textContent = 'Checking…';
         const h = await sha256_238(entered);
-        if(h !== S.settings.ownerRecoveryHash){ msgEl.textContent = 'That code is not recognised.'; return; }
+        if(h !== S.settings.ownerRecoveryHash){
+          const st = recordFailedAttempt238();
+          if(st.blockedUntil && st.blockedUntil > Date.now()){ renderRecovery(); return; }
+          goBtn2.disabled = false;
+          msgEl.textContent = 'That code is not recognised.';
+          return;
+        }
+        clearAttempts238();
         renderSetNewPin();
       };
     }
@@ -7474,5 +7502,24 @@ Amit, 5566,"></textarea>
   };
 
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_238};
+})();
+</script>
+<script id="pm-v239-auto-connect">
+(()=>{
+  // If a Firebase config is baked into firebase-config.js, connect automatically on load
+  // so the owner never has to paste/click "Connect" manually, and any storage hiccup on a
+  // specific device can't leave the app in a half-connected state.
+  setTimeout(async () => {
+    try{
+      if(!window.PM_FIREBASE_CONFIG) return;
+      const a = window.PMFirebase41;
+      if(!a) return;
+      const already = await a.getSavedConfig();
+      if(already && already.apiKey) return; // already connected via the normal path -- nothing to do
+      a.ensureFirebase(window.PM_FIREBASE_CONFIG);
+      try{ if(window.saveConfigLocal41) await window.saveConfigLocal41(window.PM_FIREBASE_CONFIG); }catch(e){}
+      if(typeof refreshIfOnSettings === 'function') refreshIfOnSettings();
+    }catch(e){ /* silent -- this is a convenience step, not a required one */ }
+  }, 500);
 })();
 </script>
