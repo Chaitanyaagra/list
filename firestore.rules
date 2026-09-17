@@ -23,6 +23,16 @@ service cloud.firestore {
       allow read, delete: if isOwner();
       allow create, update: if activeRestricted(uid) && request.resource.data.ownerUid == ownerUid();
     }
+    match /orderRequests/{ownerUidParam}/items/{orderId} {
+      allow read: if (isOwner() && ownerUidParam == request.auth.uid) || (signedIn() && resource.data.viewerUid == request.auth.uid);
+      allow update: if (isOwner() && ownerUidParam == request.auth.uid)
+        || (signedIn() && resource.data.viewerUid == request.auth.uid && resource.data.status == 'new' && request.resource.data.status == 'cancelled');
+      allow delete: if isOwner() && ownerUidParam == request.auth.uid;
+      allow create: if activeRestricted(request.auth.uid)
+        && request.resource.data.viewerUid == request.auth.uid
+        && request.resource.data.ownerUid == ownerUidParam
+        && ownerUidParam == ownerUid();
+    }
     match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && !profileExists(uid); }
     match /{document=**} { allow read, write: if false; }
   }

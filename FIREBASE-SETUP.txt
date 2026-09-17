@@ -82,3 +82,16 @@ PDF BRANDING
 SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
+
+=== v2.37 NEW: create your own products with UOM + carton size in one step ===
+- Inventory > "Add product" (and editing an existing product) now has a
+  proper "Rate unit" dropdown (Pc, Box, Carton, Dozen, Kg, Gram, Tray, Bag,
+  Set, Pack, Bottle, Unit, or Custom...) instead of free text.
+- A new "Pieces per unit" field sits right next to it -- fill it in (e.g. "1
+  Carton = 24 Pc") and the product's unit conversion (carton size) is set up
+  automatically, without a separate trip to the "units" dialog afterward.
+  Leave it blank if the product doesn't need per-piece conversion.
+- Works the same way whether you're creating a brand new product or adding
+  this to an existing one later -- the field pre-fills with whatever
+  conversion is already saved, if any.
+- No firestore.rules changes in this pass.

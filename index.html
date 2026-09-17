@@ -903,6 +903,7 @@ function newProduct(){
     packing:'', netWt:'', stock:0, minStock:0, hsn:'', gst:null, discount:null, status:'active',
     note:'', updatedAt:Date.now()}, true);
 }
+function norm44(s){ return String(s||'').trim().toLowerCase(); }
 function openProduct(p, isNew){
   const d = p.discount||{type:'pct',value:''};
   const m = document.createElement('div'); m.className='modal';
@@ -923,8 +924,17 @@ function openProduct(p, isNew){
       </div>
       <div class="cols3">
         <div class="field"><label>Rate (wholesale)</label><input id="e_price" class="num" value="${p.price??''}"></div>
-        <div class="field"><label>Rate unit (per box, tray…)</label><input id="e_unit" value="${esc(p.priceUnit||'')}"></div>
+        <div class="field"><label>Rate unit</label>
+          <select id="e_unit_select">
+            ${['Pc','Box','Carton','Dozen','Kg','Gram','Tray','Bag','Set','Pack','Bottle','Unit'].map(u=>`<option value="${u}" ${norm44(p.priceUnit)===norm44(u)?'selected':''}>${u}</option>`).join('')}
+            <option value="__custom__" ${p.priceUnit && !['Pc','Box','Carton','Dozen','Kg','Gram','Tray','Bag','Set','Pack','Bottle','Unit'].some(u=>norm44(u)===norm44(p.priceUnit)) ? 'selected' : ''}>Custom…</option>
+          </select>
+          <input id="e_unit" value="${esc(p.priceUnit||'')}" placeholder="type the unit" style="margin-top:6px;display:${p.priceUnit && !['Pc','Box','Carton','Dozen','Kg','Gram','Tray','Bag','Set','Pack','Bottle','Unit'].some(u=>norm44(u)===norm44(p.priceUnit)) ? '' : 'none'}">
+        </div>
         <div class="field"><label>MRP</label><input id="e_mrp" class="num" value="${p.mrp??''}"></div>
+      </div>
+      <div class="cols3">
+        <div class="field"><label>Pieces per unit <span class="mut">(e.g. 1 Box = 12 Pc — leave blank if not applicable)</span></label><input id="e_pcsPerUnit" class="num" placeholder="e.g. 12" value="${(()=>{const row=(S.uomMaster||[]).find(x=>x.productId===p.id && norm44(x.unit)===norm44(p.priceUnit)); return row?row.pcsPerUnit:''})()}"></div>
       </div>
       <div class="cols3">
         <div class="field"><label>Item discount</label>
@@ -965,6 +975,12 @@ function openProduct(p, isNew){
     <div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">${isNew?'Add product':'Save changes'}</button></div>
   </div>`;
   document.body.appendChild(m);
+  const unitSelectEl = m.querySelector('#e_unit_select');
+  const unitCustomEl = m.querySelector('#e_unit');
+  unitSelectEl.onchange = () => {
+    if(unitSelectEl.value === '__custom__'){ unitCustomEl.style.display = ''; unitCustomEl.value=''; unitCustomEl.focus(); }
+    else { unitCustomEl.style.display = 'none'; unitCustomEl.value = unitSelectEl.value; }
+  };
   m.onclick = e=>{
     const b=e.target.closest('[data-x]'); if(!b){ if(e.target===m) m.remove(); return; }
     if(b.dataset.x==='close') m.remove();
@@ -988,6 +1004,13 @@ function openProduct(p, isNew){
         gst:nz(g('e_gst')), stock:nz(g('e_stock'))||0, minStock:nz(g('e_min'))||0, hsn:g('e_hsn'),
         packing:g('e_pack'), barcode:g('e_bar'), netWt:g('e_wt'), status:g('e_status'), note:g('e_note'), updatedAt:Date.now() });
       const dt=g('e_dtype'); p.discount = dt ? {type:dt, value:nz(g('e_dval'))||0} : null;
+      const pcsPerUnit = nz(m.querySelector('#e_pcsPerUnit').value);
+      if(p.priceUnit && pcsPerUnit && pcsPerUnit > 0){
+        S.uomMaster = S.uomMaster || [];
+        const existingUom = S.uomMaster.find(x => x.productId===p.id && norm44(x.unit)===norm44(p.priceUnit));
+        if(existingUom) existingUom.pcsPerUnit = pcsPerUnit;
+        else S.uomMaster.push({id: uid(), productId: p.id, unit: p.priceUnit, pcsPerUnit});
+      }
       if(isNew){
         if(!p.code){ let n=S.products.length+1; while(S.products.some(x=>x.code==='M'+String(n).padStart(3,'0'))) n++; p.code='M'+String(n).padStart(3,'0'); }
         S.products.unshift(p);
@@ -2387,6 +2410,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
     const x=String(s||fallback).trim().replace(/\.pdf$/i,'').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
     return (x||fallback)+'.pdf';
   }
+  window.safeFilename = safeFilename;
   function slug(s){return String(s||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
   function listHasDiscount(){
     const L=ui.list, party=L.party?S.parties.find(p=>p.id===L.party):null;
@@ -2508,6 +2532,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
     save(); return p;
   }
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),updateProduct,costCalc};
+  window.updateProduct = updateProduct;
 
   viewInv=function(v,t,sub,act){
     v21ViewInv(v,t,sub,act);
@@ -4124,6 +4149,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     if(S.shareLog.length>300) S.shareLog.length=300;
     save();
   }
+  window.logShare34 = logShare34;
   const prevHandleAct34 = handleAct;
   handleAct = function(a, el){
     const r = prevHandleAct34(a, el);
@@ -4214,6 +4240,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     if(n==null||isNaN(n)) return '—';
     return (Math.round(n*100)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
   }
+  window.money2dp33 = money2dp33;
   ui.list = ui.list || {};
   if(ui.list.exactDecimal30 == null) ui.list.exactDecimal30 = true;
 
@@ -5953,11 +5980,11 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
       <div class="card"><div class="bd">
         <div class="section-title">Your core workflow</div>
         <div class="core45-flow">
-          <div class="core45-step"><b>1 · Supplier list</b>Import PDF and keep products category-wise.</div>
-          <div class="core45-step"><b>2 · Net costing</b>Apply category/product discounts and manual cost overrides.</div>
-          <div class="core45-step"><b>3 · Customer rates</b>Create Wholesale / Distributor / Retail or customer-specific rates.</div>
-          <div class="core45-step"><b>4 · Price Books</b>Choose products, category, UOM and final rate; save reusable lists.</div>
-          <div class="core45-step"><b>5 · Restricted login</b>Sales/customer sees only assigned lists/catalogs.</div>
+          <div class="core45-step"><b>Supplier list</b>Import PDF and keep products category-wise.</div>
+          <div class="core45-step"><b>Net costing</b>Apply category/product discounts and manual cost overrides.</div>
+          <div class="core45-step"><b>Customer rates</b>Create Wholesale / Distributor / Retail or customer-specific rates.</div>
+          <div class="core45-step"><b>Price Books</b>Choose products, category, UOM and final rate; save reusable lists.</div>
+          <div class="core45-step"><b>Restricted login</b>Sales/customer sees only assigned lists/catalogs.</div>
         </div>
       </div></div>
       <div class="core45-grid" style="margin-top:14px">
@@ -6184,4 +6211,885 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V,feature230:{cfgNow,snapshot,diffSnap,uomRows,bookCurrentCfg}};
 })();
 
+</script>
+<script id="pm-v231-owner-tools">
+(()=>{
+  const PM_VERSION_231 = '2.31 preview-as-user, bulk viewer import, revoke warning, catalog preview';
+
+  /* ================= 1) Preview as this user (no Firebase needed, fully local) ================= */
+  function previewAsUser231(userId){
+    const u = S.viewerUsers.find(x => x.id === userId);
+    if(!u) return;
+    if(!(u.allowedPriceBookIds||[]).length && !(u.allowedCatalogFileIds||[]).length){
+      if(!confirm('This user has no Price Books or catalogs assigned yet, so the preview will look empty. Continue anyway?')) return;
+    }
+    try{
+      window.__pmPreviewActive231 = true; // set synchronously, before any rendering, to avoid a race with observers that add live-session-only controls
+      const payload = window.payloadFor46(u);
+      window.showViewerPreview46(payload);
+      setTimeout(()=>{
+        const el = document.getElementById('cloudViewer46');
+        if(!el || el.querySelector('#preview231Banner')) return;
+        const banner = document.createElement('div');
+        banner.id = 'preview231Banner';
+        banner.style.cssText = 'position:sticky;top:0;z-index:5;background:#3a2f18;color:#fff;text-align:center;padding:8px 12px;font-size:12.5px;font-weight:600';
+        banner.textContent = 'PREVIEW — showing exactly what "'+u.name+'" would see. Nothing is published or logged in. Click "Log out" above to return.';
+        el.insertBefore(banner, el.firstChild);
+      }, 30);
+    }catch(e){ toast('Could not build preview: ' + e.message); }
+  }
+  window.previewAsUser231 = previewAsUser231;
+
+  /* ================= 2) Bulk viewer import via pasted CSV ================= */
+  function bulkImportDialog231(){
+    const cats = {};
+    S.priceBooks.forEach(pb => { (cats[pb.category||'Other'] = cats[pb.category||'Other']||[]).push(pb); });
+    const m = document.createElement('div'); m.className = 'modal';
+    m.innerHTML = `<div class="box" style="max-width:640px"><div class="hd"><h2 style="margin:0">Bulk-create restricted logins</h2></div>
+      <div class="bd">
+        <div class="note" style="margin-bottom:8px">Paste rows as <b>name, pin, price book name</b> — one per line. The price book name must match a saved Price Book exactly (case-insensitive). Leave the third column blank to create the login without a Price Book assigned yet.</div>
+        <textarea id="BULK231_text" rows="8" style="width:100%;font-family:monospace;font-size:12.5px" placeholder="Ramesh, 4821, Wholesale Rangoli
+Suresh, 1234, Retail Pooja
+Amit, 5566,"></textarea>
+        <div class="note" style="margin-top:6px">Available Price Books: ${S.priceBooks.length ? S.priceBooks.map(p=>esc(p.name)).join(', ') : '(none saved yet)'}</div>
+        <div id="BULK231_preview" style="margin-top:10px"></div>
+      </div>
+      <div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="parse">Preview rows</button><button class="btn primary" data-x="create" style="display:none">Create logins</button></div></div>`;
+    document.body.appendChild(m);
+    let parsedRows = [];
+    function parse(){
+      const raw = m.querySelector('#BULK231_text').value;
+      const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+      const seenInBatch = new Set();
+      parsedRows = lines.map(line => {
+        const [name, pin, bookName] = line.split(',').map(x=>(x||'').trim());
+        const book = bookName ? S.priceBooks.find(pb => pb.name.toLowerCase() === bookName.toLowerCase()) : null;
+        const key = name.toLowerCase();
+        const problems = [];
+        if(!name) problems.push('missing name');
+        if(!pin || pin.length < 4) problems.push('PIN must be 4+ chars');
+        if(bookName && !book) problems.push('no Price Book named "'+bookName+'"');
+        if(name && S.viewerUsers.some(u => u.name.trim().toLowerCase() === key)) problems.push('username already exists');
+        if(name && seenInBatch.has(key)) problems.push('duplicate name earlier in this list');
+        if(name) seenInBatch.add(key);
+        return { name, pin, bookName, book, problems };
+      });
+      const okCount = parsedRows.filter(r => !r.problems.length).length;
+      m.querySelector('#BULK231_preview').innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>PIN</th><th>Price Book</th><th>Status</th></tr></thead><tbody>
+        ${parsedRows.map(r => `<tr ${r.problems.length?'style="color:var(--kumkum-d)"':''}><td>${esc(r.name||'—')}</td><td>${esc(r.pin||'—')}</td><td>${esc(r.bookName||'(none)')}</td><td>${r.problems.length ? esc(r.problems.join(', ')) : '✓ ready'}</td></tr>`).join('')}
+      </tbody></table></div><div class="note" style="margin-top:6px">${okCount} of ${parsedRows.length} row(s) ready to create.</div>`;
+      m.querySelector('[data-x="create"]').style.display = okCount ? '' : 'none';
+    }
+    m.onclick = e => {
+      const b = e.target.closest('[data-x]');
+      if(!b){ if(e.target===m) m.remove(); return; }
+      if(b.dataset.x === 'close') return m.remove();
+      if(b.dataset.x === 'parse') return parse();
+      if(b.dataset.x === 'create'){
+        let created = 0;
+        parsedRows.filter(r => !r.problems.length).forEach(r => {
+          S.viewerUsers.push({
+            id: uid(), createdAt: Date.now(), role: 'sales', name: r.name, pin: r.pin, active: true,
+            allowedPriceBookIds: r.book ? [r.book.id] : [], allowedCatalogFileIds: []
+          });
+          created++;
+        });
+        save(); m.remove(); render();
+        toast(created + ' login(s) created. Use "Publish / update cloud users" to make them live.');
+      }
+    };
+  }
+  window.bulkImportDialog231 = bulkImportDialog231;
+
+  /* ================= inject buttons into the Users & access page (page is re-rendered often; keep this idempotent) ================= */
+  const prevRender231 = render;
+  render = function(){
+    const out = prevRender231();
+    setTimeout(()=>{
+      if(page !== 'access45') return;
+      const v = document.getElementById('view');
+      if(!v) return;
+
+      // 2a) bulk-import button next to "Create login"
+      const act = document.getElementById('topActions');
+      if(act && !act.querySelector('[data-act="bulk-import-231"]')){
+        const b = document.createElement('button');
+        b.className = 'btn ghost sm'; b.dataset.act = 'bulk-import-231'; b.textContent = 'Bulk import';
+        const createBtn = act.querySelector('[data-act="add-user45"]');
+        if(createBtn) createBtn.before(b); else act.appendChild(b);
+      }
+
+      // 1) "preview" link next to each user's edit controls
+      v.querySelectorAll('[data-a45-edit]').forEach(btn => {
+        if(btn.parentElement.querySelector(`[data-preview231="${btn.dataset.a45Edit}"]`)) return;
+        const p = document.createElement('button');
+        p.className = 'link'; p.dataset.preview231 = btn.dataset.a45Edit; p.textContent = 'preview';
+        btn.insertAdjacentText('afterend', ' · ');
+        btn.after(p);
+      });
+    }, 30);
+    return out;
+  };
+
+  document.addEventListener('click', e => {
+    if(e.target.closest('[data-act="bulk-import-231"]')){ e.preventDefault(); return bulkImportDialog231(); }
+    const pv = e.target.closest('[data-preview231]');
+    if(pv){ e.preventDefault(); return previewAsUser231(pv.dataset.preview231); }
+  }, true);
+
+  /* ================= 3) revoke warning: 24h offline exposure note ================= */
+  const modalObserver231 = new MutationObserver(muts => {
+    muts.forEach(mut => mut.addedNodes.forEach(node => {
+      if(!(node.nodeType === 1)) return;
+      const modal = node.matches && node.matches('.modal') ? node : (node.querySelector ? node.querySelector('.modal') : null);
+      if(!modal) return;
+
+      // user editor: warn near the "Login active" checkbox
+      const activeCb = modal.querySelector('#A45_active');
+      if(activeCb && !modal.querySelector('#revokeWarn231')){
+        const note = document.createElement('div');
+        note.id = 'revokeWarn231';
+        note.className = 'note';
+        note.style.cssText = 'margin:-4px 0 8px 26px';
+        note.textContent = 'If this device was used offline recently, it may keep showing cached rates for up to 24 hours after you turn this off — a fully offline device can\'t be reached to revoke instantly.';
+        activeCb.closest('label').after(note);
+      }
+
+      // catalog upload: show a quick preview once a PDF is chosen
+      const fileInput = modal.querySelector('#C47file');
+      if(fileInput && !fileInput.dataset.preview231Wired){
+        fileInput.dataset.preview231Wired = '1';
+        fileInput.addEventListener('change', async () => {
+          let box = modal.querySelector('#catalogPreview231');
+          if(!box){
+            box = document.createElement('div');
+            box.id = 'catalogPreview231';
+            box.style.cssText = 'margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px';
+            fileInput.closest('.field').after(box);
+          }
+          const file = fileInput.files[0];
+          if(!file){ box.innerHTML = ''; return; }
+          if(file.type && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)){
+            box.innerHTML = '<b style="color:var(--kumkum-d)">This is not a PDF file.</b>';
+            return;
+          }
+          box.innerHTML = 'Reading file…';
+          try{
+            const buf = await file.arrayBuffer();
+            const doc = await pdfjsLib.getDocument({data: buf}).promise;
+            box.innerHTML = `<b>${esc(file.name)}</b> · ${(file.size/1024/1024).toFixed(2)} MB · ${doc.numPages} page(s)<div class="note" style="margin-top:4px">Confirm this is the right catalog before uploading.</div>`;
+          }catch(e){
+            box.innerHTML = `<b style="color:var(--kumkum-d)">Could not read this PDF (${esc(e.message||'unknown error')}).</b> It may still upload, but double-check the file.`;
+          }
+        });
+      }
+    }));
+  });
+  modalObserver231.observe(document.body, {childList: true});
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_231};
+})();
+</script>
+<style id="pm-v232-viewer-polish">
+/* ============================================================
+   Design polish pass — covers screens added after the original
+   premium-design layer: the 5-section owner hubs, the Home
+   screen, and (most importantly) the customer/sales-facing
+   restricted viewer. Pure CSS, no behaviour changes.
+   ============================================================ */
+
+/* ---------- constrain wide-screen hub/home content so it doesn't float in empty space ---------- */
+#view{ }
+.core45-grid{ max-width: 1080px; }
+#view > .core45-grid, #view > .private-note, #view > .core45-flow{ max-width:1080px; }
+
+/* ---------- Home screen workflow steps: give the numbers real visual weight ---------- */
+.core45-flow{ counter-reset: pmstep; }
+.core45-step{
+  position:relative; padding-top:34px; counter-increment: pmstep;
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+.core45-step:hover{ box-shadow:var(--shadow-sm); transform:translateY(-1px); }
+.core45-step::before{
+  content: counter(pmstep);
+  position:absolute; top:11px; left:11px;
+  width:20px; height:20px; border-radius:50%;
+  background:linear-gradient(180deg, var(--kumkum-l,#E8523C), var(--kumkum));
+  color:#fff; font-size:11px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 6px rgba(196,42,28,.35);
+}
+.core45-step b{ display:block; font-size:12.5px; }
+
+/* ---------- hub / home cards: consistent with the premium card language ---------- */
+.core45-card{ transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
+.core45-card:hover{ box-shadow:var(--shadow); transform:translateY(-2px); border-color:#D9D3C4; }
+.core45-card b{ letter-spacing:-.005em; }
+
+/* ---------- role pill on the users table ---------- */
+.role45{ font-weight:700; }
+
+/* ================= restricted viewer (cv47) — the screen customers/sales actually use ================= */
+#cloudViewer46{ }
+#cloudViewer46 .cv47-wrap{ }
+#cloudViewer46 .cv47-head{
+  background:linear-gradient(180deg, #fff, #FBFAF7);
+  margin:-20px -14px 18px; padding:22px 18px 16px;
+  border-bottom:1px solid var(--line-2); border-radius:0 0 16px 16px;
+  box-shadow:0 2px 10px rgba(35,31,25,.03);
+}
+#cloudViewer46 .cv47-head b{ font-size:19px; letter-spacing:-.01em; }
+#cloudViewer46 .cv47-switch .card{ transition: box-shadow .18s ease; }
+#cloudViewer46 .cv47-switch .card:hover{ box-shadow:var(--shadow-sm); }
+#cloudViewer46 .cv47-search{ backdrop-filter: blur(6px); background:rgba(246,242,233,.92); }
+#cloudViewer46 .cv47-searchbox input,
+#cloudViewer46 .cv47-searchbox select{ box-shadow:var(--shadow-xs); }
+#cloudViewer46 .cv47-searchbox input:focus{ box-shadow:var(--ring); }
+
+/* result rows: lift them into real cards with a rate-forward layout */
+#cloudViewer46 .cv47-results > div{
+  background:#fff; border:1px solid var(--line-2); border-radius:12px;
+  padding:12px 14px; box-shadow:var(--shadow-xs);
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+#cloudViewer46 .cv47-results > div:hover{
+  box-shadow:var(--shadow-sm); transform:translateY(-1px); border-color:#D9D3C4;
+}
+#cloudViewer46 .cv47-rate{ color:var(--kumkum-d); }
+#cloudViewer46 .cv47-star{ transition: transform .15s ease; }
+#cloudViewer46 .cv47-star:hover{ transform:scale(1.2); }
+
+/* price-book / catalog cards at the bottom */
+#cloudViewer46 #cv47priceSection .card,
+#cloudViewer46 #cv47catalogSection .card{
+  transition: box-shadow .18s ease, transform .18s ease; border-color:var(--line-2);
+}
+#cloudViewer46 #cv47priceSection .card:hover,
+#cloudViewer46 #cv47catalogSection .card:hover{
+  box-shadow:var(--shadow); transform:translateY(-2px);
+}
+#cloudViewer46 #cv47priceSection .card b,
+#cloudViewer46 #cv47catalogSection .card b{ font-size:15px; }
+
+/* notice / announcement banners: a touch more presence */
+#cloudViewer46 .cv47-notice,.cv47-announce{ box-shadow:var(--shadow-xs); }
+#cloudViewer46 .cv47-notice{ background:linear-gradient(180deg,#FFFBEF,#FFF8DC); }
+#cloudViewer46 .cv47-announce{ background:linear-gradient(180deg,#F6F9FF,#F3F7FF); }
+
+/* buttons inside the viewer: match the app-wide premium button styling */
+#cloudViewer46 .btn.primary{
+  background:linear-gradient(180deg, var(--kumkum-l,#E8523C), var(--kumkum));
+  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(196,42,28,.24);
+}
+#cloudViewer46 .btn{ transition: box-shadow .15s ease, transform .15s ease; }
+#cloudViewer46 .btn:hover{ transform:translateY(-1px); }
+
+/* ---------- preview banner refinement (from v231) ---------- */
+#preview231Banner{
+  box-shadow:0 2px 10px rgba(0,0,0,.15);
+  background:linear-gradient(180deg,#4a3c1f,#3a2f18) !important;
+}
+
+@media (max-width:700px){
+  #cloudViewer46 .cv47-head{ margin:-16px -14px 14px; padding:18px 14px 14px; }
+}
+</style>
+<script id="pm-v233-order-and-language">
+(()=>{
+  const PM_VERSION_233 = '2.32 order requests from restricted viewers + Hindi/English toggle';
+
+  /* ================= shared helpers ================= */
+  function inPreviewMode233(){ return !!window.__pmPreviewActive231; }
+  function currentViewerName233(){
+    const el = document.querySelector('#cloudViewer46 .cv47-head .note');
+    if(!el) return '';
+    const m = el.textContent.match(/·\s*(.+?)(\s*·|$)/);
+    return m ? m[1].trim() : '';
+  }
+
+  /* ================= 1) Order cart ================= */
+  function cartKey233(){ return 'pm-order-cart-233:' + (currentViewerName233()||'guest').toLowerCase(); }
+  function loadCart233(){ try{ return JSON.parse(localStorage.getItem(cartKey233())||'[]'); }catch(e){ return []; } }
+  function saveCart233(cart){ try{ localStorage.setItem(cartKey233(), JSON.stringify(cart)); }catch(e){} }
+
+  window.orderRowExtra233 = function(r, i){
+    if(inPreviewMode233()) return ''; // no ordering while the owner is just previewing
+    return `<div class="ord233-add" style="margin-top:6px;display:flex;gap:6px;align-items:center">
+      <input type="number" min="1" step="1" value="1" class="ord233-qty" data-ord233-qty="${i}" style="width:64px;padding:4px 6px;font-size:12.5px">
+      <button class="btn ghost sm" data-ord233-add="${i}" style="padding:4px 10px;font-size:12px">+ Add to order</button>
+    </div>`;
+  };
+
+  window.wireOrderRows233 = function(box, rows, p){
+    if(inPreviewMode233()) return;
+    box.querySelectorAll('[data-ord233-add]').forEach(btn => {
+      btn.onclick = () => {
+        const i = +btn.dataset.ord233Add;
+        const r = rows[i];
+        const qtyInput = box.querySelector(`[data-ord233-qty="${i}"]`);
+        const qty = Math.max(1, Math.round(+qtyInput.value || 1));
+        const uomSel = box.querySelector(`[data-uom47="${i}"]`);
+        const uom = uomSel ? uomSel.value : r.it.defaultUom;
+        const cart = loadCart233();
+        const existing = cart.find(c => c.productId === r.it.id && c.uom === uom);
+        const rawRate = r.it.rateOnRequest ? null : rawRate47safe(r.it, uom);
+        if(existing) existing.qty += qty;
+        else cart.push({
+          productId: r.it.id, code: r.it.code, name: r.it.name, uom,
+          rateOnRequest: !!r.it.rateOnRequest, rate: rawRate,
+          rateText: r.it.rateOnRequest ? 'Rate on request' : selectedRate47safe(r.it, uom, p),
+          bookName: r.b.name, qty
+        });
+        saveCart233(cart);
+        updateCartBar233();
+        toast(qty + ' × ' + r.it.code + ' added to your order');
+      };
+    });
+  };
+  // small local re-implementations to avoid depending on secure-access.js's private selectedRate()
+  function selectedRate47safe(it, uom, p){
+    const row = (it.uomRates||[]).find(x => x.u === uom) || (it.uomRates||[])[0];
+    if(!row) return '';
+    return (p.currency||'₹') + Number(row.r).toLocaleString('en-IN',{maximumFractionDigits:2}) + '/' + row.u;
+  }
+  function rawRate47safe(it, uom){
+    const row = (it.uomRates||[]).find(x => x.u === uom) || (it.uomRates||[])[0];
+    return row ? Number(row.r) : null;
+  }
+
+  function cartTotalQty233(){ return loadCart233().reduce((a,c)=>a+c.qty,0); }
+
+  function ensureCartBar233(){
+    let bar = document.getElementById('ord233Bar');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'ord233Bar';
+      bar.style.cssText = 'position:sticky;bottom:0;z-index:50;background:var(--ink,#151A22);color:#fff;padding:12px 18px;display:none;justify-content:space-between;align-items:center;box-shadow:0 -6px 18px rgba(0,0,0,.18);border-radius:14px 14px 0 0;margin-top:16px';
+      bar.innerHTML = `<div id="ord233BarText" style="font-size:13px;font-weight:600"></div><button class="btn primary sm" id="ord233Review">Review order</button>`;
+      const wrap = document.querySelector('#cloudViewer46 .cv47-wrap');
+      if(wrap) wrap.appendChild(bar);
+      bar.querySelector('#ord233Review').onclick = openOrderReview233;
+    }
+    return bar;
+  }
+  function updateCartBar233(){
+    if(inPreviewMode233()) return;
+    const overlay = document.getElementById('cloudViewer46');
+    if(!overlay) return;
+    const bar = ensureCartBar233();
+    const n = cartTotalQty233();
+    const items = loadCart233().length;
+    const wantDisplay = n > 0 ? 'flex' : 'none';
+    const wantText = items + ' product(s) · ' + n + ' unit(s) in your order';
+    // only touch the DOM if something actually changed, to avoid retriggering the mutation observer below
+    if(bar.style.display !== wantDisplay) bar.style.display = wantDisplay;
+    const textEl = bar.querySelector('#ord233BarText');
+    if(n > 0 && textEl.textContent !== wantText) textEl.textContent = wantText;
+  }
+
+  // Re-attach the cart bar only when show() has actually rebuilt the viewer from
+  // scratch (the bar element goes missing) -- never react while the bar is
+  // already present, so our own content updates above can't retrigger this.
+  const cartObserver233 = new MutationObserver(() => {
+    const overlay = document.getElementById('cloudViewer46');
+    if(!overlay) return;
+    if(!overlay.querySelector('.cv47-wrap')) return;
+    if(!document.getElementById('ord233Bar')) updateCartBar233();
+  });
+  cartObserver233.observe(document.body, {childList:true, subtree:true});
+
+  function openOrderReview233(){
+    const cart = loadCart233();
+    const m = document.createElement('div'); m.className = 'modal'; m.style.zIndex = '200010';
+    const rows = cart.map((c, i) => `<tr>
+      <td><b>${esc(c.code)}</b> · ${esc(c.name)}<div class="metric-sub">${esc(c.bookName)} · ${esc(c.rateText)}</div></td>
+      <td style="width:90px"><input type="number" min="1" step="1" value="${c.qty}" data-cartqty="${i}" style="width:70px"></td>
+      <td class="r"><button class="link" data-cartdel="${i}">remove</button></td>
+    </tr>`).join('');
+    m.innerHTML = `<div class="box" style="max-width:600px"><div class="hd"><h2 style="margin:0">Your order</h2></div>
+      <div class="bd">
+        ${cart.length ? `<div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div>` : '<div class="empty-mini">Your order is empty.</div>'}
+        <div class="field" style="margin-top:10px"><label>Note for the owner (optional)</label><textarea id="ord233Note" rows="2" placeholder="Delivery timing, special instructions..."></textarea></div>
+        <div class="note" style="margin-top:6px">This sends a request to the owner — it does not create a confirmed bill. Rates shown are for reference; the owner will confirm the final order.</div>
+      </div>
+      <div class="ft"><button class="btn ghost" data-x="close">Close</button>${cart.length?'<button class="btn ghost" data-x="clear">Clear order</button><button class="btn primary" data-x="send">Send order request</button>':''}</div></div>`;
+    document.body.appendChild(m);
+    m.querySelectorAll('[data-cartqty]').forEach(inp => inp.onchange = () => {
+      const i = +inp.dataset.cartqty, c = loadCart233();
+      c[i].qty = Math.max(1, Math.round(+inp.value || 1));
+      saveCart233(c); updateCartBar233();
+    });
+    m.querySelectorAll('[data-cartdel]').forEach(b => b.onclick = () => {
+      const i = +b.dataset.cartdel, c = loadCart233();
+      c.splice(i, 1); saveCart233(c); updateCartBar233();
+      m.remove(); openOrderReview233();
+    });
+    m.onclick = async e => {
+      const b = e.target.closest('[data-x]');
+      if(!b){ if(e.target===m) m.remove(); return; }
+      if(b.dataset.x === 'close') return m.remove();
+      if(b.dataset.x === 'clear'){ saveCart233([]); updateCartBar233(); m.remove(); return; }
+      if(b.dataset.x === 'send'){
+        b.disabled = true; b.textContent = 'Sending…';
+        try{
+          await submitOrder233(loadCart233(), m.querySelector('#ord233Note').value.trim());
+          saveCart233([]); updateCartBar233(); m.remove();
+          toast('Order request sent to the owner');
+        }catch(err){
+          b.disabled = false; b.textContent = 'Send order request';
+          toast(err.message || 'Could not send order — check your internet connection and try again');
+        }
+      }
+    };
+  }
+
+  async function submitOrder233(cart, note){
+    if(!cart.length) throw new Error('Your order is empty');
+    const session = window.getCloudSession233 ? window.getCloudSession233() : null;
+    if(!session || !session.db || session.uid === 'offline') throw new Error('You need to be online (not on cached offline data) to send an order');
+    const db = session.db, uid = session.uid;
+    const profileSnap = await db.collection('accessProfiles').doc(uid).get();
+    const profile = profileSnap.exists ? profileSnap.data() : null;
+    if(!profile || !profile.ownerUid) throw new Error('Could not identify the owner for this login');
+    const order = {
+      ownerUid: profile.ownerUid, viewerUid: uid, viewerName: session.loginName || '',
+      items: cart.map(c => ({productId:c.productId, code:c.code, name:c.name, uom:c.uom, qty:c.qty, rate:c.rate??null, rateText:c.rateText, rateOnRequest:!!c.rateOnRequest})),
+      note: note || '', status: 'new',
+      createdAt: (typeof firebase!=='undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
+    };
+    await db.collection('orderRequests').doc(profile.ownerUid).collection('items').doc(uid + '_' + Date.now().toString(36)).set(order);
+  }
+
+  /* ================= viewer: "My orders" ================= */
+  function myOrderStatusLabel233(status){
+    if(status === 'converted') return 'Confirmed into a quotation';
+    if(status === 'done') return 'Reviewed by owner';
+    if(status === 'rejected') return 'Not accepted by owner';
+    if(status === 'cancelled') return 'Cancelled by you';
+    return 'Sent — awaiting review';
+  }
+  async function loadMyOrders233(){
+    const session = window.getCloudSession233 ? window.getCloudSession233() : null;
+    if(!session || !session.db || session.uid === 'offline') return null;
+    const profileSnap = await session.db.collection('accessProfiles').doc(session.uid).get();
+    const profile = profileSnap.exists ? profileSnap.data() : null;
+    if(!profile || !profile.ownerUid) return null;
+    const snap = await session.db.collection('orderRequests').doc(profile.ownerUid).collection('items')
+      .where('viewerUid', '==', session.uid).orderBy('createdAt', 'desc').limit(30).get();
+    return snap.docs.map(d => ({id: d.id, ...d.data()}));
+  }
+  window.cancelMyOrder233 = async function(orderId){
+    if(!confirm('Cancel this order request? The owner will see that you cancelled it.')) return;
+    const session = window.getCloudSession233 ? window.getCloudSession233() : null;
+    if(!session || !session.db || session.uid === 'offline') return toast('You need to be online to cancel an order');
+    try{
+      const profileSnap = await session.db.collection('accessProfiles').doc(session.uid).get();
+      const profile = profileSnap.exists ? profileSnap.data() : null;
+      if(!profile || !profile.ownerUid) throw new Error('Could not identify the owner for this login');
+      await session.db.collection('orderRequests').doc(profile.ownerUid).collection('items').doc(orderId).update({status: 'cancelled'});
+      toast('Order cancelled');
+      window.openMyOrders233();
+    }catch(e){ toast('Could not cancel: ' + (e.message||'')); }
+  };
+
+  window.openMyOrders233 = async function(){
+    const m = document.createElement('div'); m.className = 'modal'; m.style.zIndex = '200010';
+    m.innerHTML = `<div class="box" style="max-width:600px"><div class="hd"><h2 style="margin:0">My orders</h2></div><div class="bd"><div class="note">Loading…</div></div><div class="ft"><button class="btn ghost" data-x="close">Close</button></div></div>`;
+    document.body.appendChild(m);
+    m.onclick = e => {
+      if(e.target.closest('[data-x="close"]') || e.target===m) return m.remove();
+      const rb = e.target.closest('[data-reorder233]');
+      if(rb){
+        const order = window.__myOrders233Cache?.find(o => o.id === rb.dataset.reorder233);
+        if(!order) return;
+        const cart = loadCart233();
+        let added = 0;
+        (order.items||[]).forEach(it => {
+          const existing = cart.find(c => c.productId === it.productId && c.uom === it.uom);
+          if(existing) existing.qty += it.qty;
+          else cart.push({productId: it.productId, code: it.code, name: it.name, uom: it.uom, qty: it.qty, rate: it.rate ?? null, rateOnRequest: !!it.rateOnRequest, rateText: it.rateText, bookName: order.bookName || ''});
+          added++;
+        });
+        saveCart233(cart);
+        updateCartBar233();
+        m.remove();
+        toast(added + ' product(s) added back to your order');
+        return;
+      }
+      const cb = e.target.closest('[data-cancel233]');
+      if(cb){ m.remove(); window.cancelMyOrder233(cb.dataset.cancel233); }
+    };
+    try{
+      const orders = await loadMyOrders233();
+      window.__myOrders233Cache = orders;
+      const bd = m.querySelector('.bd');
+      if(orders === null){ bd.innerHTML = '<div class="note">You need to be online to see your order history.</div>'; return; }
+      if(!orders.length){ bd.innerHTML = '<div class="empty-mini">You have not sent any orders yet.</div>'; return; }
+      bd.innerHTML = orders.map(o => `<div class="card" style="margin-bottom:8px"><div class="bd">
+        <div style="display:flex;justify-content:space-between;gap:10px"><b>${(o.items||[]).length} product(s)</b><span class="metric-sub">${myOrderStatusLabel233(o.status)}</span></div>
+        <div class="note" style="margin-top:3px">${(o.items||[]).slice(0,4).map(it=>esc(it.code)).join(', ')}${(o.items||[]).length>4?' + more':''}</div>
+        ${o.note ? `<div class="note" style="margin-top:3px"><b>Note:</b> ${esc(o.note)}</div>` : ''}
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn ghost sm" data-reorder233="${o.id}">Reorder these items</button>
+          ${(o.status === 'new' || !o.status) ? `<button class="btn ghost sm" data-cancel233="${o.id}">Cancel this order</button>` : ''}
+        </div>
+      </div></div>`).join('');
+    }catch(e){
+      m.querySelector('.bd').innerHTML = '<div class="note">Could not load your orders: ' + esc(e.message||'') + '</div>';
+    }
+  };
+
+  // keep the cart bar in sync whenever the viewer overlay is (re)rendered
+  // (cart bar sync observer is declared above, right after updateCartBar233)
+
+  /* ================= 2) Owner-side: view incoming order requests ================= */
+  async function loadOrders233(limitN){
+    const a = window.PMFirebase41; if(!a) return null;
+    const cfg = await a.getSavedConfig(); if(!cfg) return null;
+    a.ensureFirebase(cfg);
+    if(!a.auth.currentUser) return null;
+    const snap = await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').orderBy('createdAt','desc').limit(limitN||100).get();
+    return snap.docs.map(d => ({id:d.id, ...d.data()}));
+  }
+
+  function orderDetailDialog233(order){
+    const m = document.createElement('div'); m.className = 'modal';
+    const rows = (order.items||[]).map(it => {
+      const p = S.products.find(x => x.id === it.productId);
+      const stock = p ? (+p.stock || 0) : null;
+      const short = stock != null && stock < it.qty;
+      return `<tr>
+        <td><b>${esc(it.code)}</b> · ${esc(it.name)}${short?` <span class="tag" style="background:#FDECEC;color:var(--kumkum-d,#8f1f14)">⚠ only ${stock} in stock</span>`:''}${p?'':' <span class="metric-sub">(product no longer in inventory)</span>'}</td>
+        <td>${it.qty}</td><td>${esc(it.uom||'')}</td><td>${esc(it.rateText||'')}</td>
+      </tr>`;
+    }).join('');
+    const statusLabel = statusTag233(order.status);
+    const alreadyActioned = order.status === 'converted' || order.status === 'done' || order.status === 'rejected';
+    m.innerHTML = `<div class="box" style="max-width:640px"><div class="hd"><h2 style="margin:0">Order from ${esc(order.viewerName||'—')}</h2></div>
+      <div class="bd">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">${statusLabel}<b>Est. value: ${esc(orderValueLabel233(order))}</b></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${order.note ? `<div class="note" style="margin-top:10px"><b>Note:</b> ${esc(order.note)}</div>` : ''}
+      </div>
+      <div class="ft">
+        <button class="btn ghost" data-x="close">Close</button>
+        ${!alreadyActioned ? '<button class="btn ghost" data-x="reject">Reject</button><button class="btn ghost" data-x="done">Mark as done</button>' : ''}
+        ${order.status !== 'converted' ? '<button class="btn primary" data-x="convert">Convert to quotation</button>' : ''}
+      </div></div>`;
+    document.body.appendChild(m);
+    m.onclick = async e => {
+      const b = e.target.closest('[data-x]');
+      if(!b){ if(e.target===m) m.remove(); return; }
+      if(b.dataset.x === 'close') return m.remove();
+      if(b.dataset.x === 'done'){
+        try{
+          const a = window.PMFirebase41;
+          await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').doc(order.id).update({status:'done'});
+          toast('Marked as done');
+          m.remove(); if(window.refreshOrderBadge233) window.refreshOrderBadge233(); render();
+        }catch(err){ toast(err.message||'Could not update'); }
+      }
+      if(b.dataset.x === 'reject'){
+        if(!confirm('Reject this order request from '+(order.viewerName||'this user')+'? They will see it as rejected in their order history.')) return;
+        try{
+          const a = window.PMFirebase41;
+          await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').doc(order.id).update({status:'rejected'});
+          toast('Order rejected');
+          m.remove(); if(window.refreshOrderBadge233) window.refreshOrderBadge233(); render();
+        }catch(err){ toast(err.message||'Could not update'); }
+      }
+      if(b.dataset.x === 'convert'){
+        let party = S.parties.find(p => !p.archived && (p.name||'').trim().toLowerCase() === (order.viewerName||'').trim().toLowerCase());
+        if(!party){
+          if(!confirm('No existing party matches "'+order.viewerName+'". Create a new party with this name and continue?')) return;
+          party = {id: uid(), name: order.viewerName||'New party', city:'', phone:'', type:'Retailer', createdAt: Date.now(), credit:30};
+          S.parties.push(party);
+        }
+        const items = [], missing = [];
+        (order.items||[]).forEach(it => {
+          const p = S.products.find(x => x.id === it.productId) || (typeof findByCode==='function' ? findByCode(it.code) : null);
+          if(p) items.push({id: p.id, qty: it.qty});
+          else missing.push(it.code);
+        });
+        if(!items.length) return toast('None of the products in this order exist in inventory anymore');
+        ui.quote = ui.quote || {};
+        ui.quote.party = party.id;
+        ui.quote.items = items;
+        ui.quote.note = order.note || '';
+        try{
+          const a = window.PMFirebase41;
+          if(a && a.isConnected()) await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').doc(order.id).update({status:'converted'});
+        }catch(err){ /* non-fatal -- the quotation still gets built even if this status update fails */ }
+        m.remove(); if(window.refreshOrderBadge233) window.refreshOrderBadge233();
+        page = 'quote'; save(); render();
+        toast(missing.length ? (missing.length+' product(s) no longer exist and were skipped: '+missing.join(', ')) : ('Order loaded into a new quotation for '+party.name));
+      }
+    };
+  }
+  window.orderDetailDialog233 = orderDetailDialog233;
+
+  /* ================= notification badge for new orders ================= */
+  let newOrderCount233 = 0;
+  function hasStockShortage233(order){
+    return (order.items||[]).some(it => {
+      const p = S.products.find(x => x.id === it.productId);
+      return p && (+p.stock || 0) < it.qty;
+    });
+  }
+  window.downloadOrderHistory233 = async function(){
+    if(typeof XLSX === 'undefined') return toast('Excel library did not load — check your internet connection and reload');
+    toast('Preparing order history…');
+    try{
+      const orders = await loadOrders233(200);
+      if(!orders || !orders.length) return toast('No order requests to export yet');
+      const rows = [['Date', 'Customer', 'Product Code', 'Product Name', 'Qty', 'Unit', 'Rate', 'Status', 'Note']];
+      orders.forEach(o => {
+        const dateStr = o.createdAt ? new Date(typeof o.createdAt === 'number' ? o.createdAt : (o.createdAt.toMillis ? o.createdAt.toMillis() : Date.now())).toLocaleString('en-IN') : '';
+        (o.items||[]).forEach(it => {
+          rows.push([dateStr, o.viewerName||'', it.code||'', it.name||'', it.qty||0, it.uom||'', it.rateText||'', o.status||'new', o.note||'']);
+        });
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Order history');
+      XLSX.writeFile(wb, 'order-history-' + new Date().toISOString().slice(0,10) + '.xlsx');
+      toast('Downloaded');
+    }catch(e){ toast('Could not export: ' + (e.message||'')); }
+  };
+  function statusTag233(status){
+    if(status === 'converted') return '<span class="tag">Converted</span>';
+    if(status === 'done') return '<span class="tag">Done</span>';
+    if(status === 'rejected') return '<span class="tag" style="background:#FDECEC;color:var(--kumkum-d,#8f1f14)">Rejected</span>';
+    if(status === 'cancelled') return '<span class="tag" style="background:#F0F0F0;color:#777">Cancelled by customer</span>';
+    return '<span class="tag" style="background:#FFF3E0">New</span>';
+  }
+  function orderValue233(order){
+    let total = 0, unknownCount = 0;
+    (order.items||[]).forEach(it => {
+      if(it.rateOnRequest || it.rate == null || isNaN(+it.rate)){ unknownCount++; return; }
+      total += (+it.rate) * (+it.qty || 0);
+    });
+    return { total, unknownCount };
+  }
+  function orderValueLabel233(order){
+    const {total, unknownCount} = orderValue233(order);
+    const currency = (S.settings && S.settings.currency) || '₹';
+    let label = total > 0 ? '~' + currency + Math.round(total).toLocaleString('en-IN') : '';
+    if(unknownCount) label += (label ? ' + ' : '') + unknownCount + ' on request';
+    return label || '—';
+  }
+  function applyOrderBadge233(){
+    document.querySelectorAll('#nav [data-nav="access45"], .core45-card[data-nav="access45"]').forEach(btn => {
+      let badge = btn.querySelector('.ord233badge');
+      const want = newOrderCount233 > 0 ? String(newOrderCount233) : '';
+      if(want){
+        if(!badge){
+          badge = document.createElement('span');
+          badge.className = 'ord233badge';
+          badge.style.cssText = 'display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:999px;background:var(--kumkum,#C42A1C);color:#fff;font-size:10.5px;font-weight:800;text-align:center;margin-left:6px;vertical-align:middle';
+          btn.appendChild(badge);
+        }
+        if(badge.textContent !== want) badge.textContent = want;
+      } else if(badge){
+        badge.remove();
+      }
+    });
+  }
+  window.refreshOrderBadge233 = async function(){
+    try{
+      const orders = await loadOrders233();
+      if(orders === null) return;
+      newOrderCount233 = orders.filter(o => o.status === 'new' || !o.status).length;
+      applyOrderBadge233();
+      notifyNewOrders233(orders);
+    }catch(e){ /* silent -- badge just stays as last known */ }
+  };
+
+  /* ---------- browser notifications for new orders ---------- */
+  function notifiedIds233(){ try{ return new Set(JSON.parse(localStorage.getItem('pm-order-notified-233')||'[]')); }catch(e){ return new Set(); } }
+  function saveNotifiedIds233(set){ try{ localStorage.setItem('pm-order-notified-233', JSON.stringify([...set].slice(-500))); }catch(e){} }
+  function notifyNewOrders233(orders){
+    if(typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const seen = notifiedIds233();
+    const fresh = orders.filter(o => (o.status === 'new' || !o.status) && !seen.has(o.id));
+    if(!fresh.length) return;
+    fresh.forEach(o => {
+      try{
+        new Notification('New order request', { body: (o.viewerName||'Someone') + ' sent ' + (o.items||[]).length + ' product(s) — ' + orderValueLabel233(o), tag: 'pm-order-'+o.id });
+      }catch(e){}
+      seen.add(o.id);
+    });
+    saveNotifiedIds233(seen);
+  }
+  window.enableOrderNotifications233 = function(){
+    if(typeof Notification === 'undefined') return toast('Notifications are not supported in this browser');
+    Notification.requestPermission().then(perm => {
+      if(perm === 'granted'){ toast('Notifications enabled for new orders'); render(); }
+      else toast('Notifications were not allowed');
+    });
+  };
+  // keep the badge attached whenever the nav/home gets rebuilt
+  const badgeObserver233 = new MutationObserver(() => {
+    if(newOrderCount233 > 0 && !document.querySelector('.ord233badge')) applyOrderBadge233();
+  });
+  badgeObserver233.observe(document.body, {childList:true, subtree:true});
+  // periodic check while the owner is connected, so the badge behaves like a real notification rather than a one-time snapshot
+  setInterval(() => { if(window.PMFirebase41 && window.PMFirebase41.isConnected() && window.PMFirebase41.auth && window.PMFirebase41.auth.currentUser) window.refreshOrderBadge233(); }, 45000);
+  setTimeout(() => { if(window.PMFirebase41 && window.PMFirebase41.isConnected() && window.PMFirebase41.auth && window.PMFirebase41.auth.currentUser) window.refreshOrderBadge233(); }, 2500);
+
+  const prevRender233 = render;
+  render = function(){
+    const out = prevRender233();
+    setTimeout(async () => {
+      if(page !== 'access45') return;
+      const v = document.getElementById('view');
+      if(!v || v.querySelector('#orderRequests233')) return;
+      const box = document.createElement('div');
+      box.className = 'card'; box.id = 'orderRequests233'; box.style.marginTop = '14px';
+      const notifRow = (typeof Notification !== 'undefined' && Notification.permission === 'default')
+        ? '<button class="btn ghost sm" id="enableOrderNotif233" style="margin-bottom:10px">Enable browser notification for new orders</button>'
+        : (typeof Notification !== 'undefined' && Notification.permission === 'granted')
+          ? '<div class="note" style="margin-bottom:10px">✓ Browser notifications are on for new orders.</div>' : '';
+      box.innerHTML = `<div class="hd"><h2>Order requests</h2><div class="spacer"></div><button class="btn ghost sm" id="downloadOrderHistory233">Download order history</button></div><div class="bd"><div id="orderNotifRow233">${notifRow}</div><div id="orderListBody233"><div class="note">Loading…</div></div></div>`;
+      const savedBooksCard = [...v.querySelectorAll('.card .hd h2')].find(h => h.textContent.trim() === 'Saved Price Books')?.closest('.card');
+      if(savedBooksCard) savedBooksCard.after(box); else v.appendChild(box);
+      box.querySelector('#enableOrderNotif233')?.addEventListener('click', window.enableOrderNotifications233);
+      box.querySelector('#downloadOrderHistory233')?.addEventListener('click', window.downloadOrderHistory233);
+      try{
+        const orders = await loadOrders233();
+        const bd = box.querySelector('#orderListBody233');
+        if(orders === null){ bd.innerHTML = '<div class="note">Sign in to Firebase in Settings to see incoming order requests here.</div>'; return; }
+        newOrderCount233 = orders.filter(o => o.status === 'new' || !o.status).length;
+        applyOrderBadge233();
+        if(!orders.length){ bd.innerHTML = '<div class="empty-mini">No order requests yet.</div>'; return; }
+        bd.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>From</th><th>Items</th><th>Est. value</th><th>Status</th><th></th></tr></thead><tbody>
+          ${orders.map(o => `<tr><td><b>${esc(o.viewerName||'—')}</b>${hasStockShortage233(o)?' <span title="Some items are short on stock">⚠️</span>':''}</td><td>${(o.items||[]).length} product(s)</td><td>${esc(orderValueLabel233(o))}</td><td>${statusTag233(o.status)}</td><td class="r"><button class="link" data-order233="${o.id}">view</button></td></tr>`).join('')}
+        </tbody></table></div>`;
+        bd.querySelectorAll('[data-order233]').forEach(b => b.onclick = () => {
+          const o = orders.find(x => x.id === b.dataset.order233);
+          if(o) orderDetailDialog233(o);
+        });
+      }catch(e){
+        const errBd = box.querySelector('#orderListBody233');
+        if(errBd) errBd.innerHTML = '<div class="note">Could not load order requests: ' + esc(e.message||'') + '</div>';
+      }
+    }, 60);
+    return out;
+  };
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_233};
+})();
+</script>
+<script id="pm-v234-hindi-toggle">
+(()=>{
+  const PM_VERSION_234 = '2.32 Hindi/English toggle for the restricted viewer';
+
+  const HI233 = {
+    'Log out':'लॉग आउट','Download PDF':'PDF डाउनलोड','Share PDF / WhatsApp':'PDF शेयर करें','What changed?':'क्या बदला?',
+    'Favorites':'पसंदीदा','★ Favorites':'★ पसंदीदा','Favorite':'पसंदीदा','Recent products':'हाल के उत्पाद',
+    'Change price list':'प्राइस लिस्ट बदलें','Change / open catalog':'कैटलॉग बदलें / खोलें',
+    'Show all assigned price lists':'सभी प्राइस लिस्ट दिखाएं','Show all assigned catalogs':'सभी कैटलॉग दिखाएं',
+    'Quick product rate search':'उत्पाद खोजें','Search name, code, barcode, category, size, packing...':'नाम, कोड, बारकोड, श्रेणी, साइज़ से खोजें...',
+    'All assigned price lists':'सभी प्राइस लिस्ट','All categories':'सभी श्रेणियां',
+    'Assigned price lists':'आपकी प्राइस लिस्ट','No price list assigned.':'कोई प्राइस लिस्ट असाइन नहीं है।',
+    'PDF download only':'सिर्फ PDF डाउनलोड','Product catalogs':'उत्पाद कैटलॉग','View':'देखें',
+    'Sales team':'सेल्स टीम','Customer':'ग्राहक','Rate on request':'दर पूछने पर',
+    'Contact owner / sales team':'मालिक/सेल्स टीम से संपर्क करें','Rate update':'दर अपडेट','Announcement':'सूचना',
+    'searchable products':'खोजे जा सकने वाले उत्पाद','Search by product, code, barcode, category, size, packing or UOM.':'उत्पाद, कोड, बारकोड, श्रेणी, साइज़ या इकाई से खोजें।',
+    'effective':'से प्रभावी',
+    'No matching product in assigned price lists.':'आपकी प्राइस लिस्ट में यह उत्पाद नहीं मिला।',
+    'Try a shorter search term, or check the category filter above.':'छोटा शब्द लिखें, या ऊपर श्रेणी फ़िल्टर देखें।',
+    '+ Add to order':'+ ऑर्डर में जोड़ें','Review order':'ऑर्डर देखें','Your order':'आपका ऑर्डर',
+    'Note for the owner (optional)':'मालिक के लिए नोट (वैकल्पिक)','Send order request':'ऑर्डर भेजें',
+    'Close':'बंद करें','Clear order':'ऑर्डर खाली करें','remove':'हटाएं',
+    'This sends a request to the owner — it does not create a confirmed bill. Rates shown are for reference; the owner will confirm the final order.':'यह मालिक को एक अनुरोध भेजता है — यह पक्का बिल नहीं है। दरें सिर्फ जानकारी के लिए हैं; मालिक अंतिम ऑर्डर तय करेंगे।',
+    'Your order is empty.':'आपका ऑर्डर खाली है।','My orders':'मेरे ऑर्डर','You have not sent any orders yet.':'आपने अभी तक कोई ऑर्डर नहीं भेजा है।',
+    'Sent — awaiting review':'भेजा गया — समीक्षा बाकी','Reviewed by owner':'मालिक ने देख लिया','Confirmed into a quotation':'कोटेशन में बदला गया',
+    'Cancel this order':'यह ऑर्डर रद्द करें','Reorder these items':'फिर से ऑर्डर करें','Not accepted by owner':'मालिक ने स्वीकार नहीं किया','Cancelled by you':'आपने रद्द किया'
+  };
+  const EN233 = {}; Object.entries(HI233).forEach(([en]) => EN233[en] = en);
+
+  function currentLang233(){ try{ return localStorage.getItem('pm-viewer-lang-233') || 'en'; }catch(e){ return 'en'; } }
+  function setLang233(l){ try{ localStorage.setItem('pm-viewer-lang-233', l); }catch(e){} }
+
+  function translateNode233(root, dict){
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let n; while((n = walker.nextNode())) nodes.push(n);
+    const keys = Object.keys(HI233).sort((a,b) => b.length - a.length); // longest phrase first, so "PDF download only" wins over any shorter overlapping piece
+    nodes.forEach(node => {
+      if(!node.nodeValue.trim()) return;
+      if(!node.__origText233) node.__origText233 = node.nodeValue; // remember true original once
+      if(dict === EN233){ node.nodeValue = node.__origText233; return; }
+      let text = node.__origText233;
+      keys.forEach(key => {
+        if(!text.includes(key)) return;
+        const re = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        text = text.replace(re, HI233[key]);
+      });
+      node.nodeValue = text;
+    });
+    // also handle input placeholders (not text nodes)
+    root.querySelectorAll('input[placeholder]').forEach(inp => {
+      if(!inp.__origPlaceholder233) inp.__origPlaceholder233 = inp.placeholder;
+      const orig = inp.__origPlaceholder233;
+      if(dict === HI233 && HI233[orig]) inp.placeholder = HI233[orig];
+      else inp.placeholder = orig;
+    });
+  }
+
+  function applyLang233(){
+    const overlay = document.getElementById('cloudViewer46');
+    if(!overlay) return;
+    const lang = currentLang233();
+    const dict = lang === 'hi' ? HI233 : EN233;
+    translateNode233(overlay, dict);
+    document.querySelectorAll('.modal').forEach(m => translateNode233(m, dict)); // order review / my orders live outside #cloudViewer46
+    const btn = document.getElementById('lang233toggle');
+    if(btn){
+      const wantLabel = lang === 'hi' ? 'English' : 'हिंदी';
+      if(btn.textContent !== wantLabel) btn.textContent = wantLabel;
+    }
+  }
+
+  function ensureLangToggle233(){
+    const head = document.querySelector('#cloudViewer46 .cv47-head');
+    if(!head) return;
+    if(!head.querySelector('#myOrders233btn') && !window.__pmPreviewActive231){
+      const ob = document.createElement('button');
+      ob.id = 'myOrders233btn'; ob.className = 'btn ghost sm'; ob.style.marginRight = '8px';
+      ob.textContent = 'My orders';
+      ob.onclick = () => window.openMyOrders233();
+      const logoutEl = head.querySelector('#cv46out');
+      if(logoutEl) logoutEl.before(ob); else head.appendChild(ob);
+    }
+    if(head.querySelector('#lang233toggle')) return;
+    const btn = document.createElement('button');
+    btn.id = 'lang233toggle';
+    btn.className = 'btn ghost sm';
+    btn.style.marginRight = '8px';
+    btn.textContent = currentLang233() === 'hi' ? 'English' : 'हिंदी';
+    btn.onclick = () => {
+      setLang233(currentLang233() === 'hi' ? 'en' : 'hi');
+      applyLang233();
+    };
+    const logout = head.querySelector('#cv46out');
+    if(logout) logout.before(btn); else head.appendChild(btn);
+  }
+  if(window.cloudViewerLogout46){
+    const prevLogout233 = window.cloudViewerLogout46;
+    window.cloudViewerLogout46 = function(...args){ window.__pmPreviewActive231 = false; return prevLogout233(...args); };
+  }
+
+  // reapply language + ensure the toggle exists whenever the viewer (re)renders
+  const langObserver233 = new MutationObserver(() => {
+    const overlay = document.getElementById('cloudViewer46');
+    if(!overlay) return;
+    ensureLangToggle233();
+    if(currentLang233() === 'hi') applyLang233();
+  });
+  langObserver233.observe(document.body, {childList:true, subtree:true});
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_234};
+})();
 </script>
