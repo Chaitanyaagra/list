@@ -144,13 +144,50 @@
   function bookPdf(b){try{buildPDF(b.cfg).save((b.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
   async function bookShare(b){try{const d=buildPDF(b.cfg),blob=d.output('blob'),file=new File([blob],(b.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:b.name,text:b.name,files:[file]});bookPdf(b)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
   function catalogCacheKey(c){return new Request(location.origin+location.pathname+'?pmCatalog='+encodeURIComponent(c.id))}
+  async function catalogDownloadUrl(c){
+    if(!cloudSession||!cloudSession.storage)throw Error('Catalog is not cached on this device. Connect to internet once and open it.');
+    return await cloudSession.storage.ref(c.storagePath).getDownloadURL();
+  }
   async function catalogBlob(c){
     const cc=typeof caches!=='undefined'?await caches.open('pm-viewer-catalogs-v228'):null,key=catalogCacheKey(c);if(cc){const hit=await cc.match(key);if(hit)return hit.blob()}
-    if(!cloudSession||!cloudSession.storage)throw Error('Catalog is not cached on this device. Connect to internet once and open it.');
-    const url=await cloudSession.storage.ref(c.storagePath).getDownloadURL(),r=await fetch(url);if(!r.ok)throw Error('Catalog download failed');const blob=await r.blob();if(cc)await cc.put(key,new Response(blob,{headers:{'Content-Type':'application/pdf'}}));return blob;
+    const url=await catalogDownloadUrl(c),r=await fetch(url);if(!r.ok)throw Error('Catalog download failed');const blob=await r.blob();if(cc)await cc.put(key,new Response(blob,{headers:{'Content-Type':'application/pdf'}}));return blob;
   }
-  async function viewCatalog(c){let w=window.open('about:blank','_blank');try{const blob=await catalogBlob(c),url=URL.createObjectURL(blob);if(w)w.location=url;else window.location.href=url;setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){if(w)w.close();toast(e.message||'Could not open catalog')}}
-  async function downloadCatalog(c){try{const blob=await catalogBlob(c),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=c.filename||((c.title||'catalog')+'.pdf');document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}catch(e){toast(e.message||'Could not download catalog')}}
+  async function viewCatalog(c){
+    let w=window.open('about:blank','_blank');
+    try{
+      const blob=await catalogBlob(c),url=URL.createObjectURL(blob);
+      if(w)w.location=url;else window.location.href=url;
+      setTimeout(()=>URL.revokeObjectURL(url),60000)
+    }catch(e){
+      // Caching fetch can fail (e.g. the Storage bucket's default CORS setup blocks browser fetch() of the
+      // file, even though the app itself is authorised). A plain top-level navigation to the same signed URL
+      // is not subject to that restriction, so fall back to it -- this always works if the file exists.
+      try{
+        const url=await catalogDownloadUrl(c);
+        if(w)w.location=url;else window.location.href=url;
+      }catch(e2){
+        if(w)w.close();
+        toast(e2.message||e.message||'Could not open catalog')
+      }
+    }
+  }
+  async function downloadCatalog(c){
+    try{
+      const blob=await catalogBlob(c),url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=c.filename||((c.title||'catalog')+'.pdf');
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),3000)
+    }catch(e){
+      try{
+        const url=await catalogDownloadUrl(c),a=document.createElement('a');
+        a.href=url;a.download=c.filename||((c.title||'catalog')+'.pdf');a.target='_blank';a.rel='noopener';
+        document.body.appendChild(a);a.click();a.remove();
+        toast("Opening the catalog — use your browser's save/download option if it does not save automatically.")
+      }catch(e2){
+        toast(e2.message||e.message||'Could not download catalog')
+      }
+    }
+  }
 
   function activeBook230(b){if(!b)return b;const sc=b.scheduled,at=sc?.effectiveDate?new Date(sc.effectiveDate+'T00:00:00').getTime():0;if(sc&&at&&at<=Date.now())return {...b,cfg:sc.cfg,branding:sc.branding||b.branding,items:sc.items||[],changes:sc.changes||{},effectiveFrom:sc.effectiveDate,scheduledActivated:true};return b}
   function activeBooks230(p){return (p.priceBooks||[]).map(activeBook230)}

@@ -83,14 +83,15 @@ SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
 
-=== v2.46 NEW: fully automatic Firebase connection ===
-- Your actual Firebase project config is now baked directly into
-  firebase-config.js. The app connects to it automatically on open -- no
-  more pasting the config or clicking "Connect" ever again, on any device.
-  This is safe: a Firebase web config is meant to be public; real security
-  comes from Authentication + the Firestore/Storage Rules, not from hiding
-  this value.
-- The only manual step left is signing in once per browser/device with your
-  owner email + password (Settings -> Cloud sync). After that first sign-in,
-  the browser remembers it.
-- No firestore.rules or storage.rules changes in this pass.
+=== v2.47 FIX: catalog View/Download blocked by CORS ===
+- Found and fixed the exact bug: clicking View or Download on a catalog
+  worked in every way EXCEPT actually fetching the file -- the browser
+  blocked the fetch() request to Firebase Storage with a CORS error, even
+  though the file existed and permissions were correct. This is Firebase
+  Storage's default behaviour for a domain that isn't specifically
+  configured.
+- Fixed in the app: View and Download now fall back to a direct browser
+  navigation to the file's Storage URL when the fetch-based approach is
+  blocked. A plain navigation isn't subject to the same CORS restriction, so
+  this works immediately with no Firebase configuration changes needed.
+- No firestore.rules or storage.rules changes needed for this fix.
