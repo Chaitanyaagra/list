@@ -7650,28 +7650,6 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_240};
 })();
 </script>
-<script id="pm-v241-listitems-memoize">
-(()=>{
-  // Performance fix: listItems() was being called ~7 times per single price-list render
-  // (each accumulated layer re-computing the same 350-product list independently). Since
-  // listItems() takes no arguments and only reads global state (S.products, ui.list.*),
-  // it's safe to reuse its result within one synchronous render pass. The cache is cleared
-  // via setTimeout(0), guaranteeing it never survives past the current render's execution,
-  // so this can never return stale data across separate renders/user actions.
-  if(typeof listItems !== 'function') return;
-  let cache = null, clearScheduled = false;
-  const original = listItems;
-  listItems = function(){
-    if(cache) return cache;
-    cache = original.call(this);
-    if(!clearScheduled){
-      clearScheduled = true;
-      setTimeout(() => { cache = null; clearScheduled = false; }, 0);
-    }
-    return cache;
-  };
-})();
-</script>
 <script id="pm-v242-price-book-versioning">
 (()=>{
   const PM_VERSION_242 = '2.53 Price Book versioning: immutable monthly snapshots, compare, restore';
@@ -7932,5 +7910,31 @@ Amit, 5566,"></textarea>
   });
 
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_242};
+})();
+</script>
+<script id="pm-v243-pricebook-edit-reset">
+(()=>{
+  // Fix a real bug: ui.editingPriceBook230 stayed set after leaving the price-list page,
+  // so building a completely different price list later and clicking "Save as Price Book"
+  // silently UPDATED the previously-saved book instead of creating a new one -- the modal
+  // did say "Update" and had an easy-to-miss "save as new copy" checkbox, but this is a real
+  // trap for a returning owner who doesn't remember they're still "in" an old edit session.
+  let lastPage243 = page;
+  const prevRender243 = render;
+  render = function(){
+    if(lastPage243 === 'list' && page !== 'list' && !window.__pmJustLoadedBook243){
+      ui.editingPriceBook230 = null;
+    }
+    window.__pmJustLoadedBook243 = false;
+    lastPage243 = page;
+    return prevRender243();
+  };
+  const prevLoadPriceBook44_243 = window.loadPriceBook44;
+  if(typeof prevLoadPriceBook44_243 === 'function'){
+    window.loadPriceBook44 = function(id){
+      window.__pmJustLoadedBook243 = true; // this call is ABOUT to set editingPriceBook230 intentionally
+      return prevLoadPriceBook44_243(id);
+    };
+  }
 })();
 </script>

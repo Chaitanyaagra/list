@@ -82,3 +82,29 @@ PDF BRANDING
 SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
+
+=== v2.57 CRITICAL FIX: search only worked for one assigned price list ===
+- Found and fixed the exact bug reported: a customer/sales login with
+  MULTIPLE assigned price lists could only ever search products from ONE of
+  them (whichever was computed first), regardless of which price list was
+  selected in "Change price list".
+- Root cause #1 (self-introduced): a "performance" change from an earlier
+  session cached search results in a way that didn't account for different
+  price books needing different results within the same publish -- so every
+  assigned price book's published data ended up containing the SAME
+  products (whichever book was processed first). This caching was removed
+  entirely; it measurably gave no real speed benefit in real Chrome testing
+  anyway (~60-70ms either way for a 350-product list).
+- Root cause #2: creating a second, separate Price Book after navigating
+  away from and back to "Make Price List" could silently UPDATE the
+  previously saved Price Book instead of creating a new one (the editing
+  state didn't reset when leaving the page). Now it resets automatically,
+  so returning to build a fresh list always creates a new Price Book by
+  default.
+- IMPORTANT: any price book saved while this bug was active may have the
+  wrong products. Please open Users & Access -> Saved Price Books, check
+  each one, and re-publish (Publish / update cloud users) after confirming
+  they're correct. If two price books look identical or one seems to be
+  missing its intended products, that book was likely affected -- rebuild
+  it via "Make Price List" -> "Save as Price Book".
+- No firestore.rules or storage.rules changes in this pass.
