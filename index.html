@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="Tota Prices">
 <script>
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').then(reg => { window.__swRegistration233 = reg; }).catch(e => { window.__swRegistrationError233 = e; console.warn('Service Worker registration failed -- the app will still work, but offline caching will not be available:', e); }); });
 }
 </script>
 <style>
@@ -203,14 +203,29 @@ async function loadState(){
   }catch(e){ /* first run or local storage unavailable */ }
   return false;
 }
+let __flushInFlight230 = null;
+async function flushSaveNow230(){
+  if(!dirty) return;
+  clearTimeout(saveTimer);
+  if(__flushInFlight230) return __flushInFlight230; // avoid overlapping writes if triggered twice in quick succession
+  __flushInFlight230 = (async () => {
+    try{ await window.storage.set('tpm:data', JSON.stringify(S)); setSaveState('saved just now'); dirty=false; }
+    catch(e){ mem = JSON.stringify(S); setSaveState('saved in this session only'); }
+    finally{ __flushInFlight230 = null; }
+  })();
+  return __flushInFlight230;
+}
 function save(){
   dirty=true; setSaveState('saving…');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
-    try{ await window.storage.set('tpm:data', JSON.stringify(S)); setSaveState('saved just now'); dirty=false; }
-    catch(e){ mem = JSON.stringify(S); setSaveState('saved in this session only'); }
-  }, 400);
+  saveTimer = setTimeout(()=>{ flushSaveNow230(); }, 400);
 }
+// Force-flush any pending save the instant the tab is backgrounded/closed -- covers the app being
+// switched away from on mobile (which can suspend or kill the page before a debounced save fires),
+// closing the tab, or navigating away. visibilitychange fires earliest and most reliably on mobile;
+// pagehide is a second safety net for cases visibilitychange might be missed.
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') flushSaveNow230(); });
+window.addEventListener('pagehide', () => { flushSaveNow230(); });
 function setSaveState(t){ const e=document.getElementById('saveState'); if(e) e.textContent=t; }
 
 /* ============================ utils ============================ */
@@ -2433,6 +2448,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
     const ov=L.overrides&&Object.prototype.hasOwnProperty.call(L.overrides,p.id)?nz(L.overrides[p.id]):null;
     return ov!=null?Math.max(0,roundPrice(ov)):calc.net;
   }
+  window.listFinalRate = listFinalRate;
 
   /* Customer-facing PDF: only product information + final rate. Internal discount/base/margin never enter cfg. */
   listConfig=function(){
@@ -5299,8 +5315,15 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   }
   function scheduleAuto(){
     if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
-    clearTimeout(saveDebounce);saveDebounce=setTimeout(()=>enqueue(async()=>{try{await pushSnapshot({manual:false})}catch(e){if(e.code==='cloud-conflict'){if(!window.__cloudConflictWarned41){window.__cloudConflictWarned41=true;toast('Another device has newer cloud data — automatic sync paused until you resolve it in Settings.')}}}}),1200);
+    clearTimeout(saveDebounce);saveDebounce=setTimeout(()=>flushAutoSyncNow230(),1200);
   }
+  function flushAutoSyncNow230(){
+    if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
+    clearTimeout(saveDebounce);
+    return enqueue(async()=>{try{await pushSnapshot({manual:false})}catch(e){if(e.code==='cloud-conflict'){if(!window.__cloudConflictWarned41){window.__cloudConflictWarned41=true;toast('Another device has newer cloud data — automatic sync paused until you resolve it in Settings.')}}}});
+  }
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') flushAutoSyncNow230(); });
+  window.addEventListener('pagehide', () => { flushAutoSyncNow230(); });
   window.PMFirebase41={get auth(){return authRef},get db(){return dbRef},get app(){return app},getSavedConfig,ensureFirebase,isConnected:()=>!!dbRef,readCloudState:readCloud,queueCloudSave:()=>enqueue(()=>pushSnapshot({manual:false}))};
   function refreshIfOnSettings(){if(typeof page!=='undefined'&&page==='set'&&document.getElementById('view'))render()}
 
@@ -5309,7 +5332,26 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   window.firebaseSignUp30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.createUserWithEmailAndPassword(email,pw);toast('Account created and signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
   window.firebaseSignIn30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.signInWithEmailAndPassword(email,pw);window.__cloudConflictWarned41=false;toast('Signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
   window.firebaseSignOut30=async()=>{try{await authRef.signOut();toast('Signed out — cloud sync paused');refreshIfOnSettings()}catch(e){toast(e.message)}};
-  window.firebasePullNow30=async()=>{if(window.__restrictedFirebaseSession46)return toast('Restricted login cannot load owner cloud data');const user=authRef&&authRef.currentUser;if(!user)return toast('Sign in first');try{const cloud=await readCloud(user.uid);if(!cloud)return toast('No cloud data saved for this account yet');if(!confirm('Replace the data on THIS device with the cloud copy'+(cloud.updatedAtReadable?' from '+cloud.updatedAtReadable:'')+'?'))return;S={...S,...cloud.state};S.settings={...DEF_SETTINGS,...(S.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};window.__cloudConflictWarned41=false;suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}render();toast('Loaded from cloud')}catch(e){toast('Could not load: '+e.message)}};
+  window.firebasePullNow30=async()=>{
+    if(window.__restrictedFirebaseSession46)return toast('Restricted login cannot load owner cloud data');
+    const user=authRef&&authRef.currentUser;if(!user)return toast('Sign in first');
+    try{
+      const cloud=await readCloud(user.uid);if(!cloud)return toast('No cloud data saved for this account yet');
+      const cs=cloud.state||{};
+      const localCounts={products:(S.products||[]).length,users:(S.viewerUsers||[]).length,priceBooks:(S.priceBooks||[]).length,catalogs:(S.catalogFiles||[]).length};
+      const cloudCounts={products:(cs.products||[]).length,users:(cs.viewerUsers||[]).length,priceBooks:(cs.priceBooks||[]).length,catalogs:(cs.catalogFiles||[]).length};
+      const willLoseSomething=localCounts.products>cloudCounts.products||localCounts.users>cloudCounts.users||localCounts.priceBooks>cloudCounts.priceBooks||localCounts.catalogs>cloudCounts.catalogs;
+      const summary='On this device now: '+localCounts.products+' products, '+localCounts.users+' restricted users, '+localCounts.priceBooks+' price books, '+localCounts.catalogs+' catalogs.\n'
+        +'In the cloud copy'+(cloud.updatedAtReadable?' (from '+cloud.updatedAtReadable+')':'')+': '+cloudCounts.products+' products, '+cloudCounts.users+' restricted users, '+cloudCounts.priceBooks+' price books, '+cloudCounts.catalogs+' catalogs.\n\n'
+        +(willLoseSomething?'⚠ Loading the cloud copy will DISCARD anything on this device that is not also in the cloud copy — this cannot be undone.\n\n':'')
+        +'Replace the data on this device with the cloud copy?';
+      if(!confirm(summary))return;
+      S={...S,...cloud.state};
+      S.settings={...DEF_SETTINGS,...(S.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};
+      window.__cloudConflictWarned41=false;suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}
+      render();toast('Loaded from cloud')
+    }catch(e){toast('Could not load: '+e.message)}
+  };
   window.firebasePushNow30=async()=>{try{const ok=await enqueue(()=>pushSnapshot({manual:true}));if(ok){suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}render();toast('Saved to cloud in '+(await manifestRef(authRef.currentUser.uid).get()).data().chunkCount+' chunk(s)')}}catch(e){toast('Could not save to cloud: '+e.message)}};
 
   const prevSave41=save;
@@ -7136,6 +7178,14 @@ Amit, 5566,"></textarea>
     }
     function step(label, ok, detail){ steps.push({label, ok, detail}); render(); }
 
+    if('serviceWorker' in navigator){
+      if(window.__swRegistration233) step('Offline caching (Service Worker)', true, 'Registered and active.');
+      else if(window.__swRegistrationError233) step('Offline caching (Service Worker)', false, 'Registration failed: ' + (window.__swRegistrationError233.message||window.__swRegistrationError233));
+      else step('Offline caching (Service Worker)', null, 'Still registering, or this page was opened before it finished — reload once to confirm.');
+    } else {
+      step('Offline caching (Service Worker)', false, 'Not supported in this browser.');
+    }
+
     const a = window.PMFirebase41;
     if(!a){ step('Firebase module loaded', false, 'The app\'s own Firebase module did not load. Try reloading the page.'); return; }
     step('Firebase module loaded', true);
@@ -7595,5 +7645,289 @@ Amit, 5566,"></textarea>
   }
 
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_240};
+})();
+</script>
+<script id="pm-v241-listitems-memoize">
+(()=>{
+  // Performance fix: listItems() was being called ~7 times per single price-list render
+  // (each accumulated layer re-computing the same 350-product list independently). Since
+  // listItems() takes no arguments and only reads global state (S.products, ui.list.*),
+  // it's safe to reuse its result within one synchronous render pass. The cache is cleared
+  // via setTimeout(0), guaranteeing it never survives past the current render's execution,
+  // so this can never return stale data across separate renders/user actions.
+  if(typeof listItems !== 'function') return;
+  let cache = null, clearScheduled = false;
+  const original = listItems;
+  listItems = function(){
+    if(cache) return cache;
+    cache = original.call(this);
+    if(!clearScheduled){
+      clearScheduled = true;
+      setTimeout(() => { cache = null; clearScheduled = false; }, 0);
+    }
+    return cache;
+  };
+})();
+</script>
+<script id="pm-v242-price-book-versioning">
+(()=>{
+  const PM_VERSION_242 = '2.53 Price Book versioning: immutable monthly snapshots, compare, restore';
+
+  function defaultVersionLabel242(){
+    return new Date().toLocaleDateString('en-IN', {month:'long', year:'numeric'});
+  }
+
+  const LIST_KEYS_242 = ['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','title','targetUnit30','extraPct','overrides','qtyBasis26','changedOnly26','productUoms227','rateOnRequest230'];
+
+  /* Computes the CURRENT rate for every product in a price book's config, independent of
+     which display columns are enabled -- used both to create a snapshot and to compare
+     a snapshot against "current" live rates. Does not touch ui.list permanently. */
+  function computePriceBookSnapshotItems242(pb){
+    const saved = {};
+    LIST_KEYS_242.forEach(k => { saved[k] = ui.list[k]; });
+    Object.assign(ui.list, pb.config);
+    let items;
+    try{
+      const products = listItems();
+      const ror = (ui.list.rateOnRequest230) || {};
+      items = products.map(p => {
+        const onRequest = !!ror[p.id];
+        const rate = onRequest ? null : listFinalRate(p);
+        return {
+          productId: p.id, code: p.code||'', name: p.name||'', size: p.size||'',
+          packing: p.packing||'', category: p.category||'Uncategorised', mrp: p.mrp??null,
+          rate: rate==null ? null : Math.round(rate*100)/100,
+          rateOnRequest: onRequest,
+          uom: p.priceListUnit || p.priceUnit || ''
+        };
+      });
+    } finally { Object.assign(ui.list, saved); }
+    return items;
+  }
+
+  window.createPriceBookVersion242 = function(pb, label){
+    const items = computePriceBookSnapshotItems242(pb);
+    const version = {
+      id: uid(), priceBookId: pb.id, priceBookName: pb.name,
+      label: (label||'').trim() || defaultVersionLabel242(),
+      createdAt: Date.now(), items
+    };
+    S.priceBookVersions = S.priceBookVersions || [];
+    S.priceBookVersions.unshift(version);
+    save();
+    return version;
+  };
+
+  function versionsForBook242(priceBookId){
+    return (S.priceBookVersions||[]).filter(v => v.priceBookId === priceBookId).sort((a,b) => b.createdAt - a.createdAt);
+  }
+
+  /* Rebuilds a listConfig()-shaped object from a flat snapshot (or from "live now"), grouped
+     by category, so the existing PDF/Excel writers can be reused without modification. */
+  function snapshotToListConfig242(items, pb){
+    const columns = [
+      {key:'code', label:'Code', align:'left', w:1.0},
+      {key:'name', label:'Product', align:'left', w:3.8},
+      {key:'size', label:'Size', align:'left', w:1.2},
+      {key:'packing', label:'Packing', align:'left', w:2.2},
+      {key:'mrp', label:'MRP', align:'right', w:1.0},
+      {key:'final', label:'Rate', align:'right', w:1.25, bold:true}
+    ];
+    const groups = [];
+    let cur = null;
+    items.forEach(it => {
+      if(!cur || cur.name !== it.category){ cur = {name: it.category, rows: []}; groups.push(cur); }
+      cur.rows.push([
+        it.code, it.name, it.size, it.packing,
+        it.mrp!=null ? (S.settings.currency+money(it.mrp)) : '—',
+        it.rateOnRequest ? 'Rate on request' : (it.rate!=null ? S.settings.currency+money(it.rate)+(it.uom?'/'+it.uom:'') : '—')
+      ]);
+    });
+    const st = S.settings;
+    return {
+      columns, groups, landscape:false, firm:st.firm,
+      meta:[st.address, st.phone, st.email, st.gstin?'GSTIN '+st.gstin:''].filter(Boolean).join('  ·  '),
+      title:(pb?pb.name+' — ':'')+'Price list', count: items.length,
+      sub:[st.wef?'W.E.F '+st.wef:'', pb?pb.category||'':''].filter(Boolean).join('  ·  '),
+      footer: st.footer
+    };
+  }
+
+  window.downloadVersionPDF242 = function(version){
+    try{
+      const J = (window.jspdf||{}).jsPDF;
+      if(!J) throw new Error('PDF writer could not load.');
+      const cfg = snapshotToListConfig242(version.items, S.priceBooks.find(p=>p.id===version.priceBookId));
+      const doc = buildPDF(cfg);
+      doc.save(safeFilename(version.priceBookName+' - '+version.label, 'price-list'));
+      toast('Downloaded');
+    }catch(e){ toast(e.message||'Could not download PDF'); }
+  };
+
+  window.downloadVersionExcel242 = function(version){
+    try{
+      if(typeof XLSX === 'undefined') throw new Error('Excel library did not load.');
+      const rows = [['Category','Code','Product','Size','Packing','MRP','Rate','Unit']];
+      version.items.forEach(it => rows.push([it.category, it.code, it.name, it.size, it.packing, it.mrp??'', it.rateOnRequest?'Rate on request':(it.rate??''), it.uom||'']));
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Price list');
+      XLSX.writeFile(wb, (version.priceBookName+' - '+version.label).replace(/[^\w.\- ]+/g,'_')+'.xlsx');
+      toast('Downloaded');
+    }catch(e){ toast(e.message||'Could not export Excel'); }
+  };
+
+  /* ================= dialogs ================= */
+  window.saveVersionDialog242 = function(pbId){
+    const pb = S.priceBooks.find(p=>p.id===pbId);
+    if(!pb) return;
+    const m = document.createElement('div'); m.className='modal';
+    m.innerHTML = `<div class="box" style="max-width:420px"><div class="hd"><h2 style="margin:0">Save a version</h2></div>
+      <div class="bd">
+        <div class="note" style="margin-bottom:10px">Freezes today's rates for "<b>${esc(pb.name)}</b>" as a permanent, unchangeable snapshot — later product/cost changes will never alter it.</div>
+        <div class="field"><label>Label</label><input id="v242label" value="${esc(defaultVersionLabel242())}"></div>
+      </div>
+      <div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save version</button></div></div>`;
+    document.body.appendChild(m);
+    m.onclick = e => {
+      const b = e.target.closest('[data-x]');
+      if(!b){ if(e.target===m) m.remove(); return; }
+      if(b.dataset.x==='close') return m.remove();
+      if(b.dataset.x==='save'){
+        const label = m.querySelector('#v242label').value.trim();
+        const v = window.createPriceBookVersion242(pb, label);
+        m.remove();
+        toast('Saved "'+v.label+'" · '+v.items.length+' products');
+        render();
+      }
+    };
+  };
+
+  window.versionListDialog242 = function(pbId){
+    const pb = S.priceBooks.find(p=>p.id===pbId);
+    if(!pb) return;
+    const m = document.createElement('div'); m.className='modal';
+    function draw(){
+      const versions = versionsForBook242(pbId);
+      m.innerHTML = `<div class="box" style="max-width:720px"><div class="hd"><h2 style="margin:0">Versions — ${esc(pb.name)}</h2></div>
+        <div class="bd">
+          ${versions.length ? `<div class="tbl-wrap"><table><thead><tr><th>Version</th><th>Saved</th><th class="r">Products</th><th></th></tr></thead><tbody>
+            ${versions.map(v => `<tr>
+              <td><b>${esc(v.label)}</b></td>
+              <td>${new Date(v.createdAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+              <td class="r num">${v.items.length}</td>
+              <td class="r"><button class="link" data-pdf="${v.id}">PDF</button> · <button class="link" data-xlsx="${v.id}">Excel</button> · <button class="link" data-compare="${v.id}">compare</button> · <button class="link" data-restore="${v.id}">restore</button> · <button class="link" data-del="${v.id}">delete</button></td>
+            </tr>`).join('')}
+          </tbody></table></div>` : '<div class="empty-mini">No versions saved yet for this price book.</div>'}
+        </div>
+        <div class="ft"><button class="btn ghost" data-x="newver">Save a new version</button><button class="btn primary" data-x="close">Close</button></div></div>`;
+    }
+    draw();
+    document.body.appendChild(m);
+    m.onclick = e => {
+      const b = e.target.closest('[data-x],[data-pdf],[data-xlsx],[data-compare],[data-restore],[data-del]');
+      if(!b){ if(e.target===m) m.remove(); return; }
+      const versions = versionsForBook242(pbId);
+      if(b.dataset.x==='close') return m.remove();
+      if(b.dataset.x==='newver'){ m.remove(); window.saveVersionDialog242(pbId); return; }
+      if(b.dataset.pdf){ window.downloadVersionPDF242(versions.find(v=>v.id===b.dataset.pdf)); return; }
+      if(b.dataset.xlsx){ window.downloadVersionExcel242(versions.find(v=>v.id===b.dataset.xlsx)); return; }
+      if(b.dataset.compare){ window.compareVersionDialog242(versions.find(v=>v.id===b.dataset.compare), pb); return; }
+      if(b.dataset.restore){
+        const v = versions.find(x=>x.id===b.dataset.restore);
+        if(confirm('Restore "'+v.label+'"? This sets every product rate in "'+pb.name+'" back to exactly what it was then, as manual overrides. You can still edit individual rates afterward.')){
+          window.restoreVersion242(v, pb);
+          m.remove();
+        }
+        return;
+      }
+      if(b.dataset.del){
+        const v = versions.find(x=>x.id===b.dataset.del);
+        if(confirm('Delete the "'+v.label+'" version? This cannot be undone.')){
+          S.priceBookVersions = S.priceBookVersions.filter(x=>x.id!==v.id);
+          save(); draw();
+        }
+        return;
+      }
+    };
+  };
+
+  window.restoreVersion242 = function(version, pb){
+    pb.config = pb.config || {};
+    pb.config.overrides = pb.config.overrides || {};
+    version.items.forEach(it => {
+      if(!it.rateOnRequest && it.rate!=null) pb.config.overrides[it.productId] = it.rate;
+    });
+    save();
+    toast('Restored "'+version.label+'" — rates now match that version exactly.');
+    render();
+  };
+
+  window.compareVersionDialog242 = function(version, pb){
+    const currentItems = computePriceBookSnapshotItems242(pb);
+    const currentByCode = {}; currentItems.forEach(it => currentByCode[it.code] = it);
+    const oldByCode = {}; version.items.forEach(it => oldByCode[it.code] = it);
+
+    const added = [], removed = [], changed = [];
+    let unchangedCount = 0;
+    currentItems.forEach(it => {
+      const old = oldByCode[it.code];
+      if(!old){ added.push(it); return; }
+      const oldRateLabel = old.rateOnRequest ? 'On request' : (old.rate!=null ? money(old.rate) : '—');
+      const newRateLabel = it.rateOnRequest ? 'On request' : (it.rate!=null ? money(it.rate) : '—');
+      if(oldRateLabel !== newRateLabel) changed.push({code:it.code, name:it.name, from:oldRateLabel, to:newRateLabel});
+      else unchangedCount++;
+    });
+    version.items.forEach(old => { if(!currentByCode[old.code]) removed.push(old); });
+
+    const m = document.createElement('div'); m.className='modal'; m.style.zIndex='200010';
+    m.innerHTML = `<div class="box" style="max-width:640px"><div class="hd"><h2 style="margin:0">"${esc(version.label)}" vs current</h2></div>
+      <div class="bd">
+        <div class="note" style="margin-bottom:10px">${changed.length} rate change(s) · ${added.length} new product(s) · ${removed.length} removed · ${unchangedCount} unchanged</div>
+        ${changed.length ? `<b>Rate changes</b><div class="tbl-wrap" style="margin:6px 0 12px"><table><thead><tr><th>Code</th><th>Product</th><th class="r">Then</th><th class="r">Now</th></tr></thead><tbody>${changed.map(c=>`<tr><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td class="r num">${esc(c.from)}</td><td class="r num">${esc(c.to)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        ${added.length ? `<b>New since then</b><div class="tbl-wrap" style="margin:6px 0 12px"><table><tbody>${added.map(a=>`<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        ${removed.length ? `<b>No longer in the price book</b><div class="tbl-wrap" style="margin:6px 0"><table><tbody>${removed.map(r=>`<tr><td>${esc(r.code)}</td><td>${esc(r.name)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+        ${!changed.length && !added.length && !removed.length ? '<div class="empty-mini">No differences — identical to the current price book.</div>' : ''}
+      </div>
+      <div class="ft"><button class="btn primary" data-x="close">Close</button></div></div>`;
+    document.body.appendChild(m);
+    m.onclick = e => { if(e.target.closest('[data-x="close"]') || e.target===m) m.remove(); };
+  };
+
+  /* ================= inject controls into the Saved Price Books table ================= */
+  const prevRender242 = render;
+  render = function(){
+    const out = prevRender242();
+    setTimeout(() => {
+      const v = document.getElementById('view');
+      if(!v) return;
+      v.querySelectorAll('[data-pb-versions-anchor]').forEach(el => el.remove()); // avoid dupes across re-renders
+      const headers = [...v.querySelectorAll('.card .hd h2')].filter(h => h.textContent.trim() === 'Saved Price Books');
+      headers.forEach(h => {
+        const card = h.closest('.card');
+        const table = card && card.querySelector('table');
+        if(!table) return;
+        [...table.querySelectorAll('tbody tr')].forEach(tr => {
+          const loadBtn = tr.querySelector('[data-pb-load]');
+          if(!loadBtn) return;
+          const pbId = loadBtn.dataset.pbLoad;
+          if(!pbId || !S.priceBooks.find(p=>p.id===pbId)) return;
+          const actionsCell = tr.querySelector('td:last-child');
+          if(!actionsCell || actionsCell.querySelector('[data-versions-btn]')) return;
+          const span = document.createElement('span');
+          span.innerHTML = ` · <button class="link" data-versions-btn="${pbId}">versions</button>`;
+          actionsCell.appendChild(span);
+        });
+      });
+    }, 60);
+    return out;
+  };
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-versions-btn]');
+    if(b){ e.preventDefault(); window.versionListDialog242(b.dataset.versionsBtn); }
+  });
+
+  window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_242};
 })();
 </script>

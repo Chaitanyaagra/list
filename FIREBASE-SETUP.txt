@@ -83,14 +83,15 @@ SIMPLIFIED OWNER DESIGN
 - The primary owner workflow is grouped into five sections: Supplier & Costing, Price Lists, Purchase & Inventory, Users & Access, and Catalogs. Settings remains secondary.
 
 
-=== v2.48 NEW: mobile "Install app" prompt ===
-- On mobile (Android or iPhone), if the app isn't already installed, a
-  banner appears at the bottom: "Install this app?" with "Later" and
-  "Install now" (Android) / "Got it" (iPhone) buttons.
-  - Android: "Install now" triggers the real, native install dialog.
-  - iPhone (Safari): there's no programmatic install API, so it shows
-    instructions instead ("Tap Share, then Add to Home Screen").
-  - "Later" hides it for 3 days, then it will offer again if still not
-    installed. It never shows once the app is actually installed, and never
-    shows on desktop.
+=== v2.53 NEW: Price Book versioning (immutable monthly snapshots) ===
+- Each Price Book row (Users & Access > Saved Price Books) now has a
+  "versions" link.
+- "Save a new version" freezes every current rate for that Price Book as a
+  permanent snapshot, labelled by month/year by default (e.g. "September
+  2026") or any custom name. Later product/cost changes never alter a saved
+  version.
+- Each version can be: downloaded as PDF, downloaded as Excel, compared
+  against the price book's current live rates (shows exactly what changed,
+  what's new, what's removed), or restored (sets every product back to
+  exactly that version's rates, as manual overrides you can still adjust).
 - No firestore.rules or storage.rules changes in this pass.
