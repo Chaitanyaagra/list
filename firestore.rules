@@ -3,34 +3,121 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn(){ return request.auth != null; }
     function securityExists(){ return exists(/databases/$(database)/documents/meta/security); }
+    function bootstrapExists(){ return exists(/databases/$(database)/documents/meta/bootstrap); }
+    function bootstrapOwnerUid(){ return get(/databases/$(database)/documents/meta/bootstrap).data.ownerUid; }
+    function isBootstrapOwner(){ return signedIn() && bootstrapExists() && request.auth.uid == bootstrapOwnerUid(); }
     function ownerUid(){ return get(/databases/$(database)/documents/meta/security).data.ownerUid; }
     function isOwner(){ return signedIn() && securityExists() && request.auth.uid == ownerUid(); }
     function profileExists(uid){ return exists(/databases/$(database)/documents/accessProfiles/$(uid)); }
     function activeRestricted(uid){ return signedIn() && request.auth.uid == uid && profileExists(uid) && get(/databases/$(database)/documents/accessProfiles/$(uid)).data.active == true && (!('expiresAt' in get(/databases/$(database)/documents/accessProfiles/$(uid)).data) || get(/databases/$(database)/documents/accessProfiles/$(uid)).data.expiresAt == null || get(/databases/$(database)/documents/accessProfiles/$(uid)).data.expiresAt > request.time); }
 
+    function validOrderItem(item) {
+      return item is map
+        && item.keys().hasAll(['productId','code','name','uom','qty','rate','rateText','rateOnRequest'])
+        && item.keys().hasOnly(['productId','code','name','uom','qty','rate','rateText','rateOnRequest'])
+        && item.productId is string && item.productId.size() > 0 && item.productId.size() <= 128
+        && item.code is string && item.code.size() > 0 && item.code.size() <= 80
+        && item.name is string && item.name.size() > 0 && item.name.size() <= 240
+        && item.uom is string && item.uom.size() > 0 && item.uom.size() <= 40
+        && item.qty is number && item.qty > 0 && item.qty <= 100000
+        && (item.rate == null || (item.rate is number && item.rate >= 0 && item.rate <= 1000000000))
+        && item.rateText is string && item.rateText.size() <= 100
+        && item.rateOnRequest is bool;
+    }
+    function validOrderItemAt(items, i) {
+      return items.size() <= i || validOrderItem(items[i]);
+    }
+    function validOrderItems(items) {
+      return items is list && items.size() > 0 && items.size() <= 30
+      && validOrderItemAt(items, 0)
+      && validOrderItemAt(items, 1)
+      && validOrderItemAt(items, 2)
+      && validOrderItemAt(items, 3)
+      && validOrderItemAt(items, 4)
+      && validOrderItemAt(items, 5)
+      && validOrderItemAt(items, 6)
+      && validOrderItemAt(items, 7)
+      && validOrderItemAt(items, 8)
+      && validOrderItemAt(items, 9)
+      && validOrderItemAt(items, 10)
+      && validOrderItemAt(items, 11)
+      && validOrderItemAt(items, 12)
+      && validOrderItemAt(items, 13)
+      && validOrderItemAt(items, 14)
+      && validOrderItemAt(items, 15)
+      && validOrderItemAt(items, 16)
+      && validOrderItemAt(items, 17)
+      && validOrderItemAt(items, 18)
+      && validOrderItemAt(items, 19)
+      && validOrderItemAt(items, 20)
+      && validOrderItemAt(items, 21)
+      && validOrderItemAt(items, 22)
+      && validOrderItemAt(items, 23)
+      && validOrderItemAt(items, 24)
+      && validOrderItemAt(items, 25)
+      && validOrderItemAt(items, 26)
+      && validOrderItemAt(items, 27)
+      && validOrderItemAt(items, 28)
+      && validOrderItemAt(items, 29);
+    }
+
     match /meta/security {
       allow read: if signedIn();
-      allow create: if signedIn() && !securityExists() && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if signedIn() && !securityExists() && bootstrapExists()
+        && bootstrapOwnerUid() == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['ownerUid','createdAt']);
       allow update, delete: if isOwner();
+    }
+    match /meta/bootstrap {
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if false;
     }
     match /accessProfiles/{uid} { allow read: if isOwner() || (signedIn() && request.auth.uid == uid); allow create, update, delete: if isOwner(); }
     match /viewerPayloads/{uid} { allow read: if isOwner() || activeRestricted(uid); allow create, update, delete: if isOwner(); }
     match /viewerPayloads/{uid}/parts/{partId} { allow read: if isOwner() || activeRestricted(uid); allow create, update, delete: if isOwner(); }
     match /loginActivity/{uid} {
       allow read, delete: if isOwner();
-      allow create, update: if activeRestricted(uid) && request.resource.data.ownerUid == ownerUid();
+      allow create: if activeRestricted(uid)
+        && request.resource.data.ownerUid == ownerUid()
+        && request.resource.data.username == get(/databases/$(database)/documents/accessProfiles/$(uid)).data.username
+        && request.resource.data.role == get(/databases/$(database)/documents/accessProfiles/$(uid)).data.role
+        && request.resource.data.loginCount == 1
+        && request.resource.data.lastLoginAt == request.time
+        && request.resource.data.keys().hasAll(['ownerUid','username','role','lastLoginAt','loginCount'])
+        && request.resource.data.keys().hasOnly(['ownerUid','username','role','lastLoginAt','loginCount','device','userAgent','lastAccessVersion']);
+      allow update: if activeRestricted(uid)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.username == resource.data.username
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.loginCount == resource.data.loginCount + 1
+        && request.resource.data.lastLoginAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt','loginCount','device','userAgent','lastAccessVersion']);
     }
     match /orderRequests/{ownerUidParam}/items/{orderId} {
-      allow read: if (isOwner() && ownerUidParam == request.auth.uid) || (signedIn() && resource.data.viewerUid == request.auth.uid);
+      allow read: if (isOwner() && ownerUidParam == request.auth.uid) || (activeRestricted(request.auth.uid) && resource.data.viewerUid == request.auth.uid && resource.data.ownerUid == ownerUidParam && ownerUidParam == ownerUid());
       allow update: if (isOwner() && ownerUidParam == request.auth.uid)
-        || (signedIn() && resource.data.viewerUid == request.auth.uid && resource.data.status == 'new' && request.resource.data.status == 'cancelled');
+        || (activeRestricted(request.auth.uid)
+          && resource.data.viewerUid == request.auth.uid
+          && resource.data.ownerUid == ownerUidParam
+          && ownerUidParam == ownerUid()
+          && resource.data.status == 'new'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
       allow delete: if isOwner() && ownerUidParam == request.auth.uid;
       allow create: if activeRestricted(request.auth.uid)
         && request.resource.data.viewerUid == request.auth.uid
         && request.resource.data.ownerUid == ownerUidParam
-        && ownerUidParam == ownerUid();
+        && ownerUidParam == ownerUid()
+        && request.resource.data.viewerName == get(/databases/$(database)/documents/accessProfiles/$(request.auth.uid)).data.username
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time
+        && validOrderItems(request.resource.data.items)
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 2000
+        && request.resource.data.keys().hasOnly(['ownerUid','viewerUid','viewerName','items','note','status','createdAt']);
     }
-    match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && !profileExists(uid); }
+    match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && (isOwner() || (!securityExists() && isBootstrapOwner())); }
     match /{document=**} { allow read, write: if false; }
   }
 }

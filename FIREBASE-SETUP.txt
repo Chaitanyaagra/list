@@ -1,3 +1,22 @@
+TOTA PRICE MANAGER v2.68 — IMPORTANT SECURE OWNER BOOTSTRAP
+============================================================
+
+Existing Firebase projects that already contain Firestore document meta/security do not need this one-time step.
+
+For a NEW Firebase project, v2.68 does not let the first arbitrary signed-in client claim Owner access. Before pressing “Initialize security”:
+
+1. Enable Firebase Authentication > Email/Password and create/sign in with the intended Owner account.
+2. Copy that Owner user's Firebase Authentication UID.
+3. In Firestore Console manually create document: meta/bootstrap
+4. Add string field: ownerUid = <the exact Owner Auth UID>
+5. Publish the firestore.rules included with this ZIP.
+6. Open the app, sign in as Owner under Firebase Settings, then use Users & Access > Initialize security.
+7. The app creates meta/security only when the signed-in UID matches meta/bootstrap. Client apps cannot create or change meta/bootstrap under the supplied rules.
+
+This closes the fresh-project “first signed-in user can claim owner” race. Keep meta/bootstrap as a console-controlled record.
+
+------------------------------------------------------------
+
 PRICE & STOCK MANAGER — SECURE FIREBASE ACCESS v2.30
 
 1) Firebase Console > Authentication > Sign-in method > enable Email/Password.
@@ -35,15 +54,9 @@ IMPORTANT
 - Restricted offline rate access expires after 24 hours; after expiry the user must reconnect and authenticate again.
 
 
-=== v2.28 IMPORTANT SECURITY / SYNC SETUP ===
-1. Deploy the included firestore.rules and storage.rules.
-2. In Firebase Authentication enable Email/Password.
-3. Create/sign-in your OWNER Firebase account and copy its UID from Authentication > Users.
-4. In Firestore Console manually create collection `bootstrapOwners`, document ID = your OWNER UID, with any field such as `enabled: true`. This document cannot be created by the web app.
-5. Back in the app open Users & access > Initialize security. The app can now create `meta/security` only for that pre-authorized UID.
-6. Owner cloud state is stored under users/<uid>/appData as a manifest + versioned chunks; the old ~900 KB single-document limit no longer applies.
-7. Restricted viewer payloads are also stored as manifest + chunk parts. Deleted users are revoked and their payload is removed; offline viewer cache expires automatically (24 hours by default).
-8. For offline operation, open the deployed app online once after each new version so the service worker can cache PDF.js, jsPDF, XLSX, QR and Firebase SDK files. After that, core tools work offline from cache.
+=== LEGACY BOOTSTRAP NOTE ===
+Older builds used a different bootstrap collection. That method is obsolete.
+For v2.68 use ONLY the meta/bootstrap document described at the top of this file.
 
 
 === v2.28 REGRESSION HARDENING ===
@@ -108,3 +121,28 @@ SIMPLIFIED OWNER DESIGN
   missing its intended products, that book was likely affected -- rebuild
   it via "Make Price List" -> "Save as Price Book".
 - No firestore.rules or storage.rules changes in this pass.
+
+=== v2.63 SECURITY / INTEGRITY HARDENING ===
+IMPORTANT: Publish the included firestore.rules after upgrading to this build.
+- Restricted-user order creation is now field-validated and must be a new order owned by the authenticated profile.
+- A restricted user may cancel only their own still-new order, and that write may change only the status field.
+- Login-activity writes now lock owner/username/role identity fields, enforce server timestamps, and increment the counter by exactly one.
+- Fresh Owner installs no longer use a factory/default PIN. First run requires a unique Owner credential.
+- Restricted offline cache requires a PIN of at least 6 characters. Logout now offers a clear-offline-data option.
+- Price Book versions now use the same canonical customer pricing/UOM engine as the live published list and save the complete Price Book configuration.
+- Publish the bundled service worker with the application files so cache version v263 is activated.
+
+
+=== v2.64 CLOUD LOGIN HOTFIX ===
+- New restricted users immediately attempt Firebase provisioning when the Owner is signed in.
+- One failed user no longer blocks later users from being created.
+- Users & access now shows Pending / Retry cloud and the actual Firebase error.
+- A Repair pending logins button retries all users independently.
+- Auth identity v2 prevents an orphaned/deleted legacy Auth account from permanently blocking recreation of the same username.
+- Existing legacy restricted logins remain backward compatible.
+
+
+V2.67 FIRESTORE HARDENING
+- Owner appData reads/writes are limited to the initialized Owner UID (or the console-authorized bootstrap Owner before meta/security is created). Arbitrary Firebase accounts cannot create appData.
+- Restricted order requests are server-validated line-by-line. Each order supports up to 30 product lines; larger orders should be split into multiple requests.
+- Publish the v2.68 firestore.rules after upgrade; otherwise these protections are not active.

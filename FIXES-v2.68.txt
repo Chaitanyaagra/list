@@ -1,0 +1,33 @@
+TOTA PRICE MANAGER v2.68 — REFINEMENT / INTEGRITY / UI POLISH
+
+CORE FIXES
+- Manual and bulk stock adjustments now reconcile batch quantities for batch-tracked SKUs.
+- Stock increases create an auditable manual Adjustment Batch; decreases reduce open batches FIFO.
+- Product Editor and Inventory stock changes use the same auditable stock adjustment path.
+- Restricted-user order requests now send the canonical Firestore profile username, avoiding case/space permission mismatches.
+- “Log out & clear offline data” now clears restricted payload cache, cart, favorites/recent searches and cached catalogs.
+- Permanent Secure Erase additionally clears restricted device caches and signs out the Firebase Owner session.
+- v2.67 known-UOM migration is now one-time and cannot keep rewriting a user’s later intentional UOM change.
+- Shared/family barcode review records can be marked Verified without deleting the shared barcode relationship.
+- Low-stock attention counts only sellable Active / On Demand products.
+
+UI / UX POLISH
+- Quick Find upgraded to a grouped Command Center (Products / Parties / Price Books / Invoices / Restricted users).
+- Keyboard navigation in Quick Find: Up/Down, Enter, Esc.
+- Archived products are excluded from normal Quick Find results.
+- Product Editor reorganized into General / Pricing / Inventory & Tax / History tabs.
+- Product Editor shows an Unsaved changes badge and keeps Save/Cancel actions sticky.
+- Inventory table becomes mobile/tablet cards instead of relying on horizontal scrolling.
+- Data Health drill-down now stays in one modal instead of stacking modals.
+- Shared barcode review supports “Verify shared”.
+- Needs Attention includes pricing review and shared-barcode review queues.
+- Global modal accessibility: dialog semantics, Escape close, Tab focus trap.
+- PWA update notification tells the user when a new deployed build is ready to reload.
+
+PWA
+- Service Worker cache bumped to tota-price-manager-v268.
+
+DEPLOYMENT
+- Upload all files from this ZIP together.
+- Publish firestore.rules and storage.rules from this ZIP.
+- For a brand-new Firebase project, follow FIREBASE-SETUP.txt before Initialize security.

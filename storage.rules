@@ -15,6 +15,12 @@ service firebase.storage {
         && catalogId in profile().allowedCatalogFileIds;
     }
 
+    // Owner-only listing enables complete cleanup of orphaned catalog objects during a full reset.
+    // Restricted users never receive list permission at the owner/catalog root.
+    match /catalogs/{owner}/{allPaths=**} {
+      allow list: if isOwner() && owner == ownerUid();
+    }
+
     match /catalogs/{owner}/{catalogId}/{fileName} {
       allow read: if (isOwner() && owner == ownerUid()) || (owner == ownerUid() && canReadCatalog(catalogId));
       allow create, update: if isOwner() && owner == ownerUid()
