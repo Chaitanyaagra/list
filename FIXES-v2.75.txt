@@ -1,0 +1,12 @@
+Tota Price Manager v2.75 — Order Safety & Archive Fixes
+
+- Restricted-user cart is isolated by Firebase UID (legacy guest/user carts are not reused).
+- One order is locked to one pricing mode and one exact Price Book.
+- Switching Retail/Wholesale/Custom or Price Book with a non-empty cart requires starting a new empty order.
+- Order requests store pricing mode + Price Book context; Firestore validates the optional context fields.
+- Premium portal My Orders and Hindi/English controls now attach to the current v2.72+ header.
+- Fixed My Orders > Reorder runtime bug and context handling.
+- Product removal is archive-only from normal UI; history is preserved.
+- Product reference scan expanded to stock movements, costs, price reviews, supplier mappings and Price Book config.
+- Data Health excludes disabled users from cloud pending/failed issues.
+- Service worker cache bumped to v275.

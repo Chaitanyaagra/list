@@ -61,13 +61,17 @@ service cloud.firestore {
       && validOrderItemAt(items, 29);
     }
 
+    function validOrderContext(data) {
+      return (!('rateMode' in data) || (data.rateMode is string && (data.rateMode == 'retail' || data.rateMode == 'wholesale' || data.rateMode == 'custom')))
+        && (!('priceBookId' in data) || (data.priceBookId is string && data.priceBookId.size() > 0 && data.priceBookId.size() <= 128))
+        && (!('priceBookName' in data) || (data.priceBookName is string && data.priceBookName.size() <= 160));
+    }
+
     match /meta/security {
       allow read: if signedIn();
-      allow create: if signedIn() && !securityExists() && bootstrapExists()
-        && bootstrapOwnerUid() == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.keys().hasOnly(['ownerUid','createdAt']);
-      allow update, delete: if isOwner();
+      // v2.74 single-Owner lock: Owner identity must already exist and cannot be
+      // created, replaced, or deleted by any client app.
+      allow create, update, delete: if false;
     }
     match /meta/bootstrap {
       allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
@@ -113,11 +117,12 @@ service cloud.firestore {
         && request.resource.data.status == 'new'
         && request.resource.data.createdAt == request.time
         && validOrderItems(request.resource.data.items)
+        && validOrderContext(request.resource.data)
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 2000
-        && request.resource.data.keys().hasOnly(['ownerUid','viewerUid','viewerName','items','note','status','createdAt']);
+        && request.resource.data.keys().hasOnly(['ownerUid','viewerUid','viewerName','items','rateMode','priceBookId','priceBookName','note','status','createdAt']);
     }
-    match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && (isOwner() || (!securityExists() && isBootstrapOwner())); }
+    match /users/{uid}/appData/{docId} { allow read, write: if signedIn() && request.auth.uid == uid && isOwner(); }
     match /{document=**} { allow read, write: if false; }
   }
 }

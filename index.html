@@ -759,7 +759,7 @@ function bulkBar(){
       <option value="stock">Set stock</option>
       <option value="min">Set minimum stock</option>
       <option value="gst">Set GST %</option>
-      <option value="del">Delete</option>
+      <option value="del">Archive selected</option>
     </select>
     <input id="bulkVal" placeholder="value" style="width:130px">
     <button class="btn primary sm" data-act="bulk-run">Apply</button>
@@ -934,7 +934,7 @@ function openProduct(p, isNew){
   const m = document.createElement('div'); m.className='modal'; m.dataset.productId=p.id; m.dataset.productEditor='1';
   m.innerHTML = `<div class="box">
     <div class="hd"><h2 style="margin:0;font-size:14px">${isNew?'New product':esc(p.name||'Product')}</h2><div class="spacer"></div>
-      ${isNew?'':'<button class="btn ghost sm" data-x="del">Delete</button>'}</div>
+      ${isNew?'':'<button class="btn ghost sm" data-x="del">Archive</button>'}</div>
     <div class="bd">
       <div class="cols2">
         <div class="field"><label>Product name</label><input id="e_name" value="${esc(p.name)}"></div>
@@ -1010,7 +1010,7 @@ function openProduct(p, isNew){
   m.onclick = e=>{
     const b=e.target.closest('[data-x]'); if(!b){ if(e.target===m) m.remove(); return; }
     if(b.dataset.x==='close') m.remove();
-    if(b.dataset.x==='del'){ const refs=window.productReferences30?window.productReferences30(p.id):[]; if(refs.length){ if(confirm(`"${p.name}" is used in: ${refs.join(', ')}. Archive it instead to preserve history?`)){ p.status='archived'; p.updatedAt=Date.now(); save(); m.remove(); render(); toast('Product archived · history preserved'); } } else if(confirm('Delete '+(p.name||p.code||'this product')+' permanently?')){ S.products=S.products.filter(x=>x.id!==p.id); save(); m.remove(); render(); toast('Product deleted'); } }
+    if(b.dataset.x==='del'){ const refs=window.productReferences30?window.productReferences30(p.id):[]; const extra=refs.length?`\n\nReferenced in: ${refs.join(', ')}.`:''; if(confirm(`Archive "${p.name||p.code||'this product'}"?${extra}\n\nIt will be hidden from active use but all history will be preserved.`)){ p.status='archived'; p.updatedAt=Date.now(); save(); m.remove(); render(); toast('Product archived · history preserved'); } }
     if(b.dataset.x==='save'){
       const g=i=>m.querySelector('#'+i).value;
       if(!g('e_name').trim()) return toast('Give the product a name');
@@ -1718,9 +1718,9 @@ function bulkRun(){
     const ch = items.map(p=>({code:p.code,name:p.name,catalog:p.catalog,old:before.get(p.id),now:p.price})).filter(c=>c.old!==c.now);
     if(ch.length) logHistory({type:'bulk', title:(act==='price-pct'?(val>0?'+':'')+val+'% on selected items':'Rs.'+val+' on selected items'), changes:ch});
   }
-  if(act==='del'){ if(!confirm(`Delete ${items.length} products?`)) return; S.products=S.products.filter(p=>!ui.sel.has(p.id)); }
+  if(act==='del'){ if(!confirm(`Archive ${items.length} products?`)) return; items.forEach(p=>{p.status='archived';p.updatedAt=Date.now()}); }
   ui.sel.clear(); save(); render();
-  toast(act==='del'?'Deleted':`${items.length} products updated`);
+  toast(act==='del'?'Archived · history preserved':`${items.length} products updated`);
 }
 
 /* ============================ start ============================ */
@@ -4011,7 +4011,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     }
   };
 
-  /* ---------- item 4: let a new owner clear the sample catalog and start fresh ---------- */
+  /* ---------- item 4: let the existing owner clear the sample catalog and start fresh ---------- */
   function isStillSample32(){
     return (S.imports||[]).length === 1 && S.imports[0].catalog === 'sample import'
       && !(S.invoices||[]).length && !(S.parties||[]).length && !(S.quotes||[]).length;
@@ -5364,7 +5364,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 
   window.firebaseConnect30=async cfg=>{try{ensureFirebase(cfg);await saveConfigLocal(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings());toast('Connected to Firebase project "'+(cfg.projectId||'')+'"');refreshIfOnSettings()}catch(e){toast('Could not connect: '+e.message)}};
   window.firebaseForget30=async()=>{try{if(authRef)await authRef.signOut()}catch(e){}try{if(app)await app.delete()}catch(e){}await clearConfigLocal();app=null;authRef=null;dbRef=null;toast('Cloud sync disconnected on this device');refreshIfOnSettings()};
-  window.firebaseSignUp30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.createUserWithEmailAndPassword(email,pw);toast('Account created and signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
+  window.firebaseSignUp30=async()=>{toast('Owner registration is locked. Sign in with the existing Owner account.');return false};
   window.firebaseSignIn30=async(email,pw)=>{if(!authRef)return toast('Connect to a project first');try{await authRef.signInWithEmailAndPassword(email,pw);window.__cloudConflictWarned41=false;toast('Signed in');refreshIfOnSettings()}catch(e){toast(e.message)}};
   window.firebaseSignOut30=async()=>{try{await authRef.signOut();toast('Signed out — cloud sync paused');refreshIfOnSettings()}catch(e){toast(e.message)}};
   window.firebasePullNow30=async()=>{
@@ -5396,9 +5396,9 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 
   const prevViewSet41=typeof viewSet==='function'?viewSet:null;
   if(prevViewSet41){viewSet=function(v,t,sub,act){prevViewSet41(v,t,sub,act);if(v.querySelector('#L_cloudBox41'))return;const connected=!!dbRef,signedIn=authRef&&authRef.currentUser,box=document.createElement('div');box.className='card';box.id='L_cloudBox41';box.style.marginTop='14px';box.innerHTML=`<div class="hd"><h2>Cloud sync (Firebase)</h2></div><div class="bd">
-    ${!connected?`<div class="note" style="margin-bottom:8px">Paste your Firebase web config. The owner state is saved as versioned chunks, so it can grow beyond one Firestore document and rapid saves cannot overwrite newer local saves out of order.</div><textarea id="CF_config" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;font-family:monospace;font-size:12px;border-radius:8px;border:1px solid var(--line);padding:8px"></textarea><button class="btn primary sm" style="margin-top:8px" data-act="cloud-connect-41">Connect</button>`:!signedIn?`<div class="note" style="margin-bottom:8px">Connected. Sign in (or create an owner account) to start syncing.</div><div class="cols2"><div class="field"><label>Email</label><input id="CF_email"></div><div class="field"><label>Password</label><input id="CF_pw" type="password"></div></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="cloud-signin-41">Sign in</button><button class="btn ghost sm" data-act="cloud-signup-41">Create account</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`:`<div class="note" style="margin-bottom:8px">Signed in as <b>${esc(signedIn.email)}</b>. Saves are debounced and serialized; cloud state uses multiple versioned documents.${S.settings.lastCloudSyncAt?' Last synced '+new Date(S.settings.lastCloudSyncAt).toLocaleString('en-IN'):''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloud-push-41">Save to cloud now</button><button class="btn ghost sm" data-act="cloud-pull-41">Load from cloud</button><button class="btn ghost sm" data-act="cloud-signout-41">Sign out</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`}
+    ${!connected?`<div class="note" style="margin-bottom:8px">Paste your Firebase web config. The owner state is saved as versioned chunks, so it can grow beyond one Firestore document and rapid saves cannot overwrite newer local saves out of order.</div><textarea id="CF_config" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;font-family:monospace;font-size:12px;border-radius:8px;border:1px solid var(--line);padding:8px"></textarea><button class="btn primary sm" style="margin-top:8px" data-act="cloud-connect-41">Connect</button>`:!signedIn?`<div class="note" style="margin-bottom:8px">Connected. Sign in with the existing authorized Owner account to start syncing. New Owner registration is disabled.</div><div class="cols2"><div class="field"><label>Owner email</label><input id="CF_email"></div><div class="field"><label>Password</label><input id="CF_pw" type="password"></div></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="cloud-signin-41">Sign in as Owner</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`:`<div class="note" style="margin-bottom:8px">Signed in as <b>${esc(signedIn.email)}</b>. Saves are debounced and serialized; cloud state uses multiple versioned documents.${S.settings.lastCloudSyncAt?' Last synced '+new Date(S.settings.lastCloudSyncAt).toLocaleString('en-IN'):''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloud-push-41">Save to cloud now</button><button class="btn ghost sm" data-act="cloud-pull-41">Load from cloud</button><button class="btn ghost sm" data-act="cloud-signout-41">Sign out</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`}
     </div>`;const anchor=v.querySelector('.card');if(anchor)anchor.after(box);else v.appendChild(box)}}
-  document.addEventListener('click',e=>{const box=e.target.closest('.card');if(e.target.closest('[data-act="cloud-connect-41"]')){const raw=(box.querySelector('#CF_config')||{}).value?.trim();try{window.firebaseConnect30(JSON.parse(raw))}catch(err){toast('Could not read that config — paste the exact {...} object from Firebase')}}if(e.target.closest('[data-act="cloud-signin-41"]'))window.firebaseSignIn30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signup-41"]'))window.firebaseSignUp30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signout-41"]'))window.firebaseSignOut30();if(e.target.closest('[data-act="cloud-forget-41"]'))window.firebaseForget30();if(e.target.closest('[data-act="cloud-push-41"]'))window.firebasePushNow30();if(e.target.closest('[data-act="cloud-pull-41"]'))window.firebasePullNow30()},true);
+  document.addEventListener('click',e=>{const box=e.target.closest('.card');if(e.target.closest('[data-act="cloud-connect-41"]')){const raw=(box.querySelector('#CF_config')||{}).value?.trim();try{window.firebaseConnect30(JSON.parse(raw))}catch(err){toast('Could not read that config — paste the exact {...} object from Firebase')}}if(e.target.closest('[data-act="cloud-signin-41"]'))window.firebaseSignIn30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signout-41"]'))window.firebaseSignOut30();if(e.target.closest('[data-act="cloud-forget-41"]'))window.firebaseForget30();if(e.target.closest('[data-act="cloud-push-41"]'))window.firebasePushNow30();if(e.target.closest('[data-act="cloud-pull-41"]'))window.firebasePullNow30()},true);
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_41};
 })();
 </script>
@@ -5416,8 +5416,12 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
     if((S.quantityPriceSlabs||[]).some(x=>x.productId===id)) found.push('quantity slabs');
     if((S.customerRateLocks||[]).some(x=>x.productId===id)) found.push('customer rate locks');
     if((S.uomMaster||[]).some(x=>x.productId===id)) found.push('unit conversions');
-    if(S.purchaseCosts && S.purchaseCosts[id]) found.push('purchase cost record');
-    return found;
+    if((S.stockMoves||[]).some(x=>x.productId===id)) found.push('stock movement history');
+    if((S.priceReviewQueue||[]).some(x=>x.productId===id||x.id===id)) found.push('price review history');
+    if((S.supplierProductMap||[]).some(x=>x.productId===id)) found.push('supplier mappings');
+    if((S.inventoryCost&&S.inventoryCost[id])||(S.purchaseCosts&&S.purchaseCosts[id])) found.push('cost history');
+    for(const pb of (S.priceBooks||[])){for(const cfg of [pb.config,pb.scheduled230?.config].filter(Boolean)){for(const k of ['overrides','rateOnRequest230','productUoms227'])if(Object.prototype.hasOwnProperty.call(cfg?.[k]||{},id)){found.push('Price Book configuration');break}}}
+    return [...new Set(found)];
   }
   window.productReferences30 = productReferences30;
 
@@ -5460,16 +5464,12 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
     const act = select ? select.value : null;
     if(act !== 'del') return; // not a delete -- let the normal handler run
     const ids = [...ui.sel];
-    const blocked = ids.filter(id => productReferences30(id).length);
-    if(!blocked.length) return; // nothing referenced -- let the normal handler hard-delete as before
     e.stopImmediatePropagation(); e.preventDefault();
-    const clean = ids.filter(id => !blocked.includes(id));
-    if(!confirm(`${blocked.length} of ${ids.length} selected product(s) are referenced elsewhere (batches, purchases, bills, quotations, locks or slabs) and will be archived instead of deleted.${clean.length?' The other '+clean.length+' will be deleted.':''} Continue?`)) return;
-    blocked.forEach(id => { const p = S.products.find(x=>x.id===id); if(p) archiveProduct30(p); });
-    if(clean.length) S.products = S.products.filter(p => !clean.includes(p.id));
+    if(!confirm(`Archive ${ids.length} selected product(s)?\n\nProducts will be hidden from active use, while quotations, bills, stock movements and other history remain intact.`)) return;
+    ids.forEach(id => { const p = S.products.find(x=>x.id===id); if(p) archiveProduct30(p); });
     ui.sel.clear();
     save(); render();
-    toast(`${blocked.length} archived${clean.length?', '+clean.length+' deleted':''}`);
+    toast(`${ids.length} product(s) archived · history preserved`);
   }, true);
 
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_42};
@@ -6638,21 +6638,60 @@ Amit, 5566,"></textarea>
 </style>
 <script id="pm-v233-order-and-language">
 (()=>{
-  const PM_VERSION_233 = '2.32 order requests from restricted viewers + Hindi/English toggle';
+  const PM_VERSION_233 = '2.75 private cart + locked order price context + persistent Orders access';
 
   /* ================= shared helpers ================= */
   function inPreviewMode233(){ return !!window.__pmPreviewActive231; }
+  function currentViewerSession233(){ return window.getCloudSession233 ? window.getCloudSession233() : null; }
   function currentViewerName233(){
-    const el = document.querySelector('#cloudViewer46 .cv47-head .note');
+    const cs=currentViewerSession233();
+    const fromSession=String(cs?.loginName||cs?.payload?.user?.name||'').trim();
+    if(fromSession) return fromSession;
+    const el = document.querySelector('#cloudViewer46 .cv272-brand span, #cloudViewer46 .cv47-head .note');
     if(!el) return '';
     const m = el.textContent.match(/·\s*(.+?)(\s*·|$)/);
     return m ? m[1].trim() : '';
   }
 
   /* ================= 1) Order cart ================= */
-  function cartKey233(){ return 'pm-order-cart-233:' + (currentViewerName233()||'guest').toLowerCase(); }
-  function loadCart233(){ try{ return JSON.parse(localStorage.getItem(cartKey233())||'[]'); }catch(e){ return []; } }
-  function saveCart233(cart){ try{ localStorage.setItem(cartKey233(), JSON.stringify(cart)); }catch(e){} }
+  function cartIdentity233(){
+    const cs=currentViewerSession233();
+    if(cs?.uid && cs.uid!=='offline') return 'uid_'+String(cs.uid).replace(/[^a-zA-Z0-9_-]/g,'_');
+    const n=String(cs?.loginName||cs?.payload?.user?.name||currentViewerName233()||'').trim().toLowerCase();
+    return n ? 'name_'+n.replace(/[^a-z0-9._-]/g,'_') : 'anonymous';
+  }
+  function cartKey233(){ return 'pm-order-cart-233:' + cartIdentity233(); }
+  function loadCart233(){ try{ const v=JSON.parse(localStorage.getItem(cartKey233())||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+  function saveCart233(cart){ try{ localStorage.setItem(cartKey233(), JSON.stringify(Array.isArray(cart)?cart:[])); }catch(e){} }
+  function inferOrderMode233(book){
+    const explicit=String(book?.audience270||'').trim().toLowerCase();
+    if(['retail','wholesale','custom'].includes(explicit)) return explicit;
+    const t=String([book?.name,book?.category].filter(Boolean).join(' ')).toLowerCase();
+    if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';
+    if(/retail|consumer|counter|mrp/.test(t))return'retail';
+    return'custom';
+  }
+  function cartContext233(cart=loadCart233()){
+    const x=(cart||[])[0]||{};
+    return {rateMode:String(x.rateMode||''),bookId:String(x.bookId||''),bookName:String(x.bookName||'')};
+  }
+  function sameOrderContext233(a,b){
+    if(!a||!b)return true;
+    if((b.rateMode||b.bookId) && (!a.rateMode||!a.bookId))return false; // legacy/missing context must never mix with a priced order
+    if(a.rateMode&&b.rateMode&&a.rateMode!==b.rateMode)return false;
+    if(a.bookId&&b.bookId&&a.bookId!==b.bookId)return false;
+    return true;
+  }
+  window.guardOrderContext275=function(next={}){
+    const cart=loadCart233();
+    if(!cart.length)return true;
+    const cur=cartContext233(cart),wanted={rateMode:String(next.rateMode||''),bookId:String(next.bookId||''),bookName:String(next.bookName||'')};
+    if(sameOrderContext233(cur,wanted))return true;
+    const curLabel=[cur.rateMode?cur.rateMode.toUpperCase():'',cur.bookName].filter(Boolean).join(' · ')||'current price list';
+    const nextLabel=[wanted.rateMode?wanted.rateMode.toUpperCase():'',wanted.bookName].filter(Boolean).join(' · ')||'another price list';
+    if(!confirm(`Your current order is locked to ${curLabel}.\n\nSwitching to ${nextLabel} will start a new empty order so rates cannot mix. Continue?`))return false;
+    saveCart233([]); updateCartBar233(); return true;
+  };
 
   window.orderRowExtra233 = function(r, i){
     if(inPreviewMode233()) return ''; // no ordering while the owner is just previewing
@@ -6667,20 +6706,25 @@ Amit, 5566,"></textarea>
     box.querySelectorAll('[data-ord233-add]').forEach(btn => {
       btn.onclick = () => {
         const i = +btn.dataset.ord233Add;
-        const r = rows[i];
+        const r = rows[i]; if(!r||!r.it||!r.b)return;
         const qtyInput = box.querySelector(`[data-ord233-qty="${i}"]`);
         const qty = Math.max(1, Math.round(+qtyInput.value || 1));
         const uomSel = box.querySelector(`[data-uom47="${i}"]`);
         const uom = uomSel ? uomSel.value : r.it.defaultUom;
-        const cart = loadCart233();
-        const existing = cart.find(c => c.productId === r.it.id && c.uom === uom);
+        let cart = loadCart233();
+        const ctx={rateMode:inferOrderMode233(r.b),bookId:String(r.b.id||''),bookName:String(r.b.name||'')};
+        if(cart.length&&!sameOrderContext233(cartContext233(cart),ctx)){
+          if(!window.guardOrderContext275(ctx))return;
+          cart=loadCart233();
+        }
+        const existing = cart.find(c => c.productId === r.it.id && c.uom === uom && String(c.bookId||'')===ctx.bookId && String(c.rateMode||'')===ctx.rateMode);
         const rawRate = r.it.rateOnRequest ? null : rawRate47safe(r.it, uom);
         if(existing) existing.qty += qty;
         else cart.push({
           productId: r.it.id, code: r.it.code, name: r.it.name, uom,
           rateOnRequest: !!r.it.rateOnRequest, rate: rawRate,
           rateText: r.it.rateOnRequest ? 'Rate on request' : selectedRate47safe(r.it, uom, p),
-          bookName: r.b.name, qty
+          bookId:ctx.bookId, bookName:ctx.bookName, rateMode:ctx.rateMode, qty
         });
         saveCart233(cart);
         updateCartBar233();
@@ -6722,7 +6766,7 @@ Amit, 5566,"></textarea>
     const n = cartTotalQty233();
     const items = loadCart233().length;
     const wantDisplay = n > 0 ? 'flex' : 'none';
-    const wantText = items + ' product(s) · ' + n + ' unit(s) in your order';
+    const ctx=cartContext233(loadCart233()),ctxText=[ctx.rateMode?ctx.rateMode.toUpperCase():'',ctx.bookName].filter(Boolean).join(' · '); const wantText = items + ' product(s) · ' + n + ' unit(s)' + (ctxText?' · '+ctxText:'');
     // only touch the DOM if something actually changed, to avoid retriggering the mutation observer below
     if(bar.style.display !== wantDisplay) bar.style.display = wantDisplay;
     const textEl = bar.querySelector('#ord233BarText');
@@ -6748,7 +6792,8 @@ Amit, 5566,"></textarea>
       <td style="width:90px"><input type="number" min="1" step="1" value="${c.qty}" data-cartqty="${i}" style="width:70px"></td>
       <td class="r"><button class="link" data-cartdel="${i}">remove</button></td>
     </tr>`).join('');
-    m.innerHTML = `<div class="box" style="max-width:600px"><div class="hd"><h2 style="margin:0">Your order</h2></div>
+    const ctx=cartContext233(cart),ctxLabel=[ctx.rateMode?ctx.rateMode.toUpperCase():'',ctx.bookName].filter(Boolean).join(' · ');
+    m.innerHTML = `<div class="box" style="max-width:600px"><div class="hd"><div><h2 style="margin:0">Your order</h2>${ctxLabel?`<div class="metric-sub" style="margin-top:3px">${esc(ctxLabel)} · locked rate context</div>`:''}</div></div>
       <div class="bd">
         ${cart.length ? `<div class="tbl-wrap"><table><tbody>${rows}</tbody></table></div>` : '<div class="empty-mini">Your order is empty.</div>'}
         <div class="field" style="margin-top:10px"><label>Note for the owner (optional)</label><textarea id="ord233Note" rows="2" placeholder="Delivery timing, special instructions..."></textarea></div>
@@ -6789,6 +6834,9 @@ Amit, 5566,"></textarea>
     if(!Array.isArray(cart)||!cart.length) throw new Error('Your order is empty');
     if(cart.length>30)throw new Error('One order can contain up to 30 products. Split larger orders into multiple requests.');
     note=String(note||'').trim();if(note.length>2000)throw new Error('Order note is too long (maximum 2000 characters).');
+    const ctx=cartContext233(cart);
+    if(!ctx.rateMode||!ctx.bookId)throw new Error('This order has no valid price-list context. Clear the cart and add the products again.');
+    if(cart.some(c=>String(c.rateMode||'')!==ctx.rateMode||String(c.bookId||'')!==ctx.bookId))throw new Error('This order contains mixed price lists. Clear the cart and create one order per price list.');
     const cleanItems=cart.map((c,i)=>{const qty=Number(c&&c.qty),rate=c?.rate==null?null:Number(c.rate),line={productId:String(c?.productId||'').trim().slice(0,128),code:String(c?.code||'').trim().slice(0,80),name:String(c?.name||'').trim().slice(0,240),uom:String(c?.uom||'').trim().slice(0,40),qty,rate:Number.isFinite(rate)?rate:null,rateText:String(c?.rateText||'').trim().slice(0,100),rateOnRequest:!!c?.rateOnRequest};if(!line.productId||!line.code||!line.name||!line.uom||!Number.isFinite(qty)||qty<=0||qty>100000)throw new Error('Order line '+(i+1)+' is invalid. Re-open the cart and try again.');if(line.rate!=null&&line.rate<0)throw new Error('Order line '+(i+1)+' has an invalid rate.');return line});
     const session = window.getCloudSession233 ? window.getCloudSession233() : null;
     if(!session || !session.db || session.uid === 'offline') throw new Error('You need to be online (not on cached offline data) to send an order');
@@ -6799,6 +6847,7 @@ Amit, 5566,"></textarea>
     const order = {
       ownerUid: profile.ownerUid, viewerUid: uid, viewerName: String(profile.username||session.payload?.user?.name||session.loginName||'').trim(),
       items: cleanItems,
+      rateMode: ctx.rateMode, priceBookId: ctx.bookId, priceBookName: String(ctx.bookName||'').slice(0,160),
       note, status: 'new',
       createdAt: (typeof firebase!=='undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
     };
@@ -6847,12 +6896,14 @@ Amit, 5566,"></textarea>
       if(rb){
         const order = window.__myOrders233Cache?.find(o => o.id === rb.dataset.reorder233);
         if(!order) return;
-        const cart = loadCart233();
+        let cart = loadCart233();
+        const ctx={rateMode:String(order.rateMode||''),bookId:String(order.priceBookId||''),bookName:String(order.priceBookName||'')};
+        if(cart.length&&!sameOrderContext233(cartContext233(cart),ctx)){ if(!window.guardOrderContext275(ctx))return; cart=loadCart233(); }
         let added = 0;
-        orderItems233.forEach(it => {
-          const existing = cart.find(c => c.productId === it.productId && c.uom === it.uom);
-          if(existing) existing.qty += it.qty;
-          else cart.push({productId: it.productId, code: it.code, name: it.name, uom: it.uom, qty: it.qty, rate: it.rate ?? null, rateOnRequest: !!it.rateOnRequest, rateText: it.rateText, bookName: order.bookName || ''});
+        (Array.isArray(order.items)?order.items:[]).forEach(it => {
+          const existing = cart.find(c => c.productId === it.productId && c.uom === it.uom && String(c.bookId||'')===ctx.bookId && String(c.rateMode||'')===ctx.rateMode);
+          if(existing) existing.qty += Number(it.qty)||0;
+          else cart.push({productId: it.productId, code: it.code, name: it.name, uom: it.uom, qty: Number(it.qty)||1, rate: it.rate ?? null, rateOnRequest: !!it.rateOnRequest, rateText: it.rateText, bookId:ctx.bookId, bookName:ctx.bookName, rateMode:ctx.rateMode});
           added++;
         });
         saveCart233(cart);
@@ -6872,10 +6923,11 @@ Amit, 5566,"></textarea>
       if(!orders.length){ bd.innerHTML = '<div class="empty-mini">You have not sent any orders yet.</div>'; return; }
       bd.innerHTML = orders.map(o => `<div class="card" style="margin-bottom:8px"><div class="bd">
         <div style="display:flex;justify-content:space-between;gap:10px"><b>${(o.items||[]).length} product(s)</b><span class="metric-sub">${myOrderStatusLabel233(o.status)}</span></div>
+        ${o.priceBookName?`<div class="metric-sub" style="margin-top:3px"><b>${esc(String(o.rateMode||'').toUpperCase())}</b> · ${esc(o.priceBookName)}</div>`:''}
         <div class="note" style="margin-top:3px">${(o.items||[]).slice(0,4).map(it=>esc(it.code)).join(', ')}${(o.items||[]).length>4?' + more':''}</div>
         ${o.note ? `<div class="note" style="margin-top:3px"><b>Note:</b> ${esc(o.note)}</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px">
-          <button class="btn ghost sm" data-reorder233="${o.id}">Reorder these items</button>
+          ${o.rateMode&&o.priceBookId?`<button class="btn ghost sm" data-reorder233="${o.id}">Reorder these items</button>`:''}
           ${(o.status === 'new' || !o.status) ? `<button class="btn ghost sm" data-cancel233="${o.id}">Cancel this order</button>` : ''}
         </div>
       </div></div>`).join('');
@@ -6914,7 +6966,7 @@ Amit, 5566,"></textarea>
     const alreadyActioned = order.status === 'converted' || order.status === 'done' || order.status === 'rejected';
     m.innerHTML = `<div class="box" style="max-width:640px"><div class="hd"><h2 style="margin:0">Order from ${esc(order.viewerName||'—')}</h2></div>
       <div class="bd">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">${statusLabel}<b>Est. value: ${esc(orderValueLabel233(order))}</b></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">${statusLabel}<b>Est. value: ${esc(orderValueLabel233(order))}</b>${order.priceBookName?`<span class="tag">${esc(String(order.rateMode||'').toUpperCase())} · ${esc(order.priceBookName)}</span>`:''}</div>
         <div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Unit</th><th>Rate</th></tr></thead><tbody>${rows}</tbody></table></div>
         ${invalidOrderItems233?`<div class="private-note" style="margin-top:10px"><b>Safety:</b> ${invalidOrderItems233} malformed order line(s) were ignored. Ask the user to resubmit if needed.</div>`:''}${order.note ? `<div class="note" style="margin-top:10px"><b>Note:</b> ${esc(order.note)}</div>` : ''}
       </div>
@@ -6962,7 +7014,7 @@ Amit, 5566,"></textarea>
         ui.quote = ui.quote || {};
         ui.quote.party = party.id;
         ui.quote.items = items;
-        ui.quote.note = order.note || '';
+        ui.quote.note = [order.priceBookName?('Order context: '+String(order.rateMode||'').toUpperCase()+' · '+order.priceBookName):'', order.note||''].filter(Boolean).join('\n');
         try{
           const a = window.PMFirebase41;
           if(a && a.isConnected()) await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').doc(order.id).update({status:'converted'});
@@ -6989,11 +7041,11 @@ Amit, 5566,"></textarea>
     try{
       const orders = await loadOrders233(200);
       if(!orders || !orders.length) return toast('No order requests to export yet');
-      const rows = [['Date', 'Customer', 'Product Code', 'Product Name', 'Qty', 'Unit', 'Rate', 'Status', 'Note']];
+      const rows = [['Date', 'Customer', 'Mode', 'Price List', 'Product Code', 'Product Name', 'Qty', 'Unit', 'Rate', 'Status', 'Note']];
       orders.forEach(o => {
         const dateStr = o.createdAt ? new Date(typeof o.createdAt === 'number' ? o.createdAt : (o.createdAt.toMillis ? o.createdAt.toMillis() : Date.now())).toLocaleString('en-IN') : '';
         (o.items||[]).forEach(it => {
-          rows.push([dateStr, o.viewerName||'', it.code||'', it.name||'', it.qty||0, it.uom||'', it.rateText||'', o.status||'new', o.note||'']);
+          rows.push([dateStr, o.viewerName||'', String(o.rateMode||'').toUpperCase(), o.priceBookName||'', it.code||'', it.name||'', it.qty||0, it.uom||'', it.rateText||'', o.status||'new', o.note||'']);
         });
       });
       const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -7200,12 +7252,12 @@ Amit, 5566,"></textarea>
   }
 
   function ensureLangToggle233(){
-    const head = document.querySelector('#cloudViewer46 .cv47-head');
+    const head = document.querySelector('#cloudViewer46 .cv272-session, #cloudViewer46 .cv47-head');
     if(!head) return;
     if(!head.querySelector('#myOrders233btn') && !window.__pmPreviewActive231){
       const ob = document.createElement('button');
       ob.id = 'myOrders233btn'; ob.className = 'btn ghost sm'; ob.style.marginRight = '8px';
-      ob.textContent = 'My orders';
+      ob.textContent = 'Orders';
       ob.onclick = () => window.openMyOrders233();
       const logoutEl = head.querySelector('#cv46out');
       if(logoutEl) logoutEl.before(ob); else head.appendChild(ob);
@@ -7290,7 +7342,7 @@ Amit, 5566,"></textarea>
     // give Firebase a brief moment in case auth state is still resolving on first load
     if(!a.auth.currentUser) await new Promise(r => setTimeout(r, 400));
     if(!a.auth.currentUser){
-      step('Signed in', false, 'No signed-in user. Go to the Cloud sync card above and sign in (or create an account) first.');
+      step('Signed in', false, 'No signed-in user. Go to the Cloud sync card above and sign in with the existing Owner account first.');
       return;
     }
     step('Signed in', true, a.auth.currentUser.email + '  ·  uid: ' + a.auth.currentUser.uid);
@@ -7307,13 +7359,8 @@ Amit, 5566,"></textarea>
     try{
       const snap = await a.db.collection('meta').doc('security').get();
       if(!snap.exists){
-        step('Can read from Firestore', true, 'Security is not initialized yet on this project (expected before first-time setup).');
-        try{
-          await a.db.collection('meta').doc('security').set({ownerUid: a.auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
-          step('Owner initialized', true, 'This account is now the owner of this Firebase project. You can close this and use Users & Access normally.');
-        }catch(e){
-          step('Owner initialized', false, describeFirestoreError235(e));
-        }
+        step('Can read from Firestore', true, 'The Owner security record is missing. Owner registration is locked in v2.74, so the app will not create a new Owner. Restore meta/security from your Firebase console/backup or use the already-initialized project.');
+        step('Existing Owner record', false, 'No meta/security ownerUid exists. New Owner creation from the app is disabled.');
       }else{
         step('Can read from Firestore', true);
         const owner = snap.data().ownerUid;
@@ -7337,7 +7384,7 @@ Amit, 5566,"></textarea>
       const card = document.createElement('div');
       card.className = 'card'; card.id = 'fbDiag235'; card.style.marginTop = '14px';
       card.innerHTML = `<div class="hd"><h2>Firebase connection diagnostics</h2></div><div class="bd">
-        <div class="note" style="margin-bottom:8px">If "Initialize security" or cloud sync isn't working, run this — it checks each step and tells you exactly which one is failing, instead of a generic error.</div>
+        <div class="note" style="margin-bottom:8px">If Owner verification or cloud sync is not working, run this — it checks each step and tells you exactly which one is failing, instead of a generic error.</div>
         <button class="btn primary sm" id="runDiag235">Run diagnostics</button>
         <div id="diagResults235" style="margin-top:10px"></div>
       </div>`;
@@ -7437,53 +7484,65 @@ Amit, 5566,"></textarea>
   function privacyLockPending238(){
     return !!(window.__PM_VAULT_PENDING || (typeof S !== 'undefined' && S.settings && S.settings.privacyEnabled && typeof SEC !== 'undefined' && !SEC.dek));
   }
+  function ownerConfigured238(){
+    return !!(S?.settings?.ownerUsername && (S?.settings?.ownerPinVerifier265 || S?.settings?.ownerPin));
+  }
 
   function showEntryGate238(){
     if(window.__entryGate238Resolved) return;
+    if(window.__entryGate238RestorePending) return;
     if(document.getElementById('entryGate238')) return;
     if(privacyLockPending238()) return;
     if(document.getElementById('cloudViewer46')) return;
+    // v2.73: a returning Sales/Customer session gets first chance to restore before
+    // any owner/local gate is painted. This prevents a flash of Owner setup on
+    // staff devices after refresh / PWA resume.
+    if(!window.__entryGate238RestoreChecked && typeof window.restoreViewerSession271==='function'){
+      window.__entryGate238RestoreChecked=true;window.__entryGate238RestorePending=true;
+      const shield=document.createElement('div');shield.id='entryGate238RestoreShield';shield.style.cssText='position:fixed;inset:0;z-index:299999;background:var(--bg,#F3EEE3);display:flex;align-items:center;justify-content:center;padding:20px';shield.innerHTML='<div style="background:#fff;border:1px solid var(--line,#e6e0d5);border-radius:16px;padding:18px 22px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.10));font-weight:750">Restoring secure session…</div>';document.body.appendChild(shield);
+      Promise.resolve(window.restoreViewerSession271()).then(ok=>{
+        window.__entryGate238RestorePending=false;shield.remove();
+        if(ok){window.__entryGate238Resolved=true;document.getElementById('entryGate238')?.remove();return}
+        showEntryGate238();
+      }).catch(()=>{window.__entryGate238RestorePending=false;shield.remove();showEntryGate238()});
+      return;
+    }
     ensureOwnerCreds238();
-    const brandName = (typeof S !== 'undefined' && S.settings && S.settings.firmName) || 'Price & Stock Manager';
+    const brandName = (typeof S !== 'undefined' && S.settings && (S.settings.firmName||S.settings.firm)) || 'Price & Stock Manager';
     const el = document.createElement('div');
     el.id = 'entryGate238';
     el.style.cssText = 'position:fixed;inset:0;z-index:300000;background:var(--bg,#F3EEE3);display:flex;align-items:center;justify-content:center;padding:20px';
     document.body.appendChild(el);
-    if(!S.settings.ownerUsername || (!S.settings.ownerPinVerifier265 && !S.settings.ownerPin)) renderFirstSetup(); else renderNormal();
+    // v2.73: never drop a fresh staff/customer install into Owner registration.
+    // Everyone sees the login screen first; Owner setup is an explicit, cloud-verified action.
+    renderNormal();
 
     function renderFirstSetup(){
-      el.innerHTML = `<div style="width:100%;max-width:400px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
-        <div style="font-weight:800;font-size:17px;text-align:center;margin-bottom:4px">Secure Owner setup</div>
-        <div class="note" style="text-align:center;margin-bottom:18px">Create a unique Owner login for this device. There is no factory/default PIN.</div>
-        <div class="field"><label>Owner username</label><input id="eg238_setup_user" autocomplete="username" value="owner"></div>
-        <div class="field" style="margin-top:10px"><label>Owner PIN / password (6+ characters)</label><input id="eg238_setup_pin" type="password" autocomplete="new-password"></div>
-        <div class="field" style="margin-top:10px"><label>Confirm</label><input id="eg238_setup_pin2" type="password" autocomplete="new-password"></div>
-        <div id="eg238_setup_msg" class="pm-lock-msg" style="margin-top:8px"></div>
-        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_setup_go">Create Owner login</button>
+      // v2.74: Owner registration is permanently disabled once the deployment has an Owner.
+      el.innerHTML = `<div style="width:100%;max-width:410px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:6px">Owner registration locked</div>
+        <div class="note" style="text-align:center;margin-bottom:16px">This deployment already has one Owner. New Owner accounts cannot be created from the app.</div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px" id="eg238_locked_back">Back to Sales / Customer login</button>
       </div>`;
-      const u=el.querySelector('#eg238_setup_user'),p1=el.querySelector('#eg238_setup_pin'),p2=el.querySelector('#eg238_setup_pin2'),msg=el.querySelector('#eg238_setup_msg'); u.focus();
-      el.querySelector('#eg238_setup_go').onclick=async()=>{
-        const name=u.value.trim(),pin=p1.value; if(!name)return msg.textContent='Enter an Owner username.'; if(pin.length<6)return msg.textContent='Use at least 6 characters for the Owner PIN/password.'; if(pin!==p2.value)return msg.textContent='PINs do not match.';
-        if((S.viewerUsers||[]).some(x=>String(x.name||'').trim().toLowerCase()===name.toLowerCase()))return msg.textContent='That username is already used by a restricted login.';
-        S.settings.ownerUsername=name; await storeOwnerPin238(pin); const code=genRecoveryCode238(); S.settings.ownerRecoveryHash=await sha256_238(code); save(); clearAttempts238(); window.__entryGate238Resolved=true; el.remove(); showNewRecoveryCodeModal238(code);
-      };
-      p2.onkeydown=e=>{if(e.key==='Enter')el.querySelector('#eg238_setup_go').click()};
+      el.querySelector('#eg238_locked_back').onclick=renderNormal;
     }
 
     function renderNormal(){
-      const blocked = blockedRemaining238();
-      el.innerHTML = `<div style="width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
-        <div style="font-weight:800;font-size:17px;letter-spacing:-.01em;margin-bottom:4px;text-align:center">${esc(brandName)}</div>
-        <div class="note" style="margin-bottom:20px;text-align:center">Sign in to continue</div>
+      const blocked = blockedRemaining238(), ownerReady=ownerConfigured238();
+      el.innerHTML = `<div style="width:100%;max-width:390px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:850;font-size:18px;letter-spacing:-.02em;margin-bottom:4px;text-align:center">${esc(brandName)}</div>
+        <div class="note" style="margin-bottom:20px;text-align:center">${ownerReady?'Sign in to continue':'Sales / Customer login'}</div>
         <div class="field"><label>Username</label><input id="eg238_user" autocomplete="username" ${blocked?'disabled':''}></div>
         <div class="field" style="margin-top:10px"><label>PIN</label><input id="eg238_pin" type="password" autocomplete="current-password" ${blocked?'disabled':''}></div>
-        <div id="eg238_msg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):''}</div>
+        <div id="eg238_msg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):(ownerReady?'':'Use the username and PIN provided by the Owner.')}</div>
         <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_go" ${blocked?'disabled':''}>Log in</button>
-        <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_forgot">Forgot PIN?</button>
+        ${ownerReady
+          ? '<button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_forgot">Forgot Owner PIN?</button>'
+          : '<div style="height:1px;background:var(--line,#e6e0d5);margin:18px 0 12px"></div><button class="link" style="display:block;text-align:center;width:100%" id="eg238_owner_access">Owner login</button>'}
       </div>`;
       const userEl = el.querySelector('#eg238_user'), pinEl = el.querySelector('#eg238_pin'), msgEl = el.querySelector('#eg238_msg'), goBtn = el.querySelector('#eg238_go');
       if(!blocked) userEl.focus();
-      else setTimeout(renderNormal, Math.min(blocked, 5000) + 50); // re-render once the lockout clears (or check again soon)
+      else setTimeout(renderNormal, Math.min(blocked, 5000) + 50);
 
       function isNetworkError238(e){
         const msg = (e && e.message) || String(e || '');
@@ -7496,13 +7555,14 @@ Amit, 5566,"></textarea>
         if(blockedRemaining238() > 0){ renderNormal(); return; }
         goBtn.disabled = true; msgEl.textContent = 'Checking…';
         ensureOwnerCreds238();
-        if(u.toLowerCase() === String(S.settings.ownerUsername||'').toLowerCase().trim() && await verifyOwnerPin238(p)){
+        if(ownerConfigured238() && u.toLowerCase() === String(S.settings.ownerUsername||'').toLowerCase().trim() && await verifyOwnerPin238(p)){
           clearAttempts238();
           window.__entryGate238Resolved = true;
           el.remove();
           return;
         }
         try{
+          if(typeof window.secureViewerLogin46!=='function') throw new Error('Sales/Customer login module is not ready. Reload the app and try again.');
           await window.secureViewerLogin46(u, p);
           clearAttempts238();
           window.__entryGate238Resolved = true;
@@ -7517,14 +7577,57 @@ Amit, 5566,"></textarea>
           const st = recordFailedAttempt238();
           if(st.blockedUntil && st.blockedUntil > Date.now()){ renderNormal(); return; }
           goBtn.disabled = false;
-          msgEl.textContent = 'Incorrect username or PIN.';
+          msgEl.textContent = (e&&e.message&&/disabled|expired|published|Firebase|configured/i.test(e.message)) ? e.message : 'Incorrect username or PIN.';
           pinEl.select();
         }
       }
       goBtn.onclick = attempt;
       pinEl.onkeydown = e => { if(e.key === 'Enter') attempt(); };
       userEl.onkeydown = e => { if(e.key === 'Enter') pinEl.focus(); };
-      el.querySelector('#eg238_forgot').onclick = renderRecovery;
+      const forgot=el.querySelector('#eg238_forgot'); if(forgot)forgot.onclick = renderRecovery;
+      const ownerAccess=el.querySelector('#eg238_owner_access'); if(ownerAccess)ownerAccess.onclick = renderOwnerCloudVerify238;
+    }
+
+    function renderOwnerCloudVerify238(){
+      el.innerHTML = `<div style="width:100%;max-width:410px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
+        <div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:4px">Existing Owner login</div>
+        <div class="note" style="text-align:center;margin-bottom:18px">New Owner registration is disabled. Sign in only with the Firebase account already recorded as this project's Owner. On a new Owner device, the existing Owner profile is restored from the Owner cloud backup.</div>
+        <div class="field"><label>Owner Firebase email</label><input id="eg238_oe" type="email" autocomplete="username"></div>
+        <div class="field" style="margin-top:10px"><label>Firebase password</label><input id="eg238_op" type="password" autocomplete="current-password"></div>
+        <div id="eg238_omsg" class="pm-lock-msg" style="margin-top:8px"></div>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_overify">Sign in as existing Owner</button>
+        <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_oback">Back to Sales / Customer login</button>
+      </div>`;
+      const email=el.querySelector('#eg238_oe'),pw=el.querySelector('#eg238_op'),msg=el.querySelector('#eg238_omsg'),btn=el.querySelector('#eg238_overify');
+      email.focus();el.querySelector('#eg238_oback').onclick=renderNormal;
+      btn.onclick=async()=>{
+        const em=email.value.trim(),pass=pw.value;if(!em||!pass){msg.textContent='Enter the existing Owner Firebase email and password.';return}
+        btn.disabled=true;msg.textContent='Verifying existing Owner…';
+        try{
+          const a=window.PMFirebase41;if(!a)throw new Error('Firebase module is not ready. Reload while online and try again.');
+          const cfg=(await a.getSavedConfig?.())||window.PM_FIREBASE_CONFIG;if(!cfg)throw new Error('Firebase is not configured in this app build.');
+          a.ensureFirebase(cfg);const auth=a.auth,db=a.db;if(!auth||!db)throw new Error('Firebase could not be initialized.');
+          const cred=await auth.signInWithEmailAndPassword(em,pass),uid=cred.user.uid;
+          let sec=null;
+          try{sec=await db.collection('meta').doc('security').get()}catch(e){throw new Error('Could not verify the Owner security record. Check internet/Firebase access and try again.');}
+          if(!sec || !sec.exists){try{await auth.signOut()}catch(e){}throw new Error('Owner registration is locked, but this Firebase project has no existing Owner security record. Restore meta/security from Firebase Console or your backup; the app will not create a new Owner.');}
+          const authorised=String(sec.data()?.ownerUid||'')===String(uid);
+          if(!authorised){try{await auth.signOut()}catch(e){}throw new Error('This Firebase account is not the existing authorized Owner for this project.');}
+          msg.textContent='Owner verified. Restoring this Owner device…';
+          const cloud=await a.readCloudState(uid);
+          if(!cloud || !cloud.state){throw new Error('No Owner cloud backup is available for this account. Use the existing Owner device to save to cloud first; new Owner registration is disabled.');}
+          const cs=cloud.state||{};
+          const restoredSettings={...DEF_SETTINGS,...(cs.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};
+          const hasOwnerCreds=!!(restoredSettings.ownerUsername && (restoredSettings.ownerPinVerifier265 || restoredSettings.ownerPin));
+          if(!hasOwnerCreds)throw new Error('The Owner cloud backup does not contain an existing Owner login. New Owner registration is disabled; update the cloud backup from the existing Owner device first.');
+          S={...S,...cs,settings:restoredSettings};
+          try{save()}catch(e){}
+          window.__ownerCloudVerified238=uid;clearAttempts238();
+          msg.textContent='Owner restored. Use the existing Owner username and PIN.';
+          setTimeout(()=>{renderNormal();const u=el.querySelector('#eg238_user');if(u){u.value=String(S.settings.ownerUsername||'');el.querySelector('#eg238_pin')?.focus()}},250);
+        }catch(e){btn.disabled=false;msg.textContent=(e&&e.message)||'Owner login failed.'}
+      };
+      pw.onkeydown=e=>{if(e.key==='Enter')btn.click()};
     }
 
     function renderRecovery(){
@@ -8335,7 +8438,7 @@ Amit, 5566,"></textarea>
     const dupCodes=[...byCode].filter(([,a])=>a.length>1),dupBars=[...byBar].filter(([,a])=>a.length>1),shared=ps.filter(p=>!p.sharedBarcodeVerified268&&(p.barcodeNeedsReview265||(p.sharedBarcodes||[]).length)),allowed=new Set(['active','on demand','coming soon','discontinued','archived']);
     const invalidStatus=ps.filter(p=>!allowed.has(String(p.status||'active').trim().toLowerCase())),missingIdentity=ps.filter(p=>!String(p.code||'').trim()||!String(p.name||'').trim()),badNums=ps.filter(p=>[p.price,p.mrp,p.stock,p.minStock].some(v=>v!=null&&v!==''&&(!Number.isFinite(+v)||+v<0))||(p.gst!=null&&p.gst!==''&&(!Number.isFinite(+p.gst)||+p.gst<0||+p.gst>100))),badUom=ps.filter(p=>!String(p.priceUnit||'').trim()||/coming soon|active|net/i.test(String(p.priceUnit||'')));
     const ids=new Set(ps.map(p=>p.id)),orphans=[];for(const pb of S.priceBooks||[]){for(const k of ['overrides','rateOnRequest230','productUoms227'])for(const id of Object.keys(pb.config?.[k]||{}))if(!ids.has(id))orphans.push({book:pb.name,key:k,id})}
-    const cloudPending=(S.viewerUsers||[]).filter(u=>u.cloudSyncState==='error'||u.cloudSyncState==='pending'||(!u.cloudUid&&u.active!==false));
+    const cloudPending=(S.viewerUsers||[]).filter(u=>u.active!==false&&(u.cloudSyncState==='error'||u.cloudSyncState==='pending'||u.cloudSyncState==='syncing'||!u.cloudUid));
     const weighted=dupCodes.length*5+dupBars.length*4+invalidStatus.length*3+missingIdentity.length*4+badNums.length*3+badUom.length*2+orphans.length*2+Math.ceil(shared.length/5)+cloudPending.length;
     const score=Math.max(0,100-Math.min(100,Math.round(weighted*100/Math.max(20,ps.length*1.5))));
     return{score,dupCodes,dupBars,shared,invalidStatus,missingIdentity,badNums,badUom,orphans,cloudPending,totalIssues:dupCodes.length+dupBars.length+shared.length+invalidStatus.length+missingIdentity.length+badNums.length+badUom.length+orphans.length+cloudPending.length};
@@ -8465,7 +8568,7 @@ Amit, 5566,"></textarea>
 
   /* Data Health 2: canonical UOM checks, intentional shared-barcode reviews do not lower integrity score. */
   const UOMS266=new Set(['pc','pcs','piece','pieces','unit','units','kg','kgs','kilogram','kilograms','g','gm','gms','gram','grams','box','boxes','pkt','pkts','packet','packets','pack','packs','dozen','doz','dz','tray','trays','hanger','hangers','blister','blisters','l','ltr','litre','liter','litres','liters','ml','set','sets','pair','pairs','roll','rolls','bag','bags','pouch','pouches','jar','jars','bottle','bottles','kit','kits','strip','strips','tin','tins','can','cans']);
-  function scanDataHealth266(){normalizeState266();const ps=S.products||[],byCode=new Map(),byBar=new Map();for(const p of ps){const c=String(p.code||'').trim().toUpperCase(),b=String(p.barcode||'').trim();if(c)(byCode.get(c)||byCode.set(c,[]).get(c)).push(p);if(b)(byBar.get(b)||byBar.set(b,[]).get(b)).push(p)}const dupCodes=[...byCode].filter(([,a])=>a.length>1),dupBars=[...byBar].filter(([,a])=>a.length>1),shared=ps.filter(p=>!p.sharedBarcodeVerified268&&(p.barcodeNeedsReview265||(p.sharedBarcodes||[]).length)),allowed=new Set(['active','on demand','coming soon','discontinued','archived']),invalidStatus=ps.filter(p=>!allowed.has(String(p.status||'active').trim().toLowerCase())),missingIdentity=ps.filter(p=>!String(p.code||'').trim()||!String(p.name||'').trim()),badNums=ps.filter(p=>[p.price,p.mrp,p.stock,p.minStock].some(v=>v!=null&&v!==''&&(!Number.isFinite(+v)||+v<0))||(p.gst!=null&&p.gst!==''&&(!Number.isFinite(+p.gst)||+p.gst<0||+p.gst>100))),validUoms=new Set(UOMS266);for(const x of S.uomMaster||[]){for(const v of [x.unit,x.uom,x.name]){const k=String(v||'').trim().toLowerCase();if(k)validUoms.add(k)}}const badUom=ps.filter(p=>{const u=String(p.priceUnit||'').trim().toLowerCase();return !u||!validUoms.has(u)}),ids=new Set(ps.map(p=>p.id)),orphans=[];for(const pb of S.priceBooks||[]){for(const cfg of [pb.config,pb.scheduled230?.config].filter(Boolean)){for(const k of ['overrides','rateOnRequest230','productUoms227'])for(const id of Object.keys(cfg?.[k]||{}))if(!ids.has(id))orphans.push({book:pb.name,key:k,id})}}const cloudPending=(S.viewerUsers||[]).filter(u=>u.cloudSyncState==='error'||u.cloudSyncState==='pending'||(!u.cloudUid&&u.active!==false)),weighted=dupCodes.length*5+dupBars.length*4+invalidStatus.length*3+missingIdentity.length*4+badNums.length*3+badUom.length*2+orphans.length*2+cloudPending.length,score=Math.max(0,100-Math.min(100,Math.round(weighted*100/Math.max(20,ps.length*1.5))));return{score,dupCodes,dupBars,shared,invalidStatus,missingIdentity,badNums,badUom,orphans,cloudPending,totalIssues:dupCodes.length+dupBars.length+invalidStatus.length+missingIdentity.length+badNums.length+badUom.length+orphans.length+cloudPending.length,reviews:shared.length}}
+  function scanDataHealth266(){normalizeState266();const ps=S.products||[],byCode=new Map(),byBar=new Map();for(const p of ps){const c=String(p.code||'').trim().toUpperCase(),b=String(p.barcode||'').trim();if(c)(byCode.get(c)||byCode.set(c,[]).get(c)).push(p);if(b)(byBar.get(b)||byBar.set(b,[]).get(b)).push(p)}const dupCodes=[...byCode].filter(([,a])=>a.length>1),dupBars=[...byBar].filter(([,a])=>a.length>1),shared=ps.filter(p=>!p.sharedBarcodeVerified268&&(p.barcodeNeedsReview265||(p.sharedBarcodes||[]).length)),allowed=new Set(['active','on demand','coming soon','discontinued','archived']),invalidStatus=ps.filter(p=>!allowed.has(String(p.status||'active').trim().toLowerCase())),missingIdentity=ps.filter(p=>!String(p.code||'').trim()||!String(p.name||'').trim()),badNums=ps.filter(p=>[p.price,p.mrp,p.stock,p.minStock].some(v=>v!=null&&v!==''&&(!Number.isFinite(+v)||+v<0))||(p.gst!=null&&p.gst!==''&&(!Number.isFinite(+p.gst)||+p.gst<0||+p.gst>100))),validUoms=new Set(UOMS266);for(const x of S.uomMaster||[]){for(const v of [x.unit,x.uom,x.name]){const k=String(v||'').trim().toLowerCase();if(k)validUoms.add(k)}}const badUom=ps.filter(p=>{const u=String(p.priceUnit||'').trim().toLowerCase();return !u||!validUoms.has(u)}),ids=new Set(ps.map(p=>p.id)),orphans=[];for(const pb of S.priceBooks||[]){for(const cfg of [pb.config,pb.scheduled230?.config].filter(Boolean)){for(const k of ['overrides','rateOnRequest230','productUoms227'])for(const id of Object.keys(cfg?.[k]||{}))if(!ids.has(id))orphans.push({book:pb.name,key:k,id})}}const cloudPending=(S.viewerUsers||[]).filter(u=>u.active!==false&&(u.cloudSyncState==='error'||u.cloudSyncState==='pending'||u.cloudSyncState==='syncing'||!u.cloudUid)),weighted=dupCodes.length*5+dupBars.length*4+invalidStatus.length*3+missingIdentity.length*4+badNums.length*3+badUom.length*2+orphans.length*2+cloudPending.length,score=Math.max(0,100-Math.min(100,Math.round(weighted*100/Math.max(20,ps.length*1.5))));return{score,dupCodes,dupBars,shared,invalidStatus,missingIdentity,badNums,badUom,orphans,cloudPending,totalIssues:dupCodes.length+dupBars.length+invalidStatus.length+missingIdentity.length+badNums.length+badUom.length+orphans.length+cloudPending.length,reviews:shared.length}}
   window.scanDataHealth265=scanDataHealth266;
   function issueRows266(h,kind){if(kind==='dupCodes')return h.dupCodes.flatMap(([k,a])=>a.map(p=>({title:`${k} · ${p.name||'(no name)'}`,sub:`Product ID ${p.id}`})));if(kind==='dupBars')return h.dupBars.flatMap(([k,a])=>a.map(p=>({title:`${k} · ${p.code} · ${p.name}`,sub:'Primary barcode collision'})));if(kind==='shared')return h.shared.map(p=>({title:`${p.code} · ${p.name}`,sub:`Shared: ${(p.sharedBarcodes||[]).join(', ')||'review flagged'}`}));if(kind==='invalidStatus')return h.invalidStatus.map(p=>({title:`${p.code} · ${p.name}`,sub:`Status: ${p.status}`}));if(kind==='missingIdentity')return h.missingIdentity.map(p=>({title:`${p.code||'(no code)'} · ${p.name||'(no name)'}`,sub:'Name/code required'}));if(kind==='badNums')return h.badNums.map(p=>({title:`${p.code} · ${p.name}`,sub:'Invalid negative/out-of-range numeric field'}));if(kind==='badUom')return h.badUom.map(p=>({title:`${p.code} · ${p.name}`,sub:`UOM: ${p.priceUnit||'(blank)'}`}));if(kind==='orphans')return h.orphans.map(x=>({title:`${x.book} · ${x.key}`,sub:`Missing product ${x.id}`}));if(kind==='cloudPending')return h.cloudPending.map(u=>({title:`${u.name} · ${u.cloudSyncState||'pending'}`,sub:u.cloudSyncError||'Cloud login/publish needs attention'}));return[]}
   function openIssue266(kind){const h=scanDataHealth266(),rows=issueRows266(h,kind),m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:720px"><div class="hd"><h2 style="margin:0">${esc(kind)} · ${rows.length}</h2></div><div class="bd a266-issue-list">${rows.map(x=>`<div class="a266-issue-row"><div><b>${esc(x.title)}</b><div class="metric-sub">${esc(x.sub||'')}</div></div></div>`).join('')||'<div class="empty-mini">No issues.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Close</button>${kind==='cloudPending'?'<button class="btn primary" data-x="cloud">Open Users & access</button>':'<button class="btn primary" data-x="quality">Open Data Quality</button>'}</div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();m.remove();if(b.dataset.x==='cloud')go('access45');else go('quality28')}}
@@ -8767,6 +8870,11 @@ body{background:radial-gradient(circle at 100% 0,#fbfaf7 0,transparent 28%),var(
 @media(max-width:900px){.wrap{padding-left:13px!important;padding-right:13px!important}.top{backdrop-filter:none}.card{border-radius:14px!important}}
 </style>
 <script id="pm-v272-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.72 Premium Redesign · Retail/Wholesale Mode'};</script>
+<style id="pm-v275-order-ui">
+#cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle{min-height:36px!important;padding:5px 9px!important;border-radius:10px!important;font-size:10.5px!important;margin-right:0!important}
+@media(max-width:600px){#cloudViewer46 .cv272-session{gap:4px!important}#cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle,#cloudViewer46 .cv272-session #cv46out{padding:5px 7px!important;font-size:9.5px!important;min-width:auto!important}}
+</style>
+<script id="pm-v275-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.75 Order Safety · Private Cart · Archive Only'};</script>
 
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE='tota-price-manager-v272';
+const CACHE='tota-price-manager-v275';
 const CATALOG_CACHE='pm-viewer-catalogs-v228';
 const LOCAL=['./','./index.html','./firebase-config.js','./secure-access.js','./manifest.json','./icon-192.png','./icon-512.png','./icon-512-maskable.png'];
 const VENDOR=[
