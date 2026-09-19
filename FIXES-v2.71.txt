@@ -1,0 +1,10 @@
+Tota Price Manager v2.71 — Persistent Sales/Customer Session
+
+- Sales/customer login now remains active for up to 6 hours across screen changes, reloads, browser/PWA resume and normal navigation.
+- Uses Firebase Auth LOCAL persistence; the PIN is never stored for session restoration.
+- Session auto-restores only while the persisted Firebase user, access profile and published access remain valid.
+- Disabled/expired users are signed out automatically.
+- Explicit Log out clears the persistent session immediately.
+- Log out & clear offline data additionally removes cached rates, cart, favorites/recent data and cached catalogs.
+- Session expiry is capped by the user's access-expiry date.
+- Service worker cache bumped to v271.

@@ -6310,7 +6310,26 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 
   function templateDialog(){const m=document.createElement('div');m.className='modal';const draw=()=>{m.innerHTML=`<div class="box" style="max-width:650px"><div class="hd"><h2 style="margin:0">Customer rate templates</h2></div><div class="bd"><div class="note">Save reusable Wholesale / Distributor / Retail pricing setup. Product selection and manual exception rates stay separate.</div><div class="field"><label>New template name</label><div style="display:flex;gap:8px"><input id="RT230name" placeholder="Distributor standard"><button class="btn primary sm" data-x="save-current">Save current setup</button></div></div><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Extra discount</th><th>Qty basis</th><th></th></tr></thead><tbody>${S.customerRateTemplates230.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.config?.extraPct||0)}%</td><td>${esc(t.config?.qtyBasis26||1)}</td><td class="r"><button class="link" data-apply="${t.id}">apply</button> · <button class="link" data-del="${t.id}">delete</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No templates yet.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`};draw();document.body.appendChild(m);m.onclick=e=>{const ap=e.target.closest('[data-apply]');if(ap){const t=S.customerRateTemplates230.find(x=>x.id===ap.dataset.apply);if(t){Object.entries(t.config||{}).forEach(([k,v])=>ui.list[k]=clone(v));m.remove();render();toast('Template applied')}return}const del=e.target.closest('[data-del]');if(del){S.customerRateTemplates230=S.customerRateTemplates230.filter(x=>x.id!==del.dataset.del);save();draw();return}const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();if(b.dataset.x==='save-current'){const name=m.querySelector('#RT230name').value.trim();if(!name)return toast('Enter template name');const c={};TEMPLATE_KEYS.forEach(k=>c[k]=clone(ui.list[k]));S.customerRateTemplates230.push({id:uid(),name,config:c,createdAt:Date.now()});save();draw();toast('Rate template saved')}}}
 
-  function brandingDialog(){const m=document.createElement('div');m.className='modal';const draw=()=>{m.innerHTML=`<div class="box" style="max-width:720px"><div class="hd"><h2 style="margin:0">PDF branding templates</h2></div><div class="bd"><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Header</th><th>Footer</th><th></th></tr></thead><tbody>${S.pdfBrandTemplates230.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.firm||'Default firm')}<div class="metric-sub">${esc(t.subtitle||'')}</div></td><td>${esc(t.footer||'—')}</td><td class="r"><button class="link" data-edit="${t.id}">edit</button>${t.id!=='default'?` · <button class="link" data-del="${t.id}">delete</button>`:''}</td></tr>`).join('')}</tbody></table></div><button class="btn primary sm" data-x="new" style="margin-top:10px">New branding template</button></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`};const edit=id=>{const t=S.pdfBrandTemplates230.find(x=>x.id===id)||{id:uid(),name:'',firm:'',subtitle:'',contact:'',footer:'',showEffective:true};m.innerHTML=`<div class="box" style="max-width:580px"><div class="hd"><h2 style="margin:0">PDF branding</h2></div><div class="bd"><div class="field"><label>Template name</label><input id="BR230name" value="${esc(t.name)}"></div><div class="field"><label>Firm / heading</label><input id="BR230firm" value="${esc(t.firm)}"></div><div class="field"><label>Subtitle</label><input id="BR230sub" value="${esc(t.subtitle)}"></div><div class="field"><label>Contact line</label><input id="BR230contact" value="${esc(t.contact)}"></div><div class="field"><label>Footer</label><input id="BR230footer" value="${esc(t.footer)}"></div><label class="note"><input id="BR230eff" type="checkbox" ${t.showEffective!==false?'checked':''}> Show effective date when available</label></div><div class="ft"><button class="btn ghost" data-x="back">Back</button><button class="btn primary" data-x="save-brand">Save</button></div></div>`;m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b)return;if(b.dataset.x==='back'){draw();return}if(b.dataset.x==='save-brand'){const data={name:m.querySelector('#BR230name').value.trim(),firm:m.querySelector('#BR230firm').value.trim(),subtitle:m.querySelector('#BR230sub').value.trim(),contact:m.querySelector('#BR230contact').value.trim(),footer:m.querySelector('#BR230footer').value.trim(),showEffective:m.querySelector('#BR230eff').checked};if(!data.name)return toast('Enter template name');const ex=S.pdfBrandTemplates230.find(x=>x.id===t.id);if(ex)Object.assign(ex,data);else S.pdfBrandTemplates230.push({id:t.id,...data});save();draw();toast('Branding template saved')}}};draw();document.body.appendChild(m);m.onclick=e=>{const ed=e.target.closest('[data-edit]');if(ed)return edit(ed.dataset.edit);const del=e.target.closest('[data-del]');if(del){S.pdfBrandTemplates230=S.pdfBrandTemplates230.filter(x=>x.id!==del.dataset.del);save();draw();return}const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();if(b.dataset.x==='new')edit(null)}}
+  function brandingDialog(){
+    const m=document.createElement('div');m.className='modal';let editingId=null;
+    const draw=()=>{editingId=null;m.innerHTML=`<div class="box" style="max-width:720px"><div class="hd"><h2 style="margin:0">PDF branding templates</h2></div><div class="bd"><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Header</th><th>Footer</th><th></th></tr></thead><tbody>${S.pdfBrandTemplates230.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.firm||'Default firm')}<div class="metric-sub">${esc(t.subtitle||'')}</div></td><td>${esc(t.footer||'—')}</td><td class="r"><button class="link" data-edit="${t.id}">edit</button>${t.id!=='default'?` · <button class="link" data-del="${t.id}">delete</button>`:''}</td></tr>`).join('')}</tbody></table></div><button class="btn primary sm" data-x="new" style="margin-top:10px">New branding template</button></div><div class="ft"><button class="btn primary" data-x="close">Done</button></div></div>`};
+    const edit=id=>{const t=S.pdfBrandTemplates230.find(x=>x.id===id)||{id:uid(),name:'',firm:'',subtitle:'',contact:'',footer:'',showEffective:true};editingId=t.id;m.innerHTML=`<div class="box" style="max-width:580px"><div class="hd"><h2 style="margin:0">PDF branding</h2></div><div class="bd"><div class="field"><label>Template name</label><input id="BR230name" value="${esc(t.name)}"></div><div class="field"><label>Firm / heading</label><input id="BR230firm" value="${esc(t.firm)}"></div><div class="field"><label>Subtitle</label><input id="BR230sub" value="${esc(t.subtitle)}"></div><div class="field"><label>Contact line</label><input id="BR230contact" value="${esc(t.contact)}"></div><div class="field"><label>Footer</label><input id="BR230footer" value="${esc(t.footer)}"></div><label class="note"><input id="BR230eff" type="checkbox" ${t.showEffective!==false?'checked':''}> Show effective date when available</label></div><div class="ft"><button class="btn ghost" data-x="back">Back</button><button class="btn primary" data-x="save-brand">Save</button></div></div>`};
+    document.body.appendChild(m);draw();
+    m.onclick=e=>{
+      if(e.target===m){m.remove();return}
+      const ed=e.target.closest('[data-edit]');if(ed){edit(ed.dataset.edit);return}
+      const del=e.target.closest('[data-del]');if(del){S.pdfBrandTemplates230=S.pdfBrandTemplates230.filter(x=>x.id!==del.dataset.del);save();draw();return}
+      const b=e.target.closest('[data-x]');if(!b)return;
+      if(b.dataset.x==='close'){m.remove();return}
+      if(b.dataset.x==='new'){edit(null);return}
+      if(b.dataset.x==='back'){draw();return}
+      if(b.dataset.x==='save-brand'){
+        const data={name:m.querySelector('#BR230name')?.value.trim()||'',firm:m.querySelector('#BR230firm')?.value.trim()||'',subtitle:m.querySelector('#BR230sub')?.value.trim()||'',contact:m.querySelector('#BR230contact')?.value.trim()||'',footer:m.querySelector('#BR230footer')?.value.trim()||'',showEffective:!!m.querySelector('#BR230eff')?.checked};
+        if(!data.name)return toast('Enter template name');
+        const ex=S.pdfBrandTemplates230.find(x=>x.id===editingId);if(ex)Object.assign(ex,data);else S.pdfBrandTemplates230.push({id:editingId||uid(),...data});save();draw();toast('Branding template saved');
+      }
+    };
+  }
 
   // Enrich Price List builder.
   const viewListBefore230=viewList;
@@ -8579,5 +8598,167 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_268,adjustStock:window.adjustStock268};
 })();
 </script>
+
+<style id="pm-v269-mobile-health-polish">
+/* v2.69 Data Health interaction + restricted viewer mobile polish */
+.modal[data-health269="1"] .box{max-height:min(88vh,820px);display:flex;flex-direction:column}
+.modal[data-health269="1"] .bd{overflow:auto;overscroll-behavior:contain}
+.health269-titlebar{display:flex;align-items:flex-start;gap:10px;width:100%}
+.health269-titlebar>div{min-width:0;flex:1}.health269-x{border:0;background:transparent;font-size:22px;line-height:1;padding:4px 7px;border-radius:8px;cursor:pointer;color:var(--muted)}.health269-x:hover{background:var(--wash)}
+.health269-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}.health269-nav .spacer{flex:1}
+@media(max-width:700px){
+  .modal[data-health269="1"]{padding:0;align-items:flex-end}.modal[data-health269="1"] .box{width:100%;max-width:none!important;max-height:92dvh;border-radius:18px 18px 0 0;margin:0}.modal[data-health269="1"] .hd{padding:14px 14px 10px}.modal[data-health269="1"] .bd{padding:10px 12px 16px}.modal[data-health269="1"] .ft{position:sticky;bottom:0;background:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:3;box-shadow:0 -8px 20px rgba(0,0,0,.05)}
+  .modal[data-health269="1"] .tbl-wrap{overflow:visible}.modal[data-health269="1"] table,.modal[data-health269="1"] tbody,.modal[data-health269="1"] tr,.modal[data-health269="1"] td{display:block;width:100%}.modal[data-health269="1"] thead{display:none}.modal[data-health269="1"] tr{border:1px solid var(--line);border-radius:12px;padding:9px 10px;margin:8px 0;background:#fff}.modal[data-health269="1"] td{border:0!important;padding:3px 0!important;text-align:left!important}.modal[data-health269="1"] td:last-child{padding-top:8px!important}.modal[data-health269="1"] td:last-child .link{width:100%;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--wash)}
+}
+</style>
+<script id="pm-v269-health-mobile-viewer">
+(()=>{
+  const PM_VERSION_269='2.69 Data Health Fix · Mobile Viewer Polish';
+
+  /* ---------- Data Health: direct/capture actions; no dependency on generic modal handlers ---------- */
+  window.openDataHealth265=function(){
+    const scan=()=>window.scanDataHealth265?.();
+    if(!scan()) return;
+    document.querySelectorAll('.modal[data-health268],.modal[data-health269]').forEach(x=>x.remove());
+    const m=document.createElement('div');m.className='modal';m.dataset.health269='1';
+    const box=document.createElement('div');box.className='box';m.appendChild(box);document.body.appendChild(m);
+    let current='main';
+    const defs=[['dupCodes','Duplicate SKU codes','Must be unique for safe matching.'],['dupBars','Duplicate primary barcodes','Primary scanner match is ambiguous.'],['shared','Shared barcode reviews','Confirm intentional shared/family barcodes.'],['invalidStatus','Invalid status','Use supported product states.'],['missingIdentity','Missing name/code','Identity fields are required.'],['badNums','Invalid numeric fields','Negative/out-of-range values.'],['badUom','Non-canonical UOM','Normalize unit labels.'],['orphans','Orphan Price Book refs','References deleted products.'],['cloudPending','Cloud pending/failed','Restricted access needs attention.']];
+    const close=()=>{if(m.isConnected)m.remove()};
+    function listFor(kind,h){
+      if(kind==='dupCodes')return h.dupCodes.flatMap(([k,a])=>a.map(p=>({p,title:`${k} · ${p.name||'(no name)'}`,sub:'Duplicate SKU'})));
+      if(kind==='dupBars')return h.dupBars.flatMap(([k,a])=>a.map(p=>({p,title:`${k} · ${p.code} · ${p.name}`,sub:'Primary barcode collision'})));
+      if(kind==='shared')return h.shared.map(p=>({p,title:`${p.code} · ${p.name}`,sub:`Shared: ${(p.sharedBarcodes||[]).join(', ')||'review flagged'}`}));
+      if(kind==='invalidStatus')return h.invalidStatus.map(p=>({p,title:`${p.code} · ${p.name}`,sub:`Status: ${p.status}`}));
+      if(kind==='missingIdentity')return h.missingIdentity.map(p=>({p,title:`${p.code||'(no code)'} · ${p.name||'(no name)'}`,sub:'Name/code required'}));
+      if(kind==='badNums')return h.badNums.map(p=>({p,title:`${p.code} · ${p.name}`,sub:'Invalid numeric field'}));
+      if(kind==='badUom')return h.badUom.map(p=>({p,title:`${p.code} · ${p.name}`,sub:`UOM: ${p.priceUnit||'(blank)'}`}));
+      if(kind==='orphans')return h.orphans.map(x=>({title:`${x.book} · ${x.key}`,sub:`Missing product ${x.id}`}));
+      if(kind==='cloudPending')return h.cloudPending.map(u=>({title:`${u.name} · ${u.cloudSyncState||'pending'}`,sub:u.cloudSyncError||'Cloud access needs attention'}));return[];
+    }
+    function renderMain(){current='main';const h=scan();box.innerHTML=`<div class="hd"><div class="health269-titlebar"><div><h2 style="margin:0">Data Health · ${h.score}%</h2><div class="note">Integrity score excludes verified/intentional shared barcode relationships.</div></div><button type="button" class="health269-x" data-h269="close" aria-label="Close">×</button></div></div><div class="bd"><div class="tbl-wrap"><table><thead><tr><th>Check</th><th class="r">Count</th><th>Meaning</th><th></th></tr></thead><tbody>${defs.map(([k,l,d])=>{const n=k==='shared'?h.shared.length:(h[k]?.length||0);return `<tr><td><b>${l}</b></td><td class="r ${n?'bad':''}">${n}</td><td class="note">${d}</td><td class="r"><button type="button" class="link" data-h269="detail" data-kind="${k}" ${!n?'disabled':''}>View</button></td></tr>`}).join('')}</tbody></table></div></div><div class="ft"><button type="button" class="btn ghost" data-h269="close">Close</button><button type="button" class="btn primary" data-h269="quality">Open Data Quality</button></div>`;box.querySelector('[data-h269="close"]')?.focus?.()}
+    function renderDetail(kind){current=kind;const h=scan(),list=listFor(kind,h),label=defs.find(x=>x[0]===kind)?.[1]||'Data Health';box.innerHTML=`<div class="hd"><div class="health269-titlebar"><div><h2 style="margin:0">${label} · ${list.length}</h2><div class="note">Review the exact records below.</div></div><button type="button" class="health269-x" data-h269="close" aria-label="Close">×</button></div></div><div class="bd"><div class="health269-nav"><button type="button" class="btn ghost sm" data-h269="back">← Back to Data Health</button><div class="spacer"></div>${kind==='shared'?'<span class="note">Verify only intentional shared/family barcodes.</span>':''}</div><div class="a268-health-detail">${list.map(x=>`<div class="a268-health-row"><div><b>${esc(x.title)}</b><small>${esc(x.sub||'')}</small></div>${kind==='shared'&&x.p?`<button type="button" class="btn ghost sm" data-h269="verify" data-id="${x.p.id}">Verify shared</button>`:''}</div>`).join('')||'<div class="empty-mini">Nothing to review.</div>'}</div></div><div class="ft"><button type="button" class="btn ghost" data-h269="back">← Back</button><button type="button" class="btn ghost" data-h269="close">Close</button>${kind!=='cloudPending'?'<button type="button" class="btn primary" data-h269="quality">Open Data Quality</button>':''}</div>`;box.querySelector('[data-h269="back"]')?.focus?.()}
+    const action=e=>{
+      const b=e.target.closest?.('[data-h269]');if(!b)return;
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      const a=b.dataset.h269;
+      if(a==='close')return close();
+      if(a==='back')return renderMain();
+      if(a==='detail'&&!b.disabled)return renderDetail(b.dataset.kind);
+      if(a==='quality'){close();return go('quality28')}
+      if(a==='verify'){const p=S.products.find(x=>x.id===b.dataset.id);if(p){p.sharedBarcodeVerified268=true;p.barcodeNeedsReview265=false;p.updatedAt=Date.now();save();toast('Shared barcode marked verified');renderDetail('shared')}return}
+    };
+    m.addEventListener('click',action,true);
+    m.addEventListener('pointerup',e=>{const b=e.target.closest?.('[data-h269]');if(b&&e.pointerType==='touch'){/* click handler will execute; capture keeps target stable */}},true);
+    m.addEventListener('click',e=>{if(e.target===m){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();close()}},true);
+    m.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();if(current!=='main')renderMain();else close()}},true);
+    renderMain();
+  };
+
+  /* ---------- restricted user/customer mobile experience ---------- */
+  function ensureViewerStyle269(){if(document.getElementById('cv269css'))return;const st=document.createElement('style');st.id='cv269css';st.textContent=`
+#cloudViewer46{--cv269-bg:#f6f2e9;--cv269-card:#fff;--cv269-radius:14px}
+#cloudViewer46 .cv269-mobile-nav{display:none}
+#cloudViewer46 .cv269-filter-toggle{display:none}
+@media(max-width:720px){
+  #cloudViewer46{background:var(--cv269-bg)!important;-webkit-tap-highlight-color:transparent}
+  #cloudViewer46 .cv47-wrap{padding:10px 10px calc(92px + env(safe-area-inset-bottom))!important;max-width:none!important}
+  #cloudViewer46 .cv47-head{margin:0 0 8px!important;padding:8px 4px 10px!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;align-items:center!important}
+  #cloudViewer46 .cv47-head b{font-size:17px!important;line-height:1.2}#cloudViewer46 .cv47-head .note{font-size:10.5px;line-height:1.35;margin-top:2px}
+  #cloudViewer46 #cv46out{min-width:72px;min-height:40px;border-radius:11px}
+  #cloudViewer46 .cv269-mobile-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 9px;position:relative;z-index:5}
+  #cloudViewer46 .cv269-mobile-nav button{border:1px solid var(--line);background:#fff;border-radius:11px;min-height:42px;padding:7px 5px;font-size:11px;font-weight:800;color:var(--ink);box-shadow:var(--shadow-xs)}
+  #cloudViewer46 .cv269-mobile-nav button:active{transform:scale(.98)}
+  #cloudViewer46 .cv47-notice,#cloudViewer46 .cv47-announce{border-radius:12px;padding:11px 12px;margin-bottom:9px;font-size:12.5px}
+  #cloudViewer46 .cv47-switch{grid-template-columns:1fr!important;gap:7px;margin-bottom:8px}
+  #cloudViewer46 .cv47-switch .card{border-radius:12px}.cv47-switch .bd{padding:10px 11px!important}
+  #cloudViewer46 .cv47-switch b{font-size:11px;color:var(--muted)}#cloudViewer46 .cv47-switch select{min-height:43px;font-size:16px;margin-top:4px}
+  #cloudViewer46 .cv47-search{position:sticky!important;top:0!important;z-index:40!important;margin:0 -10px 10px!important;padding:8px 10px 9px!important;background:rgba(246,242,233,.96)!important;backdrop-filter:blur(12px);border-bottom:1px solid rgba(216,210,197,.75);box-shadow:0 5px 16px rgba(34,31,27,.05)}
+  #cloudViewer46 .cv47-search>.section-title{font-size:10px;margin-bottom:5px;color:var(--muted)}
+  #cloudViewer46 .cv47-searchbox{grid-template-columns:1fr!important;gap:6px!important}
+  #cloudViewer46 #cv47q{min-height:48px!important;border-radius:12px!important;font-size:16px!important;padding:10px 12px!important;background:#fff}
+  #cloudViewer46 #cv47book,#cloudViewer46 #cv47catfilter{display:none;min-height:44px;font-size:15px;background:#fff}
+  #cloudViewer46 .cv47-search.cv269-filters-open #cv47book,#cloudViewer46 .cv47-search.cv269-filters-open #cv47catfilter{display:block}
+  #cloudViewer46 .cv47-tools{display:grid!important;grid-template-columns:1fr 1fr 1fr;gap:6px!important;margin-top:7px!important}
+  #cloudViewer46 .cv47-tools .btn{min-height:40px;padding:6px 5px!important;font-size:10.5px!important;border-radius:10px;white-space:nowrap}
+  #cloudViewer46 .cv269-filter-toggle{display:inline-flex!important;align-items:center;justify-content:center}
+  #cloudViewer46 .cv47-results{gap:8px!important;margin-top:8px!important}
+  #cloudViewer46 .cv47-results>.card{border-radius:14px!important;padding:0!important;box-shadow:0 3px 12px rgba(30,27,22,.045)!important}
+  #cloudViewer46 .cv47-results>.card .bd{padding:11px 12px!important}
+  #cloudViewer46 .cv47-row{grid-template-columns:1fr!important;gap:9px!important;position:relative}
+  #cloudViewer46 .cv47-row>div:first-child{padding-right:28px}
+  #cloudViewer46 .cv47-row>div:first-child>b{font-size:14px;line-height:1.35;display:block;padding-right:2px}
+  #cloudViewer46 .cv47-booktag{font-size:9px;letter-spacing:.04em;margin-bottom:3px}
+  #cloudViewer46 .cv47-star{position:absolute;right:7px;top:24px;font-size:22px;padding:5px;min-width:34px;min-height:34px}
+  #cloudViewer46 .cv47-row>div:last-child{text-align:left!important;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line-2);padding-top:8px}
+  #cloudViewer46 .cv47-rate{font-size:21px!important;line-height:1.15;color:var(--kumkum-d);letter-spacing:-.02em}
+  #cloudViewer46 .cv47-uom{min-width:104px;min-height:40px;font-size:15px;border-radius:9px}
+  #cloudViewer46 .ord233-add{display:grid!important;grid-template-columns:72px minmax(0,1fr);gap:7px!important;margin-top:9px!important}
+  #cloudViewer46 .ord233-qty{width:100%!important;min-height:42px!important;font-size:16px!important;border-radius:9px!important}
+  #cloudViewer46 .ord233-add .btn{min-height:42px!important;font-size:12px!important;border-radius:9px!important}
+  #cloudViewer46 #cv47priceSection>.section-title,#cloudViewer46 #cv47catalogSection>.section-title{font-size:14px;margin:18px 2px 8px!important}
+  #cloudViewer46 #cv47priceSection .card,#cloudViewer46 #cv47catalogSection .card{border-radius:14px;margin-bottom:8px!important}
+  #cloudViewer46 #cv47priceSection .card .bd,#cloudViewer46 #cv47catalogSection .card .bd{padding:12px!important}
+  #cloudViewer46 .cv47-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:7px!important;margin-top:9px!important}
+  #cloudViewer46 .cv47-actions .btn{width:100%;min-height:42px!important;padding:7px 6px!important;font-size:11px!important;border-radius:9px!important}
+  #cloudViewer46 .cv47-actions .btn:nth-child(3){grid-column:1/-1}
+  #cloudViewer46 .cv47-catgrid{grid-template-columns:1fr!important;gap:8px!important}
+  #cloudViewer46 #ord233Bar{position:fixed!important;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:100!important;margin:0!important;border-radius:14px!important;padding:9px 10px!important;gap:8px;box-shadow:0 12px 32px rgba(0,0,0,.24)!important}
+  #cloudViewer46 #ord233BarText{font-size:11px!important;line-height:1.25;min-width:0;flex:1}
+  #cloudViewer46 #ord233Review{min-height:40px;white-space:nowrap}
+}
+`;document.head.appendChild(st)}
+  function enhanceViewer269(){const root=document.getElementById('cloudViewer46');if(!root||root.style.display==='none')return;ensureViewerStyle269();const head=root.querySelector('.cv47-head'),search=root.querySelector('.cv47-search');if(!head||!search)return;
+    if(!root.querySelector('.cv269-mobile-nav')){const nav=document.createElement('div');nav.className='cv269-mobile-nav';nav.innerHTML='<button type="button" data-cv269="rates">🔎 Rates</button><button type="button" data-cv269="lists">₹ Price Lists</button><button type="button" data-cv269="catalogs">▤ Catalogs</button>';head.insertAdjacentElement('afterend',nav);nav.onclick=e=>{const b=e.target.closest('[data-cv269]');if(!b)return;const t=b.dataset.cv269==='rates'?search:b.dataset.cv269==='lists'?root.querySelector('#cv47priceSection'):root.querySelector('#cv47catalogSection');t?.scrollIntoView?.({behavior:'smooth',block:'start'});if(b.dataset.cv269==='rates')setTimeout(()=>root.querySelector('#cv47q')?.focus(),280)}}
+    const q=root.querySelector('#cv47q');if(q){q.placeholder='Search product, code or barcode…';q.setAttribute('enterkeyhint','search');q.setAttribute('aria-label','Search products and rates')}
+    const tools=root.querySelector('.cv47-tools');if(tools&&!tools.querySelector('.cv269-filter-toggle')){const b=document.createElement('button');b.type='button';b.className='btn ghost sm cv269-filter-toggle';b.textContent='⚙ Filters';b.setAttribute('aria-expanded','false');b.onclick=()=>{const on=search.classList.toggle('cv269-filters-open');b.setAttribute('aria-expanded',String(on));b.textContent=on?'✕ Hide filters':'⚙ Filters'};tools.appendChild(b)}
+    const switcher=root.querySelector('.cv47-switch');if(switcher){const cards=[...switcher.querySelectorAll('.card')];if(cards[0]&&(root.querySelectorAll('#cv47switchbook option').length<=2))cards[0].classList.add('cv269-one');if(cards[1]&&(root.querySelectorAll('#cv47switchcat option').length<=1))cards[1].style.display='none'}
+  }
+  const obs=new MutationObserver(()=>{clearTimeout(window.__cv269t);window.__cv269t=setTimeout(enhanceViewer269,30)});obs.observe(document.body,{childList:true,subtree:true});
+  setTimeout(enhanceViewer269,250);
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_269};
+})();
+</script>
+
+
+<style id="pm-v270-premium-polish">
+:root{--r:10px;--shadow-sm:0 1px 2px rgba(21,26,34,.05),0 8px 24px rgba(21,26,34,.045);--shadow-md:0 14px 40px rgba(21,26,34,.12);--surface-soft:#F7F4ED}
+body{background:#F7F5EF;color:#20242A}
+.rail{width:214px;background:#161B23;box-shadow:8px 0 32px rgba(21,26,34,.07)}
+.brand{padding:19px 17px 16px}.brand b{font-size:15.5px}.brand span{font-size:11px;letter-spacing:.015em}
+.nav{padding:12px 9px;gap:3px}.nav button{min-height:38px;padding:9px 11px;border-radius:9px;transition:background .14s ease,color .14s ease,transform .14s ease}.nav button:hover{transform:translateX(1px)}.nav button.on{box-shadow:0 5px 18px rgba(0,0,0,.16)}
+.top{padding:14px 22px;background:rgba(247,245,239,.94);box-shadow:0 1px 0 rgba(21,26,34,.03)}.top h1{font-size:17px;font-weight:700}.wrap{padding:21px 22px 90px}
+.card,.stat,.tbl-wrap{border-color:#E5E0D5}.card{border-radius:13px;box-shadow:var(--shadow-sm)}.card .hd{padding:13px 15px}.card .hd h2{font-size:14px;font-weight:700}.card .bd{padding:15px}.stat{border-radius:12px;box-shadow:var(--shadow-sm);padding:14px 15px}.stat b{font-size:23px;font-weight:700}
+button.btn{min-height:36px;border-radius:9px;padding:7px 14px;font-weight:650;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}button.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 7px 18px rgba(21,26,34,.11)}button.btn.sm{min-height:32px;padding:5px 10px}.btn.primary{box-shadow:0 5px 14px rgba(196,42,28,.17)}
+input,select,textarea{min-height:36px;border-radius:9px;border-color:#DDD7CB;background:#FFFEFC}textarea{min-height:auto}.field label{font-size:11px;font-weight:650;letter-spacing:.015em}
+.tbl-wrap{border-radius:12px;box-shadow:0 2px 14px rgba(21,26,34,.035)}th{padding:9px 9px;background:#F5F1E8;font-size:10.5px;letter-spacing:.025em}td{padding:8px 9px}tr:hover td{background:#FFFCF5}
+.modal{background:rgba(15,20,28,.58);backdrop-filter:blur(3px);padding-top:5vh}.modal .box{border-radius:15px;box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,.55)}.modal .box .hd{padding:15px 17px}.modal .box .bd{padding:17px}.modal .box .ft{padding:12px 17px;background:#FCFAF6;border-radius:0 0 15px 15px}
+.toast{border-radius:12px;padding:10px 15px;box-shadow:0 12px 32px rgba(0,0,0,.24)}
+.a266-attention,.health265{box-shadow:var(--shadow-sm)}
+/* Restricted portal premium + rate-context safety */
+#cloudViewer46{background:#F5F2EA!important}#cloudViewer46 .cv47-wrap{max-width:1040px!important;padding-top:16px!important}
+#cloudViewer46 .cv47-head{background:#fff;border:1px solid #E4DED2!important;border-radius:16px;padding:14px 15px!important;margin-bottom:12px!important;box-shadow:var(--shadow-sm)}
+#cloudViewer46 .cv47-search{top:0!important;background:rgba(245,242,234,.96)!important;backdrop-filter:blur(10px);padding:9px 0 13px!important}
+#cloudViewer46 .cv47-searchbox{background:#fff;border:1px solid #E2DCCD;border-radius:14px;padding:10px;box-shadow:var(--shadow-sm)}
+#cloudViewer46 .cv47-results>.card{overflow:hidden;border-radius:14px;transition:transform .12s ease,box-shadow .12s ease}#cloudViewer46 .cv47-results>.card:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(21,26,34,.08)}
+#cloudViewer46 .cv47-rate{font-size:20px!important;color:#1F3B2A}#cloudViewer46 .cv270-rate-wholesale{color:#9A351F!important}
+.cv270-context{display:flex;justify-content:space-between;gap:14px;align-items:center;background:#fff;border:1px solid #DDD6C7;border-radius:14px;padding:12px 14px;margin:0 0 12px;box-shadow:var(--shadow-sm)}.cv270-context b{display:block;font-size:14px}.cv270-context small{display:block;color:var(--muted);margin-top:2px}.cv270-context.require{border-color:#D8B66A;background:#FFFAEC}.cv270-context.wholesale{border-color:#E2A897;background:#FFF5F1}.cv270-context.retail{border-color:#B9D7C3;background:#F3FAF5}.cv270-context-badge{display:inline-flex;align-items:center;min-height:28px;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:850;letter-spacing:.055em;white-space:nowrap;background:#EEE9DF;color:#625D54}.cv270-context.wholesale .cv270-context-badge{background:#F9D9D0;color:#8E2A18}.cv270-context.retail .cv270-context-badge{background:#DDEEE2;color:#2D6640}.cv270-aud{display:inline-flex;align-items:center;padding:2px 6px;border-radius:999px;margin-right:5px;font-size:9px;font-weight:850;letter-spacing:.045em}.cv270-aud.wholesale{background:#F9D9D0;color:#8E2A18}.cv270-aud.retail{background:#DDEEE2;color:#2D6640}.cv270-aud.custom{background:#E8EAF0;color:#4A5265}.cv270-wholesale-note{font-size:10.5px;font-weight:700;color:#8E2A18;margin-top:4px}.cv270-context-empty{border:1px dashed #D7BC7A;background:#FFF9E9;border-radius:14px;padding:18px;text-align:center;color:#66562E}.cv270-context-empty b{display:block;color:#3E382B;margin-bottom:4px}.cv270-bookmeta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+@media(max-width:900px){.rail{width:100%;box-shadow:none}.wrap{padding:15px 13px 88px}.top{padding:11px 13px}.card{border-radius:12px}.cv270-context{align-items:flex-start}.cv270-context-badge{flex:none}}
+@media(max-width:700px){#cloudViewer46 .cv47-wrap{padding:10px 10px calc(108px + env(safe-area-inset-bottom))!important}#cloudViewer46 .cv47-head{position:relative}#cloudViewer46 .cv47-search{margin:0 -2px}.cv270-context{flex-direction:column;gap:8px}.cv270-context-badge{align-self:flex-start}#cloudViewer46 .cv47-results>.card .bd{padding:14px!important}#cloudViewer46 .cv47-rate{font-size:22px!important}}
+</style>
+<script id="pm-v270-interaction-premium">
+(()=>{
+  const PM_VERSION_270='2.70 Interaction Audit · Safe Rate Context · Premium UI';
+  function inferAudience270(pb){const explicit=String(pb?.audience270||'').toLowerCase();if(['retail','wholesale','custom'].includes(explicit))return explicit;const t=String([pb?.name,pb?.category].filter(Boolean).join(' ')).toLowerCase();if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';if(/retail|consumer|counter|mrp/.test(t))return'retail';return'custom'}
+  window.inferPriceBookAudience270=inferAudience270;
+  function enhanceAudienceTags270(){if(page!=='access45')return;document.querySelectorAll('[data-pb-load]').forEach(btn=>{const id=btn.dataset.pbLoad,pb=(S.priceBooks||[]).find(x=>x.id===id),tr=btn.closest('tr');if(!pb||!tr||tr.querySelector('[data-audience270]'))return;const td=tr.children[1];if(!td)return;const sel=document.createElement('select');sel.dataset.audience270=id;sel.className='sm';sel.style.cssText='margin-left:8px;min-height:29px;padding:3px 7px;width:auto';const current=pb.audience270||inferAudience270(pb);sel.innerHTML=`<option value="retail">Retail</option><option value="wholesale">Wholesale / Trade</option><option value="custom">Custom</option>`;sel.value=current;sel.title='Controls the safety label shown to Sales Team users';sel.onchange=()=>{pb.audience270=sel.value;pb.updatedAt=Date.now();save();window.markRestrictedPublish265?.();toast('Rate type updated · cloud users will refresh')};td.appendChild(sel)})}
+  const renderBefore270=render;render=function(){const out=renderBefore270();setTimeout(enhanceAudienceTags270,0);return out};
+  // Modal Close safety net: a Close button should never become dead because a local handler was replaced.
+  document.addEventListener('click',e=>{const b=e.target.closest('.modal [data-x="close"],.modal [data-close268],.modal [data-close269]');if(!b)return;const m=b.closest('.modal');setTimeout(()=>{if(m&&m.isConnected)m.remove()},0)},true);
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_270};
+  setTimeout(()=>{try{render()}catch(e){}},0);
+})();
+</script>
+
 </body>
 </html>

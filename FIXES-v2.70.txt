@@ -1,0 +1,14 @@
+Tota Price Manager v2.70
+
+Interaction audit + premium UI + Sales safe-rate context.
+
+Key changes:
+- Fixed PDF Branding dialog Edit -> Back handler loss (Edit/Delete/New/Done remain functional).
+- Added modal Close safety fallback.
+- Sales users with multiple assigned price lists must explicitly choose a Rate Context before any product rate is shown.
+- Wholesale/Trade mode gets a prominent warning, per-result label, and one-time confirmation per session.
+- Retail/Wholesale/Custom audience can be tagged per Price Book from Users & Access; legacy books are inferred from name/category.
+- Sales rate context resets between login sessions so wholesale does not silently carry over.
+- Restricted viewer receives clearer price-list labels and premium mobile/desktop styling.
+- Owner UI premium polish: spacing, cards, buttons, tables, modals, navigation, touch targets.
+- Service Worker cache bumped to v270.
