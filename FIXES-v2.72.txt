@@ -1,0 +1,13 @@
+Tota Price Manager v2.72 — Premium Redesign + Retail/Wholesale Mode
+
+- Restricted Sales/Customer portal fully redesigned.
+- Retail / Wholesale / Custom top-level mode selector.
+- Selected mode filters all visible Price Lists and product-rate search.
+- One list in a mode auto-selects; multiple lists require an exact list selection before rates are shown.
+- Wholesale switch retains a safety confirmation and clear trade-rate styling.
+- Price Lists and Catalogs moved into clean premium tabs.
+- Product search results redesigned as premium rate cards.
+- Mobile view rebuilt for thumb-friendly use.
+- Owner-side global visual system refreshed: cards, rail, tables, forms, modals and spacing.
+- Persistent login from v2.71 retained.
+- Service worker bumped to v272.
