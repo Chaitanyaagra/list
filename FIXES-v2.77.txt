@@ -1,0 +1,12 @@
+Tota Price Manager v2.77 — Owner Alternative UOM Manager
+
+- Added Owner-only Alternative UOM manager inside Product Editor > Pricing.
+- Owner can create, edit and delete multiple alternative UOM conversions per product.
+- Primary UOM conversion can be confirmed/edited from the same manager when the primary unit is not Pc.
+- Alternative UOMs use the existing UOM master, so Price Lists and Sales/Customer UOM selectors receive them automatically.
+- Calculated rate preview is shown for every alternative UOM.
+- Duplicate/primary/Pc duplicate UOM entries are blocked.
+- Alternative UOM deletion is blocked while that UOM is referenced by a Price Book, scheduled Price Book, product default list UOM or quantity slab.
+- New products must be saved before alternative UOMs can be configured, preventing orphan UOM records.
+- Existing Retail/Wholesale mode, Smart Search, order safety, persistent login and single-owner protections are retained.
+- Service worker cache bumped to v277.

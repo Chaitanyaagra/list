@@ -1,7 +1,7 @@
-TOTA PRICE MANAGER v2.75 — SINGLE OWNER LOCKED + ORDER CONTEXT SAFETY
+TOTA PRICE MANAGER v2.76 — SINGLE OWNER + SMART SALES SEARCH + CATALOG SHARE
 
 IMPORTANT FOR THIS DEPLOYMENT
-- Publish the firestore.rules included with v2.75. Order requests now optionally carry validated Retail/Wholesale/Custom + exact Price Book context.
+- Publish the firestore.rules included with v2.76. Order requests now optionally carry validated Retail/Wholesale/Custom + exact Price Book context.
 - One Owner already exists. Do NOT create another Owner account.
 - The app no longer offers Owner registration or Firebase Owner sign-up.
 - meta/security.ownerUid is treated as immutable by the supplied Firestore rules.

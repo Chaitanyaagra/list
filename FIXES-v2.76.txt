@@ -1,0 +1,11 @@
+Tota Price Manager v2.76 — Smart Search & Catalog Share
+
+- Added offline Smart Search for Sales/Customer portal.
+- Fuzzy typo matching ranks the closest products first.
+- Added Hindi/Hinglish vocabulary mapping for common Rangoli/Pooja product terms.
+- Exact product code/barcode searches retain highest priority.
+- Smart Search remains locked to the selected Retail/Wholesale/Custom + exact Price List context.
+- Added Catalog Share button beside View and Download.
+- Native Web Share sends the PDF directly when supported; URL/download fallback is used where required.
+- Existing private-cart, locked-order-context, persistent-login and single-owner protections retained.
+- Service worker cache bumped to v276.

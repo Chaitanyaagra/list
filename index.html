@@ -6638,7 +6638,7 @@ Amit, 5566,"></textarea>
 </style>
 <script id="pm-v233-order-and-language">
 (()=>{
-  const PM_VERSION_233 = '2.75 private cart + locked order price context + persistent Orders access';
+  const PM_VERSION_233 = '2.76 private cart + locked order price context + smart viewer search';
 
   /* ================= shared helpers ================= */
   function inPreviewMode233(){ return !!window.__pmPreviewActive231; }
@@ -8874,7 +8874,97 @@ body{background:radial-gradient(circle at 100% 0,#fbfaf7 0,transparent 28%),var(
 #cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle{min-height:36px!important;padding:5px 9px!important;border-radius:10px!important;font-size:10.5px!important;margin-right:0!important}
 @media(max-width:600px){#cloudViewer46 .cv272-session{gap:4px!important}#cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle,#cloudViewer46 .cv272-session #cv46out{padding:5px 7px!important;font-size:9.5px!important;min-width:auto!important}}
 </style>
-<script id="pm-v275-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.75 Order Safety · Private Cart · Archive Only'};</script>
+<script id="pm-v276-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.76 Smart Search · Catalog Share · Order Safety'};</script>
+
+
+<style id="pm-v277-owner-alt-uom-style">
+.alt277-card{border:1px solid var(--premium-line,var(--line));background:linear-gradient(180deg,#fffdfa,#faf7f0);border-radius:14px;padding:13px 14px;margin:10px 0;box-shadow:0 5px 18px rgba(20,27,32,.04)}
+.alt277-head{display:flex;align-items:flex-start;gap:12px}.alt277-head>div:first-child{min-width:0;flex:1}.alt277-title{font-size:13px;font-weight:850;letter-spacing:-.01em}.alt277-sub{font-size:11px;color:var(--muted);line-height:1.45;margin-top:3px}.alt277-count{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#eee8dc;color:#625b4d;font-size:10px;font-weight:800;white-space:nowrap}.alt277-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.alt277-table{width:100%}.alt277-table input{min-height:36px}.alt277-primary{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.7fr) auto;gap:10px;align-items:end;padding:12px;border:1px solid #e7e1d5;border-radius:12px;background:#fff;margin-bottom:13px}.alt277-primary .field{margin:0}.alt277-built{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:10px;background:#f5f1e8;border:1px solid #e6ded0;font-size:11px;color:#655f55;margin-bottom:12px}.alt277-row-actions{display:flex;gap:6px;justify-content:flex-end}.alt277-preview{font-weight:800;white-space:nowrap}.alt277-new{display:grid;grid-template-columns:minmax(130px,1fr) minmax(130px,.8fr) auto;gap:8px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid #eee8dc}.alt277-help{margin-top:10px;padding:9px 11px;border-radius:10px;background:#f8f5ee;color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:700px){.alt277-primary,.alt277-new{grid-template-columns:1fr}.alt277-table thead{display:none}.alt277-table,.alt277-table tbody,.alt277-table tr,.alt277-table td{display:block;width:100%}.alt277-table tr{padding:10px;border:1px solid #e6dfd2;border-radius:12px;margin:8px 0;background:#fff}.alt277-table td{border:0!important;padding:4px 0!important;text-align:left!important}.alt277-row-actions{justify-content:stretch}.alt277-row-actions .btn{flex:1}.alt277-preview{padding:3px 0}.alt277-head{align-items:center}}
+</style>
+<script id="pm-v277-owner-alt-uom">
+(()=>{
+  const PM_VERSION_277='2.77 Owner Alternative UOM Manager';
+  const norm277=s=>String(s||'').trim().toLowerCase();
+  const piece277=u=>['pc','pcs','piece','pieces'].includes(norm277(u));
+  const fmtRate277=n=>Number.isFinite(+n)?((S.settings?.currency||'₹')+Number(n).toLocaleString('en-IN',{maximumFractionDigits:2})):'—';
+  function nativeFactor277(p){
+    if(piece277(p.priceUnit))return 1;
+    try{const x=+window.piecesPerNativeUnit43?.(p);if(x>0)return x}catch(e){}
+    const r=(S.uomMaster||[]).find(x=>x.productId===p.id&&norm277(x.unit)===norm277(p.priceUnit));
+    return r&&+r.pcsPerUnit>0?+r.pcsPerUnit:null;
+  }
+  function altRows277(p){return (S.uomMaster||[]).filter(x=>x.productId===p.id&&norm277(x.unit)!==norm277(p.priceUnit)&&!piece277(x.unit));}
+  function altRefs277(p,unit){
+    const refs=[],u=norm277(unit);
+    if(norm277(p.priceListUnit)===u)refs.push('product default Price List UOM');
+    if((S.quantityPriceSlabs||[]).some(x=>x.productId===p.id&&norm277(x.uom)===u))refs.push('quantity pricing slab');
+    for(const pb of S.priceBooks||[]){
+      for(const cfg of [pb.config,pb.scheduled230?.config].filter(Boolean)){
+        if(norm277(cfg?.productUoms227?.[p.id])===u){refs.push('Price Book: '+(pb.name||'Untitled'));break}
+      }
+    }
+    return [...new Set(refs)];
+  }
+  function ensurePrimary277(p,factor){
+    factor=+factor;if(!(factor>0))return false;S.uomMaster=S.uomMaster||[];
+    let r=S.uomMaster.find(x=>x.productId===p.id&&norm277(x.unit)===norm277(p.priceUnit));
+    if(r){r.unit=p.priceUnit||r.unit;r.pcsPerUnit=factor;r.updatedAt=Date.now();}
+    else S.uomMaster.push({id:uid(),productId:p.id,unit:p.priceUnit||'Unit',pcsPerUnit:factor,createdAt:Date.now(),updatedAt:Date.now(),ownerManaged277:true});
+    p.uom={...(p.uom||{}),perUnit:factor,source:'manual'};p.updatedAt=Date.now();return true;
+  }
+  function ratePreview277(p,factor){const nf=nativeFactor277(p);if(!(nf>0)||p.price==null||!Number.isFinite(+p.price)||!(+factor>0))return null;return +p.price/nf*(+factor)}
+  function syncEditorPrimary277(p,factor){const ed=[...document.querySelectorAll('.modal[data-product-editor=\"1\"]')].find(x=>x.dataset.productId===String(p.id));if(!ed)return;const a=ed.querySelector('#e_pcsPerUnit'),b=ed.querySelector('#e_uom');if(a)a.value=String(factor);if(b)b.value=String(factor)}
+  function openManager277(p,onChanged){
+    S.uomMaster=S.uomMaster||[];
+    const m=document.createElement('div');m.className='modal';m.dataset.altUom277='1';m.style.zIndex='200030';
+    const draw=()=>{
+      const native=p.priceUnit||'Pc',nf=nativeFactor277(p),rows=altRows277(p);
+      m.innerHTML=`<div class="box" style="max-width:850px"><div class="hd"><div><h2 style="margin:0">Alternative UOMs · ${esc(p.code||'Product')}</h2><div class="note">${esc(p.name||'')} · Owner-only conversion setup</div></div><div class="spacer"></div><button class="btn ghost sm" data-u277="close">Close</button></div><div class="bd">
+        <div class="alt277-primary"><div><div class="alt277-title">Primary selling UOM</div><div class="alt277-sub">Rates are stored in <b>${esc(native)}</b>. Alternative UOM rates are converted from this base.</div></div>${piece277(native)?`<div class="alt277-built"><b>${esc(native)}</b> = 1 Pc</div><div></div>`:`<div class="field"><label>1 ${esc(native)} = how many Pc?</label><input id="u277_primary" type="number" min="0.000001" step="any" value="${nf||''}" placeholder="e.g. 12"></div><button class="btn ghost" data-u277="primary">Save conversion</button>`}</div>
+        ${!piece277(native)&&nf?'<div class="alt277-built"><b>Built-in:</b> Pc = 1 · available automatically wherever alternate UOM selection is supported.</div>':''}
+        <div class="section-title">Alternative units</div>
+        <div class="tbl-wrap"><table class="alt277-table"><thead><tr><th>UOM</th><th class="r">1 UOM = Pc</th><th class="r">Calculated rate</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr data-u277-row="${r.id}"><td><input data-u277-unit="${r.id}" value="${esc(r.unit||'')}" placeholder="Box / Dozen / Carton"></td><td class="r"><input data-u277-factor="${r.id}" class="num" type="number" min="0.000001" step="any" value="${+r.pcsPerUnit||''}" style="max-width:140px"></td><td class="r alt277-preview">${fmtRate277(ratePreview277(p,+r.pcsPerUnit))}</td><td><div class="alt277-row-actions"><button class="btn ghost sm" data-u277="save" data-id="${r.id}">Save</button><button class="btn ghost sm" data-u277="delete" data-id="${r.id}">Delete</button></div></td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No alternative UOM configured yet.</td></tr>'}</tbody></table></div>
+        <div class="alt277-new"><div class="field"><label>New alternative UOM</label><input id="u277_new_unit" list="u277_presets" placeholder="e.g. Box"><datalist id="u277_presets"><option>Box</option><option>Dozen</option><option>Carton</option><option>Pack</option><option>Tray</option><option>Set</option><option>Bag</option><option>Bottle</option></datalist></div><div class="field"><label>1 UOM = how many Pc?</label><input id="u277_new_factor" type="number" min="0.000001" step="any" placeholder="e.g. 12"></div><button class="btn primary" data-u277="add">+ Add UOM</button></div>
+        <div class="alt277-help"><b>Example:</b> Primary rate ₹120/Box and 1 Box = 12 Pc. If you add 1 Carton = 120 Pc, the calculated Carton rate becomes ₹1,200. Special customer/quantity rates should still be handled through Price Books, overrides or quantity slabs.</div>
+      </div><div class="ft"><span class="note">Changes save immediately and are included in the next restricted-user cloud publish.</span><button class="btn primary" data-u277="close">Done</button></div></div>`;
+    };
+    const validateUnit=(unit,id='')=>{unit=String(unit||'').trim();if(!unit){toast('Enter a UOM name');return null}if(norm277(unit)===norm277(p.priceUnit)){toast(unit+' is already the primary UOM');return null}if(piece277(unit)){toast('Pc is available automatically from the primary conversion — no need to add it again');return null}const clash=(S.uomMaster||[]).find(x=>x.productId===p.id&&x.id!==id&&norm277(x.unit)===norm277(unit));if(clash){toast(unit+' is already configured for this product');return null}return unit};
+    m.addEventListener('click',e=>{
+      const b=e.target.closest('[data-u277]');if(!b)return;e.preventDefault();e.stopPropagation();
+      const a=b.dataset.u277;
+      if(a==='close'){m.remove();onChanged?.();return}
+      if(a==='primary'){
+        const val=Number(m.querySelector('#u277_primary')?.value);if(!(val>0))return toast('Primary conversion must be greater than 0');ensurePrimary277(p,val);syncEditorPrimary277(p,val);save();toast('Primary UOM conversion saved');draw();onChanged?.();return
+      }
+      if(a==='add'){
+        if(!piece277(p.priceUnit)&&!(nativeFactor277(p)>0))return toast('Set the primary UOM conversion first');
+        const unit=validateUnit(m.querySelector('#u277_new_unit')?.value);if(!unit)return;const factor=Number(m.querySelector('#u277_new_factor')?.value);if(!(factor>0))return toast('Conversion factor must be greater than 0');
+        S.uomMaster.push({id:uid(),productId:p.id,unit,pcsPerUnit:factor,createdAt:Date.now(),updatedAt:Date.now(),ownerManaged277:true});p.updatedAt=Date.now();save();toast(unit+' added as an alternative UOM');draw();onChanged?.();return
+      }
+      if(a==='save'){
+        if(!piece277(p.priceUnit)&&!(nativeFactor277(p)>0))return toast('Set the primary UOM conversion first');
+        const id=b.dataset.id,row=S.uomMaster.find(x=>x.id===id&&x.productId===p.id);if(!row)return;const unit=validateUnit(m.querySelector(`[data-u277-unit="${id}"]`)?.value,id);if(!unit)return;const factor=Number(m.querySelector(`[data-u277-factor="${id}"]`)?.value);if(!(factor>0))return toast('Conversion factor must be greater than 0');row.unit=unit;row.pcsPerUnit=factor;row.updatedAt=Date.now();p.updatedAt=Date.now();save();toast(unit+' conversion updated');draw();onChanged?.();return
+      }
+      if(a==='delete'){
+        const id=b.dataset.id,row=S.uomMaster.find(x=>x.id===id&&x.productId===p.id);if(!row)return;const refs=altRefs277(p,row.unit);if(refs.length)return toast('Cannot delete '+row.unit+' — it is used in '+refs.join(', '));if(!confirm('Delete alternative UOM "'+row.unit+'"? Historical invoices/orders will remain unchanged.'))return;S.uomMaster=S.uomMaster.filter(x=>x.id!==id);p.updatedAt=Date.now();save();toast(row.unit+' removed');draw();onChanged?.();return
+      }
+    },true);
+    m.addEventListener('click',e=>{if(e.target===m)m.remove()});document.body.appendChild(m);draw();
+  }
+  const before277=openProduct;
+  openProduct=function(p,isNew){
+    before277(p,isNew);
+    const m=[...document.querySelectorAll('.modal[data-product-editor="1"]')].pop();if(!m||m.dataset.altUomOwner277)return;m.dataset.altUomOwner277='1';
+    const pricing=m.querySelector('[data-p268-panel="pricing"]')||m.querySelector('.bd');if(!pricing)return;
+    const card=document.createElement('div');card.className='alt277-card';
+    const refresh=()=>{const n=altRows277(p).length,nf=nativeFactor277(p);card.innerHTML=`<div class="alt277-head"><div><div class="alt277-title">Alternative UOMs</div><div class="alt277-sub">Owner can create, edit or remove alternate selling units. ${piece277(p.priceUnit)?'Primary '+esc(p.priceUnit||'Pc')+' is already the base unit.':nf?'Primary conversion: 1 '+esc(p.priceUnit||'Unit')+' = '+nf+' Pc.':'Set the primary conversion before adding alternatives.'}</div></div><span class="alt277-count">${n} configured</span></div><div class="alt277-actions"><button type="button" class="btn ghost sm" data-open-alt277 ${isNew?'disabled':''}>Manage Alternative UOMs</button>${isNew?'<span class="note">Save the product first, then configure alternative UOMs.</span>':'<span class="note">Used automatically in Price Lists and Sales/Customer UOM selection.</span>'}</div>`;const btn=card.querySelector('[data-open-alt277]');if(btn)btn.onclick=()=>{if(m.querySelector('[data-unsaved268=\"1\"]'))return toast('Save the product changes first, then manage Alternative UOMs');openManager277(p,refresh)}};
+    refresh();pricing.appendChild(card);
+  };
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_277,openAlternativeUomManager:openManager277};
+})();
+</script>
+<script id="pm-v277-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.77 Owner Alternative UOM Manager'};</script>
 
 </body>
 </html>
