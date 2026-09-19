@@ -1,0 +1,8 @@
+Tota Price Manager v2.78 - Price List View
+
+- Added View action for Sales/Customer Price Lists.
+- Price List cards now show View | Download | Share.
+- View generates the current Price List PDF and opens it for preview without forcing a download.
+- Retail/Wholesale/Custom mode safety and wholesale confirmation remain enforced for View.
+- Existing Download and Share behavior retained.
+- Service Worker cache bumped to v278.
