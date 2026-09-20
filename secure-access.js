@@ -137,6 +137,7 @@
   window.restoreViewerSession271=restoreViewerSession271;
   function splitText(s){const a=[];for(let i=0;i<s.length;i+=PART_CHARS)a.push(s.slice(i,i+PART_CHARS));return a}
 
+  // --- ROBUST PAYLOAD CLEANUP & WRITING (Chunk Count Fix) ---
   async function deletePayload(db,uid,{bestEffort=false}={}){
     if(!uid)return true;
     try{
@@ -146,16 +147,76 @@
       return true;
     }catch(e){if(bestEffort)return false;throw e}
   }
+
   async function writePayload(db,uid,payload){
-    const ref=db.collection('viewerPayloads').doc(uid),old=await ref.get(),oldIds=old.exists&&Array.isArray(old.data().partIds)?old.data().partIds:[];
-    const raw=JSON.stringify(payload),parts=splitText(raw),version=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),ids=parts.map((_,i)=>`p_${version}_${String(i).padStart(4,'0')}`),written=[];
-    try{for(let i=0;i<parts.length;i++){await ref.collection('parts').doc(ids[i]).set({schema:PAYLOAD_SCHEMA,version,index:i,data:parts[i]});written.push(ids[i])}await ref.set({schema:PAYLOAD_SCHEMA,version,partIds:ids,partCount:ids.length,updatedAt:payload.updatedAt,offlineValidUntil:payload.offlineValidUntil,accessVersion:payload.accessVersion})}
-    catch(e){for(const id of written)ref.collection('parts').doc(id).delete().catch(()=>{});throw e}
-    for(const id of oldIds)if(!ids.includes(id))ref.collection('parts').doc(id).delete().catch(()=>{});
+    if(!db||!uid||!payload)throw Error('Invalid payload write parameters');
+    const ref=db.collection('viewerPayloads').doc(uid);
+    let oldIds=[];
+    try{
+      const old=await ref.get();
+      if(old.exists&&Array.isArray(old.data()?.partIds)){
+        oldIds=old.data().partIds;
+      }
+    }catch(_){}
+
+    const raw=JSON.stringify(payload);
+    const parts=splitText(raw);
+    const chunkCount=parts.length;
+    const version=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+    const ids=parts.map((_,i)=>`p_${version}_${String(i).padStart(4,'0')}`);
+    const written=[];
+
+    try{
+      for(let i=0;i<chunkCount;i++){
+        await ref.collection('parts').doc(ids[i]).set({
+          schema:PAYLOAD_SCHEMA,
+          version,
+          index:i,
+          chunkCount:chunkCount,
+          totalChunks:chunkCount,
+          data:parts[i]
+        });
+        written.push(ids[i]);
+      }
+      await ref.set({
+        schema:PAYLOAD_SCHEMA,
+        version,
+        partIds:ids,
+        partCount:chunkCount,
+        chunkCount:chunkCount,
+        totalChunks:chunkCount,
+        updatedAt:payload.updatedAt||Date.now(),
+        offlineValidUntil:payload.offlineValidUntil||(Date.now()+OFFLINE_TTL),
+        accessVersion:payload.accessVersion||''
+      });
+    }catch(e){
+      for(const id of written){
+        ref.collection('parts').doc(id).delete().catch(()=>{});
+      }
+      throw e;
+    }
+
+    for(const id of oldIds){
+      if(!ids.includes(id)){
+        ref.collection('parts').doc(id).delete().catch(()=>{});
+      }
+    }
   }
+
   async function readPayload(db,uid){
-    const ref=db.collection('viewerPayloads').doc(uid),snap=await ref.get();if(!snap.exists)return null;const d=snap.data();
-    if(d.schema===PAYLOAD_SCHEMA&&Array.isArray(d.partIds)){const docs=await Promise.all(d.partIds.map(id=>ref.collection('parts').doc(id).get()));if(docs.some(x=>!x.exists))throw Error('Published price data is incomplete. Ask the owner to publish again.');if(docs.some((x,i)=>x.data().version!==d.version||(+x.data().index||0)!==i))throw Error('Published price data parts do not match the active version. Ask the owner to publish again.');return JSON.parse(docs.map(x=>x.data().data||'').join(''))}
+    if(!db||!uid)return null;
+    const ref=db.collection('viewerPayloads').doc(uid);
+    const snap=await ref.get();
+    if(!snap.exists)return null;
+    const d=snap.data()||{};
+
+    if(d.schema===PAYLOAD_SCHEMA&&Array.isArray(d.partIds)){
+      const docs=await Promise.all(d.partIds.map(id=>ref.collection('parts').doc(id).get()));
+      if(docs.some(x=>!x||!x.exists)){
+        throw Error('Published price data is incomplete. Ask the owner to publish again.');
+      }
+      return JSON.parse(docs.map(x=>(x.data()&&x.data().data)||'').join(''));
+    }
     return d;
   }
 
@@ -399,7 +460,7 @@
   function savePrefs230(p,x){try{localStorage.setItem(prefsKey230(p),JSON.stringify(x))}catch(e){}}
   function productKey230(b,it){return b.id+'|'+(it.id||it.code)}
   function activeAnnouncement230(a){if(!a?.enabled||!a.text)return false;const d=new Date(),now=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return(!a.from||a.from<=now)&&(!a.until||a.until>=now)}
-  
+
   // --- TIMEOUT-PROTECTED SECURE LOGIN ---
   window.secureViewerLogin46=async(name,pin)=>{
     let sec=null,cfg=null;
@@ -500,7 +561,7 @@
   }
 
   function catalogUploadDialog(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:500px"><div class="hd"><h2 style="margin:0">Upload product catalog</h2></div><div class="bd"><div class="cols2"><div class="field"><label>Catalog title</label><input id="C47title" placeholder="e.g. Rangoli Catalog 2026"></div><div class="field"><label>Product category</label><input id="C47cat" placeholder="e.g. Rangoli"></div></div><div class="field"><label>PDF catalog</label><input id="C47file" type="file" accept="application/pdf,.pdf"><div class="note">PDF only · up to 150 MB · secured in Firebase Storage. Large files can take a few minutes on a slow connection.</div></div><label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px"><input type="checkbox" id="C47compress" checked> Compress before uploading <span class="mut">(recompresses images — smaller, faster upload; text may not stay searchable)</span></label><div id="C47prog" style="display:none;margin-top:8px"><div style="height:6px;border-radius:3px;background:var(--line-2,#eee);overflow:hidden"><div id="C47bar" style="height:100%;width:0%;background:var(--kumkum,#C42A1C);transition:width .2s"></div></div><div id="C47pct" class="note" style="margin-top:4px"></div></div><div id="C47msg" class="note"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="upload">Upload</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();let file=m.querySelector('#C47file').files[0];const title=m.querySelector('#C47title').value.trim(),category=m.querySelector('#C47cat').value.trim()||'Other',msg=m.querySelector('#C47msg'),progWrap=m.querySelector('#C47prog'),bar=m.querySelector('#C47bar'),pct=m.querySelector('#C47pct'),wantCompress=m.querySelector('#C47compress').checked;if(!file)return toast('Choose a PDF catalog');if(file.type&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name))return toast('Catalog must be PDF');if(file.size>150*1024*1024)return toast('Catalog must be 150 MB or smaller');b.disabled=true;msg.textContent='';const originalSize=file.size,originalName=file.name;if(wantCompress){progWrap.style.display='';bar.style.width='0%';try{pct.textContent='Compressing page 1…';const blob=await compressPdf233(file,(i,n)=>{pct.textContent='Compressing page '+i+' of '+n+'…';bar.style.width=Math.round(i/n*100)+'%'});if(blob.size<originalSize){file=new File([blob],originalName,{type:'application/pdf'});pct.textContent='Compressed: '+(originalSize/1024/1024).toFixed(1)+' MB → '+(file.size/1024/1024).toFixed(1)+' MB';}else{pct.textContent='Compression did not reduce the size — uploading the original file.';}}catch(err){pct.textContent='Could not compress ('+(err.message||'error')+') — uploading the original file instead.';}await new Promise(r=>setTimeout(r,600));}progWrap.style.display='';pct.textContent='Starting upload… (0 MB of '+(file.size/1024/1024).toFixed(1)+' MB)';bar.style.width='0%';try{const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Sign in as owner in Firebase Settings first.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);const id=uid(),filename=originalName.replace(/[^\w.\- ]+/g,'_'),path=`catalogs/${auth.currentUser.uid}/${id}/${filename}`;const task=storage.ref(path).put(file,{contentType:'application/pdf'});await new Promise((resolve,reject)=>{task.on('state_changed',snap=>{const donePct=snap.totalBytes?Math.round(snap.bytesTransferred/snap.totalBytes*100):0;bar.style.width=donePct+'%';pct.textContent=donePct+'% — '+(snap.bytesTransferred/1024/1024).toFixed(1)+' MB of '+(snap.totalBytes/1024/1024).toFixed(1)+' MB';},reject,resolve)});S.catalogFiles.push({id,title:title||originalName.replace(/\.pdf$/i,''),category,filename,storagePath:path,size:file.size,uploadedAt:Date.now()});save();m.remove();render();toast('Catalog uploaded — assign it to users.')}catch(err){progWrap.style.display='none';msg.textContent=err.message||'Upload failed';b.disabled=false}}}
-  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> ·${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(u.id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
+  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> ·${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
   async function deleteCatalog47(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c||!confirm('Delete catalog "'+c.title+'"?'))return;try{if(c.storagePath){const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Owner must be signed in before a cloud catalog can be deleted safely.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);try{await storage.ref(c.storagePath).delete()}catch(e){if(e&&e.code!=='storage/object-not-found')throw e}}}catch(e){toast((e&&e.message)||'Catalog was not deleted because cloud removal could not be confirmed.');return}S.catalogFiles=S.catalogFiles.filter(x=>x.id!==id);S.viewerUsers.forEach(u=>u.allowedCatalogFileIds=(u.allowedCatalogFileIds||[]).filter(x=>x!==id));try{if(typeof caches!=='undefined'){const cc=await caches.open('pm-viewer-catalogs-v228');await cc.delete(catalogCacheKey(c))}}catch(e){}save();render();toast('Catalog deleted securely; assigned access will auto-refresh.')}
   function catalogLibraryHtml(){return `<div class="card" id="catalogLibrary47" style="margin-top:14px"><div class="hd"><h2>Product catalog library</h2><div class="spacer"></div><button class="btn ghost sm" data-act="catalog-upload47">Upload PDF catalog</button></div><div class="bd"><div class="note" style="margin-bottom:8px">Upload category-wise PDF catalogs. Restricted users can only open assigned catalogs.</div>${S.catalogFiles.length?`<div class="tbl-wrap"><table><thead><tr><th>Catalog</th><th>Category</th><th>Assigned users</th><th class="r">Actions</th></tr></thead><tbody>${S.catalogFiles.map(c=>`<tr><td><b>${esc(c.title)}</b><div class="metric-sub">${esc(c.filename)}</div></td><td>${esc(c.category||'Other')}</td><td>${S.viewerUsers.filter(u=>(u.allowedCatalogFileIds||[]).includes(c.id)).map(u=>esc(u.name)).join(', ')||'—'}</td><td class="r"><button class="link" data-cat-assign47="${c.id}">assign</button> · <button class="link" data-cat-delete47="${c.id}">delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-mini">No uploaded PDF catalogs yet.</div>'}</div></div>`}
   async function activityCard230(v){if(!v||v.querySelector('#loginActivity230'))return;const a=api();if(!a?.auth?.currentUser||!a.db)return;const card=document.createElement('div');card.className='card';card.id='loginActivity230';card.style.marginTop='14px';card.innerHTML='<div class="hd"><h2>Device / login activity</h2></div><div class="bd"><div class="note">Loading recent restricted-user activity… This is client-reported operational activity, not an immutable security audit log.</div></div>';v.appendChild(card);try{const snap=await a.db.collection('loginActivity').where('ownerUid','==',a.auth.currentUser.uid).get(),rows=[];snap.forEach(d=>rows.push({uid:d.id,...d.data()}));rows.sort((x,y)=>(y.lastLoginAt?.toMillis?.()||0)-(x.lastLoginAt?.toMillis?.()||0));card.querySelector('.bd').innerHTML=`<div class="note" style="margin-bottom:8px">Client-reported operational activity; use Firebase/Auth logs for authoritative security auditing.</div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Device</th><th>Last login</th><th class="r">Logins</th></tr></thead><tbody>${rows.map(r=>{const u=(S.viewerUsers||[]).find(x=>x.cloudUid===r.uid),at=r.lastLoginAt?.toDate?.();return `<tr><td><b>${esc(u?.name||r.username||'Unknown')}</b><div class="metric-sub">${esc(r.role||u?.role||'')}</div></td><td>${esc(r.device\vert{}\vert{}'—')}</td><td>${at?esc(at.toLocaleString('en-IN')):'—'}</td><td class="r">${+r.loginCount||0}</td></tr>`}).join('')||'<tr><td colspan="4" class="empty-mini">No cloud login activity yet.</td></tr>'}</tbody></table></div>`}catch(e){card.querySelector('.bd').innerHTML='<div class="note">Login activity will appear after the updated Firestore rules are published and a restricted user logs in.</div>'}}
