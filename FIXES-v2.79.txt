@@ -1,0 +1,16 @@
+Tota Price Manager v2.79 - Deep Regression Fixes
+
+- Fixed duplicate/stale primary UOM conversion state in Product Editor.
+- Changing the primary Rate Unit no longer silently reuses the previous unit's conversion factor.
+- Piece-priced products can no longer store invalid primary conversion rows (for example 1 Pc = 12 Pc).
+- Primary conversion now keeps the legacy/native conversion source and UOM Master in sync.
+- My Orders no longer depends on a Firestore composite index; results are sorted client-side.
+- Reorder now uses CURRENT assigned Price List/UOM rates, never historical stale order rates.
+- Reorder skips products/UOMs that are no longer available instead of silently restoring old pricing.
+- Alternative-UOM order stock checks now compare the equivalent primary selling quantity.
+- Converting an order to quotation converts alternative UOM quantity/rate into the product primary UOM while preserving order value.
+- Quotation note records UOM conversions for audit clarity.
+- Cloud publish revision bumped so restricted-user payloads refresh after this stabilization update.
+- Service Worker cache bumped to v279.
+- Structured UOM Master now takes precedence over legacy cached conversion values, repairing older stale-conversion conflicts.
+- Reorder locks against the CURRENT Price List audience/context before adding any item, including when a list was reclassified Retail/Wholesale.

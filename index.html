@@ -4,138 +4,28 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.googleusercontent.com https://firebasestorage.googleapis.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tota Price Manager</title>
+<title>CA</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#14212D">
+<meta name="theme-color" content="#111111">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tota Prices">
+<meta name="apple-mobile-web-app-title" content="CA">
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').then(reg => { window.__swRegistration233 = reg; }).catch(e => { window.__swRegistrationError233 = e; console.warn('Service Worker registration failed -- the app will still work, but offline caching will not be available:', e); }); });
 }
 </script>
-<style>
-:root{
-  --ink:#151A22; --ink-2:#1D242E; --paper:#FBFAF7; --surface:#fff;
-  --line:#E4E0D7; --line-2:#EFECE5; --muted:#6E6A62; --text:#22262C;
-  --kumkum:#C42A1C; --kumkum-d:#9E1F14; --haldi:#E0A020; --indigo:#2C4A7C;
-  --leaf:#3B7A50; --wash:#F3F0E9;
-  --r:6px;
-}
-*{box-sizing:border-box}
-html,body{margin:0;height:100%}
-body{
-  font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  background:var(--paper); color:var(--text); font-size:13.5px; line-height:1.45;
-  -webkit-font-smoothing:antialiased;
-}
-button,input,select,textarea{font:inherit;color:inherit}
-input,select,textarea{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:6px 8px;outline:none}
-input:focus,select:focus,textarea:focus{border-color:var(--indigo);box-shadow:0 0 0 2px rgba(44,74,124,.14)}
-.num{font-variant-numeric:tabular-nums}
-.app{display:flex;min-height:100vh}
 
-/* rail */
-.rail{width:198px;flex:none;background:var(--ink);color:#D8D5CD;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.brand{padding:16px 16px 14px;border-bottom:1px solid #2A313B}
-.brand b{display:block;color:#fff;font-size:14.5px;letter-spacing:-.01em}
-.brand span{font-size:11.5px;color:#8B9099}
-.brand .rule{height:2px;width:26px;background:var(--kumkum);margin:8px 0 0}
-.nav{padding:10px 8px;display:flex;flex-direction:column;gap:1px;flex:1;overflow:auto}
-.nav button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;color:#B9BDC4;padding:8px 10px;border-radius:var(--r);cursor:pointer}
-.nav button:hover{background:#232B36;color:#fff}
-.nav button.on{background:#fff;color:var(--ink);font-weight:600}
-.nav button .pill{font-size:11px;background:#2C3542;color:#9AA1AA;border-radius:20px;padding:1px 7px}
-.nav button.on .pill{background:var(--wash);color:var(--muted)}
-.railfoot{padding:10px 14px;border-top:1px solid #2A313B;font-size:11px;color:#7B818A}
 
-/* workspace */
-.main{flex:1;min-width:0;display:flex;flex-direction:column}
-.top{position:sticky;top:0;z-index:20;background:rgba(251,250,247,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.top h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.01em}
-.top .sub{color:var(--muted);font-size:12px}
-.spacer{flex:1}
-.wrap{padding:18px 20px 80px;max-width:1500px;width:100%}
-
-button.btn{background:var(--ink);color:#fff;border:1px solid var(--ink);border-radius:var(--r);padding:7px 13px;cursor:pointer}
-button.btn:hover{background:#000}
-button.btn.primary{background:var(--kumkum);border-color:var(--kumkum)}
-button.btn.primary:hover{background:var(--kumkum-d)}
-button.btn.ghost{background:#fff;color:var(--text);border-color:var(--line)}
-button.btn.ghost:hover{border-color:#C9C4B8;background:#fff}
-button.btn.sm{padding:4px 9px;font-size:12px}
-button.btn:disabled{opacity:.45;cursor:not-allowed}
-button.link{background:none;border:0;color:var(--indigo);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
-
-.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
-.card .hd{padding:12px 14px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px}
-.card .hd h2{font-size:13.5px;margin:0;font-weight:600}
-.card .bd{padding:14px}
-.grid{display:grid;gap:14px}
-.stats{grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
-.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
-.stat b{display:block;font-size:21px;font-weight:600;letter-spacing:-.02em}
-.stat span{color:var(--muted);font-size:11.5px}
-.stat.alert b{color:var(--kumkum)}
-
-table{width:100%;border-collapse:collapse}
-th{font-size:11px;text-transform:none;color:var(--muted);font-weight:600;text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);background:var(--wash);position:sticky;top:0;z-index:2;white-space:nowrap}
-td{padding:6px 8px;border-bottom:1px solid var(--line-2);vertical-align:middle}
-tr:hover td{background:#FCFBF8}
-tbody tr.sel td{background:#FFF7F0}
-td.r,th.r{text-align:right}
-.tbl-wrap{overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--line);border-radius:8px;background:#fff}
-td input,td select{padding:3px 6px;border-radius:4px}
-td input.rate{width:74px;text-align:right}
-td input.qty{width:60px;text-align:right}
-.chip{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;background:var(--wash);color:var(--muted);white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-.tag{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
-.good{color:var(--leaf)} .bad{color:var(--kumkum)} .mut{color:var(--muted)}
-.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-.filters input[type=search]{min-width:250px}
-.bulk{position:sticky;bottom:0;z-index:15;background:var(--ink);color:#fff;border-radius:8px;padding:9px 12px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}
-.bulk select,.bulk input{background:#222A34;border-color:#39424E;color:#fff}
-.drop{border:1.5px dashed #C9C4B8;border-radius:8px;padding:30px;text-align:center;background:#fff}
-.drop.hot{border-color:var(--kumkum);background:#FFF7F5}
-.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.field label{font-size:11.5px;color:var(--muted)}
-.field input,.field select,.field textarea{width:100%}
-.cols2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.modal{position:fixed;inset:0;background:rgba(21,26,34,.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:60;overflow:auto}
-.modal .box{background:#fff;border-radius:10px;width:min(720px,100%);box-shadow:0 20px 60px rgba(0,0,0,.25)}
-.modal .box .hd{padding:14px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center}
-.modal .box .bd{padding:16px;max-height:70vh;overflow:auto}
-.modal .box .ft{padding:12px 16px;border-top:1px solid var(--line-2);display:flex;gap:8px;justify-content:flex-end}
-.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:20px;z-index:90;box-shadow:0 6px 20px rgba(0,0,0,.25)}
-.empty{text-align:center;padding:44px 20px;color:var(--muted)}
-.empty b{display:block;color:var(--text);font-size:15px;margin-bottom:5px}
-.rules li{list-style:none;border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;margin-bottom:7px;display:flex;gap:10px;align-items:center;background:#fff}
-.rules{padding:0;margin:0}
-.bar{height:6px;background:var(--wash);border-radius:4px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--kumkum)}
-.note{font-size:12px;color:var(--muted)}
-.warn{background:#FFF6E8;border:1px solid #F0DDB6;border-radius:var(--r);padding:9px 11px;font-size:12.5px}
-.split{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
-@media (max-width:900px){
-  .app{flex-direction:column}
-  .rail{width:100%;height:auto;position:static;flex-direction:row;overflow:auto}
-  .brand{border-bottom:0;border-right:1px solid #2A313B;flex:none}
-  .nav{flex-direction:row;padding:8px}.nav button{white-space:nowrap}.railfoot{display:none}
-  .split,.cols2,.cols3{grid-template-columns:1fr}
-}
-@media print{.rail,.top,.bulk{display:none}}
-</style>
-
+<link rel="stylesheet" href="ca-theme.css">
 </head>
 <body>
 <div class="app">
   <aside class="rail">
-    <div class="brand"><b id="brandName">Price manager</b><span>sales · rates · stock · khata</span><div class="rule"></div></div>
+    <div class="brand"><div class="ca-brand-row"><img src="ca-logo.png" class="ca-brand-logo" alt="CA"><div class="ca-brand-copy"><b id="brandName">CA</b><span>Business Command Center</span></div></div><div class="rule"></div></div>
     <nav class="nav" id="nav"></nav>
     <div class="railfoot" id="saveState">saved</div>
   </aside>
@@ -572,7 +462,7 @@ function renderNav(){
 }
 function render(){
   renderNav();
-  $('#brandName').textContent = S.settings.firm || 'Price manager';
+  $('#brandName').textContent='CA';
   const v = $('#view'); const t=$('#pgTitle'), sub=$('#pgSub'), act=$('#topActions');
   act.innerHTML=''; sub.textContent='';
   ({dash:viewDash, import:viewImport, inv:viewInv, disc:viewDisc, hist:viewHist, list:viewList,
@@ -1006,6 +896,13 @@ function openProduct(p, isNew){
   unitSelectEl.onchange = () => {
     if(unitSelectEl.value === '__custom__'){ unitCustomEl.style.display = ''; unitCustomEl.value=''; unitCustomEl.focus(); }
     else { unitCustomEl.style.display = 'none'; unitCustomEl.value = unitSelectEl.value; }
+    // v2.79: a primary-UOM change must not silently reuse the old unit's conversion.
+    const nextUnit = unitSelectEl.value === '__custom__' ? '' : unitSelectEl.value;
+    const factorEl = m.querySelector('#e_pcsPerUnit');
+    if(factorEl){
+      if(['pc','pcs','piece','pieces'].includes(norm44(nextUnit))) factorEl.value = '1';
+      else { const row=(S.uomMaster||[]).find(x=>x.productId===p.id && norm44(x.unit)===norm44(nextUnit)); factorEl.value=row&&+row.pcsPerUnit>0?String(row.pcsPerUnit):''; }
+    }
   };
   m.onclick = e=>{
     const b=e.target.closest('[data-x]'); if(!b){ if(e.target===m) m.remove(); return; }
@@ -1041,11 +938,20 @@ function openProduct(p, isNew){
         gst, stock:stock??0, minStock:minStock??0, hsn:g('e_hsn'),
         packing:g('e_pack'), barcode:g('e_bar').trim(), netWt:g('e_wt'), status:g('e_status'), note:g('e_note'), updatedAt:Date.now() });
       p.discount = dt ? {type:dt, value:dval||0} : null;
-      if(p.priceUnit && pcsPerUnit && pcsPerUnit > 0){
-        S.uomMaster = S.uomMaster || [];
+      S.uomMaster = S.uomMaster || [];
+      if(['pc','pcs','piece','pieces'].includes(norm44(p.priceUnit))){
+        // Piece-priced products are the base unit. Do not retain a bogus 12 Pc = 1 Pc master row.
+        S.uomMaster = S.uomMaster.filter(x=>!(x.productId===p.id && ['pc','pcs','piece','pieces'].includes(norm44(x.unit))));
+        p.uom = {perUnit:1, source:'manual'};
+      } else if(p.priceUnit && pcsPerUnit && pcsPerUnit > 0){
         const existingUom = S.uomMaster.find(x => x.productId===p.id && norm44(x.unit)===norm44(p.priceUnit));
-        if(existingUom) existingUom.pcsPerUnit = pcsPerUnit;
-        else S.uomMaster.push({id: uid(), productId: p.id, unit: p.priceUnit, pcsPerUnit});
+        if(existingUom){ existingUom.pcsPerUnit = pcsPerUnit; existingUom.updatedAt=Date.now(); }
+        else S.uomMaster.push({id: uid(), productId: p.id, unit: p.priceUnit, pcsPerUnit, createdAt:Date.now(), updatedAt:Date.now()});
+        // Keep the legacy/native conversion source in sync because pricing/UOM helpers still consult it first.
+        p.uom = {perUnit:pcsPerUnit, source:'manual'};
+      } else if(p.uom){
+        // Blank conversion means "not configured"; never leave a stale previous-primary factor behind.
+        delete p.uom;
       }
       if(isNew){
         if(!p.code){ let n=S.products.length+1; while(S.products.some(x=>x.code==='M'+String(n).padStart(3,'0'))) n++; p.code='M'+String(n).padStart(3,'0'); }
@@ -2101,31 +2007,7 @@ function accountsAct(a, el){
 </script>
 
 
-<style id="pm-pro-enhancements">
-:root{--r:10px;--shadow:0 8px 24px rgba(21,26,34,.06);--shadow-sm:0 2px 10px rgba(21,26,34,.05)}
-.rail{width:224px}.brand{padding:19px 17px 16px}.brand b{font-size:15px}.brand span{font-size:11px;letter-spacing:.02em}
-.nav{padding:10px}.nav-section{padding:13px 10px 5px;color:#747B85;font-size:9.5px;text-transform:uppercase;letter-spacing:.11em;font-weight:700}
-.nav button{padding:9px 10px;border-radius:8px}.nav button.on{box-shadow:0 2px 10px rgba(0,0,0,.12)}
-.top{padding:14px 22px}.top h1{font-size:17px}.wrap{padding:20px 22px 90px}
-.card,.stat{border-radius:12px;box-shadow:var(--shadow-sm)}.card .hd{padding:13px 15px}.card .bd{padding:15px}
-button.btn{border-radius:8px;padding:8px 14px;font-weight:600}button.btn.sm{padding:6px 10px}
-input,select,textarea{border-radius:8px;padding:8px 9px}.filters{gap:10px}.tbl-wrap{border-radius:12px}
-th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
-.stat{padding:15px 16px}.stat b{font-size:23px}.stat span{font-size:11px}.stat .delta{font-size:10px;margin-top:4px}
-.quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.quick-card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px;cursor:pointer;text-align:left}.quick-card:hover{border-color:#C7C0B1;box-shadow:var(--shadow)}.quick-card b{display:block;font-size:13px;margin-bottom:3px}.quick-card span{font-size:11.5px;color:var(--muted)}
-.status{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 8px;font-size:10.5px;font-weight:600;background:var(--wash);color:var(--muted)}.status.good{background:#EDF7F0;color:#2E6B43}.status.warns{background:#FFF6E8;color:#8A6416}.status.badge-red{background:#FFF0EE;color:#A12418}.status.info{background:#EEF3FA;color:#2C4A7C}
-.metric-sub{font-size:10.5px;color:var(--muted);margin-top:3px}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:22px 0 9px}
-.quote-meta{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:12px}.quote-meta .field{margin:0}
-.rate-path{font-size:10.5px;color:var(--muted);margin-top:2px}.stock-short{color:var(--kumkum);font-weight:600}.stock-ok{color:var(--leaf)}
-.row-actions{white-space:nowrap} button.link:disabled{opacity:.35;cursor:not-allowed;text-decoration:none}.row-actions .link{margin:0 4px}.kebab{font-size:18px;text-decoration:none!important;line-height:1}
-.inline-rate{width:88px!important;text-align:right}.quote-rate{width:88px!important;text-align:right}
-.archived-row{opacity:.58}.archive-note{font-size:11px;color:var(--muted)}
-.activity{display:flex;flex-direction:column}.activity-row{display:grid;grid-template-columns:85px 1fr auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2);align-items:center}.activity-row:last-child{border-bottom:0}
-.price-source{max-width:250px}.empty-mini{padding:18px;text-align:center;color:var(--muted);font-size:12px}
-.alloc{width:105px;text-align:right}.warning-strip{background:#FFF6E8;border:1px solid #F0DDB6;padding:10px 12px;border-radius:9px;margin:10px 0;font-size:12px}
-@media(max-width:900px){.quote-meta{grid-template-columns:1fr 1fr}.rail{width:100%}.nav-section{display:none}.quick-grid{grid-template-columns:1fr 1fr}.activity-row{grid-template-columns:70px 1fr}.activity-row> :last-child{display:none}}
-@media(max-width:560px){.quote-meta{grid-template-columns:1fr}.quick-grid{grid-template-columns:1fr}.top{padding:11px 13px}.wrap{padding:14px 12px 80px}.filters input[type=search]{min-width:100%;width:100%}}
-</style>
+
 <script id="pm-pro-enhancements-script">
 (()=>{
   const PM_VERSION='2.1 Pro';
@@ -2229,7 +2111,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
     $('#nav').innerHTML=out;
   };
   render=function(){
-    ensureProState(); renderNav(); $('#brandName').textContent=S.settings.firm||'Price manager';
+    ensureProState(); renderNav(); $('#brandName').textContent='CA';
     const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions'); act.innerHTML='';sub.textContent='';
     const views={dash:viewDash,import:viewImport,inv:viewInv,disc:viewDisc,hist:viewHist,list:viewList,party:viewParty,party1:viewPartyAccount,quote:viewQuote,bills:viewBills,rate:viewRateMatrix,set:viewSet};
     (views[page]||viewDash)(v,t,sub,act);
@@ -2406,20 +2288,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
 })();
 </script>
 
-<style id="pm-v22-enhancements">
-.private-note{background:#F4F7FB;border:1px solid #DCE5F1;border-radius:10px;padding:10px 12px;font-size:12px;color:#42536B;margin:10px 0}
-.private-note b{color:#24364E}
-.final-rate-input{width:92px!important;text-align:right;font-weight:700}
-.edited-rate{border-color:#C88A19!important;background:#FFF9ED!important}
-.filename-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
-.cost-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-.cost-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-sm)}
-.cost-kpi b{display:block;font-size:19px}.cost-kpi span{font-size:11px;color:var(--muted)}
-.cost-input{width:82px!important;text-align:right}.cost-wide{width:95px!important;text-align:right}
-.internal-chip{display:inline-flex;padding:3px 8px;border-radius:999px;background:#FFF4DD;color:#7A5710;font-size:10px;font-weight:700}
-.secure-output{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:#2E6B43;background:#EDF7F0;border-radius:999px;padding:4px 8px}
-@media(max-width:900px){.filename-row{grid-template-columns:1fr}.cost-table th:nth-child(5),.cost-table td:nth-child(5),.cost-table th:nth-child(6),.cost-table td:nth-child(6){display:none}}
-</style>
+
 <script id="pm-v22-enhancements-script">
 (()=>{
   const PM_VERSION_22='2.2 Pro';
@@ -2586,7 +2455,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
   render=function(){
     ensure22();
     if(page==='cost'){
-      renderNav(); $('#brandName').textContent=S.settings.firm||'Price manager';
+      renderNav(); $('#brandName').textContent='CA';
       const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions'); act.innerHTML='';sub.textContent='';
       return viewPurchaseCost(v,t,sub,act);
     }
@@ -2627,15 +2496,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
 })();
 </script>
 
-<style id="pm-v23-performance">
-.inventory-virtual{overflow:auto;max-height:calc(100vh - 255px);border:1px solid var(--line);border-radius:12px;background:#fff;position:relative}
-.inventory-virtual table{table-layout:auto}
-.inventory-virtual tbody tr[data-id]{height:58px}
-.inventory-virtual tbody td{height:58px}
-.inventory-virtual .prod-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:360px}
-.perf-note{font-size:10.5px;color:var(--muted);margin-left:auto}
-@media(max-width:900px){.inventory-virtual{max-height:calc(100vh - 310px)}}
-</style>
+
 <script id="pm-v23-performance-script">
 (()=>{
   const PM_VERSION_23='2.3 Pro';
@@ -2774,28 +2635,12 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
   viewSet=function(v,t,sub){previousViewSet(v,t,sub);const box=document.createElement('div');box.className='card';box.style.marginTop='14px';box.innerHTML=`<div class="hd"><h2>Architecture & performance</h2></div><div class="bd"><div class="cols2"><div><b>Virtual inventory rendering</b><div class="note">Only visible rows plus a small buffer are mounted in the DOM.</div></div><div><b>Central state dispatcher</b><div class="note">Inventory mutations route through PriceManagerStore for consistent saving/history.</div></div><div><b>Native validation</b><div class="note">Required and numeric constraints are applied to dynamic data-entry dialogs.</div></div><div><b>Responsive PDF import</b><div class="note">pdf.js worker remains active and the main thread yields after every parsed page.</div></div></div><div class="note" style="margin-top:10px">${PM_VERSION_23} · single-file portable build. Cloud sync remains adapter-based so credentials are never embedded in this HTML.</div></div>`;v.appendChild(box)};
 
   render=function(){return previousRender()};
-  document.title='Price Manager Pro v2.3';
+  document.title='CA';
   setTimeout(()=>{try{render()}catch(e){console.error('v2.3 init',e)}},30);
 })();
 </script>
 
-<style id="pm-private-v24-style">
-:root{--secret:#65420d;--secret-bg:#fff8e8}
-.pm-lock{position:fixed;inset:0;z-index:10000;background:linear-gradient(145deg,#10151d,#1c2430);display:flex;align-items:center;justify-content:center;padding:20px;color:#eef1f5}
-.pm-lock[hidden]{display:none}.pm-lock-card{width:min(430px,100%);background:#fff;color:#22262c;border-radius:18px;padding:26px;box-shadow:0 28px 90px rgba(0,0,0,.45)}
-.pm-lock-brand{font-size:20px;font-weight:750;letter-spacing:-.02em}.pm-lock-sub{font-size:12px;color:#6e6a62;margin:5px 0 20px}.pm-lock-tabs{display:flex;gap:6px;margin:0 0 14px}.pm-lock-tabs button{flex:1}
-.pm-lock-card input{width:100%;font-size:18px;padding:11px 12px;margin:6px 0 10px}.pm-lock-msg{min-height:20px;font-size:12px;color:#c42a1c;margin-top:8px}
-.owner-chip,.staff-chip,.secure-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 8px;font-size:10.5px;font-weight:700;letter-spacing:.02em}
-.owner-chip{background:#fff1cf;color:#76500c;border:1px solid #efd38a}.staff-chip{background:#edf2f8;color:#385273;border:1px solid #ccd9e8}.secure-chip{background:#eaf6ed;color:#2e6840;border:1px solid #c7e2cf}
-.security-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.security-tile{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff}.security-tile b{display:block;margin-bottom:4px}
-.internal-warning{background:var(--secret-bg);border:1px solid #ead29e;border-radius:9px;padding:9px 11px;font-size:12px;color:#68480f}
-.below-min{border-color:#c42a1c!important;background:#fff5f3!important}.approval-badge{font-size:10px;color:#c42a1c;font-weight:700}.profit-good{color:var(--leaf)}.profit-bad{color:var(--kumkum)}
-.scheme-box{display:flex;gap:4px;justify-content:flex-end;align-items:center}.scheme-box input{width:48px!important;text-align:right}.scheme-box span{font-size:10px;color:var(--muted)}
-.private-cost-table td,.private-cost-table th{white-space:nowrap}.private-cost-table td:nth-child(2),.private-cost-table th:nth-child(2){white-space:normal;min-width:210px}
-.owner-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.owner-kpi{border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px}.owner-kpi b{font-size:19px;display:block}.owner-kpi span{font-size:11px;color:var(--muted)}
-.pm-mask .private-cost-table input,.pm-mask .private-cost-table td.r,.pm-mask .owner-kpi b{filter:blur(6px);user-select:none}.pm-mask .private-cost-table input:focus{filter:none}
-@media(max-width:900px){.private-cost-table th:nth-child(5),.private-cost-table td:nth-child(5),.private-cost-table th:nth-child(6),.private-cost-table td:nth-child(6),.private-cost-table th:nth-child(8),.private-cost-table td:nth-child(8){display:none}}
-</style>
+
 <script id="pm-private-v24-script">
 (()=>{
   const PM24='2.4 Private Owner Edition';
@@ -2847,7 +2692,7 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
 
   viewDash=function(v,t,sub,act){prevViewDash(v,t,sub,act);if(SEC.role!=='owner')return;const costVal=S.products.reduce((a,p)=>a+(calcCost24(p).final||0)*(+p.stock||0),0),sellVal=S.products.reduce((a,p)=>a+(priceOf(p,profileFor('')).net||0)*(+p.stock||0),0),gp=sellVal-costVal,bad=(S.products||[]).filter(p=>{const c=calcCost24(p),sell=priceOf(p,profileFor('')).net;return c.minSell!=null&&sell!=null&&sell<c.minSell}).length;const box=document.createElement('div');box.innerHTML=`<div class="section-title">Owner dashboard</div><div class="owner-kpis"><div class="owner-kpi"><b>${CUR()}${money(costVal)}</b><span>stock at landed cost</span></div><div class="owner-kpi"><b>${CUR()}${money(sellVal)}</b><span>stock at selling rate</span></div><div class="owner-kpi"><b class="${gp<0?'bad':'good'}">${CUR()}${money(gp)}</b><span>potential gross spread</span></div><div class="owner-kpi"><b class="${bad?'bad':''}">${bad}</b><span>products below minimum sell</span></div></div>`;v.appendChild(box)};
 
-  function showLock(){let l=document.getElementById('pmLock');if(!l){l=document.createElement('div');l.id='pmLock';l.className='pm-lock';document.body.appendChild(l)}const env=SEC.envelope||window.__PM_VAULT_PENDING,hasStaff=!!(env?.roles?.staff),hasRecovery=!!(env?.roles?.recovery),recoveryMode=!!SEC.useRecovery;l.hidden=false;l.innerHTML=`<div class="pm-lock-card"><div class="pm-lock-brand">Inventory Manager</div><div class="pm-lock-sub">Private business data is locked and encrypted.</div><div class="pm-lock-tabs"><button class="btn ${SEC.roleTab!=='staff'?'primary':'ghost'}" data-role="owner">Owner</button>${hasStaff?`<button class="btn ${SEC.roleTab==='staff'?'primary':'ghost'}" data-role="staff">Staff</button>`:''}</div><label class="note">${recoveryMode?'Recovery code':(SEC.roleTab==='staff'?'Staff':'Owner')+' PIN'}</label><input id="pm_pin" type="password" inputmode="${recoveryMode?'text':'numeric'}" autocomplete="off" minlength="4" placeholder="${recoveryMode?'XXXX-XXXX-XXXX-XXXX-XXXX':''}"><button class="btn primary" style="width:100%;padding:10px" data-unlock>Unlock</button>${SEC.roleTab!=='staff'&&hasRecovery?`<button class="link" style="display:block;margin-top:10px;text-align:center;width:100%" data-recovery-toggle>${recoveryMode?'Use PIN instead':'Forgot PIN? Use recovery code'}</button>`:''}<div class="pm-lock-msg" id="pm_lock_msg"></div><div class="note" style="margin-top:12px">Ctrl + Shift + L locks instantly.</div></div>`;const pin=l.querySelector('#pm_pin');pin.focus();l.onclick=async e=>{const rb=e.target.closest('[data-role]');if(rb){SEC.roleTab=rb.dataset.role;SEC.useRecovery=false;showLock();return}const rc=e.target.closest('[data-recovery-toggle]');if(rc){SEC.useRecovery=!SEC.useRecovery;showLock();return}if(!e.target.closest('[data-unlock]'))return;const now=Date.now(),msg=l.querySelector('#pm_lock_msg');if(now<SEC.blockedUntil){msg.textContent='Too many attempts. Try again in '+Math.ceil((SEC.blockedUntil-now)/1000)+' seconds.';return}const val=pin.value;try{if(recoveryMode){if(!env.roles.recovery)throw new Error('no-recovery');const raw=await unwrapDek(val.trim(),env.roles.recovery),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role='owner';SEC.attempts=0;SEC.useRecovery=false;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast('Unlocked with recovery code');promptNewOwnerPin(raw)}else{const role=SEC.roleTab==='staff'&&hasStaff?'staff':'owner',raw=await unwrapDek(val,env.roles[role]),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role=role;SEC.attempts=0;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast(role==='owner'?'Owner mode unlocked':'Staff mode unlocked')}}catch(err){SEC.attempts++;if(SEC.attempts>=5){SEC.blockedUntil=Date.now()+30000;SEC.attempts=0;msg.textContent='Locked for 30 seconds after repeated incorrect PINs.'}else msg.textContent=recoveryMode?'Recovery code not recognised.':'Incorrect PIN.';pin.select()}};pin.onkeydown=e=>{if(e.key==='Enter')l.querySelector('[data-unlock]').click()}}
+  function showLock(){let l=document.getElementById('pmLock');if(!l){l=document.createElement('div');l.id='pmLock';l.className='pm-lock';document.body.appendChild(l)}const env=SEC.envelope||window.__PM_VAULT_PENDING,hasStaff=!!(env?.roles?.staff),hasRecovery=!!(env?.roles?.recovery),recoveryMode=!!SEC.useRecovery;l.hidden=false;l.innerHTML=`<div class="pm-lock-card"><div class="pm-lock-brand"><img src="ca-logo.png" class="ca-lock-logo" alt="CA"><span>CA</span></div><div class="pm-lock-sub">Private business data is locked and encrypted.</div><div class="pm-lock-tabs"><button class="btn ${SEC.roleTab!=='staff'?'primary':'ghost'}" data-role="owner">Owner</button>${hasStaff?`<button class="btn ${SEC.roleTab==='staff'?'primary':'ghost'}" data-role="staff">Staff</button>`:''}</div><label class="note">${recoveryMode?'Recovery code':(SEC.roleTab==='staff'?'Staff':'Owner')+' PIN'}</label><input id="pm_pin" type="password" inputmode="${recoveryMode?'text':'numeric'}" autocomplete="off" minlength="4" placeholder="${recoveryMode?'XXXX-XXXX-XXXX-XXXX-XXXX':''}"><button class="btn primary" style="width:100%;padding:10px" data-unlock>Unlock</button>${SEC.roleTab!=='staff'&&hasRecovery?`<button class="link" style="display:block;margin-top:10px;text-align:center;width:100%" data-recovery-toggle>${recoveryMode?'Use PIN instead':'Forgot PIN? Use recovery code'}</button>`:''}<div class="pm-lock-msg" id="pm_lock_msg"></div><div class="note" style="margin-top:12px">Ctrl + Shift + L locks instantly.</div></div>`;const pin=l.querySelector('#pm_pin');pin.focus();l.onclick=async e=>{const rb=e.target.closest('[data-role]');if(rb){SEC.roleTab=rb.dataset.role;SEC.useRecovery=false;showLock();return}const rc=e.target.closest('[data-recovery-toggle]');if(rc){SEC.useRecovery=!SEC.useRecovery;showLock();return}if(!e.target.closest('[data-unlock]'))return;const now=Date.now(),msg=l.querySelector('#pm_lock_msg');if(now<SEC.blockedUntil){msg.textContent='Too many attempts. Try again in '+Math.ceil((SEC.blockedUntil-now)/1000)+' seconds.';return}const val=pin.value;try{if(recoveryMode){if(!env.roles.recovery)throw new Error('no-recovery');const raw=await unwrapDek(val.trim(),env.roles.recovery),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role='owner';SEC.attempts=0;SEC.useRecovery=false;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast('Unlocked with recovery code');promptNewOwnerPin(raw)}else{const role=SEC.roleTab==='staff'&&hasStaff?'staff':'owner',raw=await unwrapDek(val,env.roles[role]),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role=role;SEC.attempts=0;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast(role==='owner'?'Owner mode unlocked':'Staff mode unlocked')}}catch(err){SEC.attempts++;if(SEC.attempts>=5){SEC.blockedUntil=Date.now()+30000;SEC.attempts=0;msg.textContent='Locked for 30 seconds after repeated incorrect PINs.'}else msg.textContent=recoveryMode?'Recovery code not recognised.':'Incorrect PIN.';pin.select()}};pin.onkeydown=e=>{if(e.key==='Enter')l.querySelector('[data-unlock]').click()}}
   async function lockNow(){if(!S.settings.privacyEnabled)return;if(SEC.dek)try{await secureSaveNow()}catch(e){}SEC.dek=null;SEC.role=null;S=baseState({settings:{...DEF_SETTINGS,privacyEnabled:true}});showLock()}
   function resetAutoLock(){clearTimeout(SEC.timer);if(!S.settings.privacyEnabled||!SEC.role)return;const min=+S.settings.autoLockMinutes||0;if(min>0)SEC.timer=setTimeout(lockNow,min*60000)}
   ['pointerdown','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(SEC.role){SEC.lastActivity=Date.now();resetAutoLock()}},{passive:true}));
@@ -2882,31 +2727,15 @@ th{padding:10px 9px;font-size:10.5px;letter-spacing:.015em}td{padding:8px 9px}
 
   handleAct=function(a,el){ensure24();if(a==='backup'){secureBackup();return}if(a==='restore'){secureRestore();return}if(a==='privacy-mask'){SEC.sensitiveVisible=!SEC.sensitiveVisible;document.body.classList.toggle('pm-mask',!SEC.sensitiveVisible);render();return}if(a==='privacy-enable'){privacySetup();return}if(a==='privacy-lock'){lockNow();return}if(a==='privacy-disable'){disablePrivacy();return}if(a==='staff-pin'){staffPinDialog();return}if(a==='recovery-regenerate'){regenerateRecovery();return}if(a==='cost-more24'){ui.costLimit=(ui.costLimit||160)+160;render();return}if(a==='cost-reset24'){delete S.purchaseCosts[el.dataset.id];save();render();return}if(a==='cost-pdf24'){const cfg=costConfig24();if(!cfg.count)return toast('Nothing to print');try{buildPDF(cfg).save(safeFilename(S.settings.purchaseCostFilename||'purchase-cost-list'));toast('Owner cost PDF downloaded')}catch(e){toast(e.message)}return}if(a==='cost-csv24'){const rows=[['Code','Product','Supplier','Trade %','Extra %','Cash %','Buy Qty','Free Qty','Freight','Other','Landed Cost','Min Margin %','Min Sell','Sell Rate']];costItems24().forEach(p=>{const c=calcCost24(p),sell=priceOf(p,profileFor('')).net;rows.push([p.code,p.name,c.base??'',c.d,c.x,c.cash,c.buy,c.free,c.freight,c.other,c.final??'',c.minMargin,c.minSell??'',sell??''])});download((S.settings.purchaseCostFilename||'purchase-cost-list')+'.csv',rows.map(r=>r.map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(',')).join('\n'),'text/csv');return}return prevHandleAct(a,el)};
 
-  const render24=render;render=function(){ensure24();if(page==='cost'){if(SEC.role==='staff'){page='dash';return render24()}renderNav();$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPurchaseCost24(v,t,sub,act);setTimeout(()=>{if(S.settings.privacyEnabled&&!act.querySelector('[data-act="privacy-lock"]'))act.insertAdjacentHTML('afterbegin',`${roleChip()} <button class="btn ghost sm" data-act="privacy-mask">${SEC.sensitiveVisible?'Hide values':'Show values'}</button> <button class="btn ghost sm" data-act="privacy-lock">Lock</button>`)},0);return}return render24()};
+  const render24=render;render=function(){ensure24();if(page==='cost'){if(SEC.role==='staff'){page='dash';return render24()}renderNav();$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPurchaseCost24(v,t,sub,act);setTimeout(()=>{if(S.settings.privacyEnabled&&!act.querySelector('[data-act="privacy-lock"]'))act.insertAdjacentHTML('afterbegin',`${roleChip()} <button class="btn ghost sm" data-act="privacy-mask">${SEC.sensitiveVisible?'Hide values':'Show values'}</button> <button class="btn ghost sm" data-act="privacy-lock">Lock</button>`)},0);return}return render24()};
 
-  document.title='Inventory Manager';const b=document.getElementById('brandName');if(b)b.textContent='Inventory Manager';
+  document.title='CA';const b=document.getElementById('brandName');if(b)b.textContent='CA';
   SEC.envelope=window.__PM_VAULT_PENDING||null;SEC.roleTab='owner';
   if(SEC.envelope){setTimeout(showLock,0)}else{SEC.role='owner';ensure24();setTimeout(()=>{try{render()}catch(e){console.error('v2.4 render',e)}},60)}
 })();
 </script>
 
-<style id="pm-v25-price-intelligence">
-/* Price Manager Pro v2.5 — Price Intelligence */
-.pi-kpis .pi-click{appearance:none;text-align:left;color:inherit;cursor:pointer;font:inherit}
-.pi-kpis .pi-click:hover{border-color:#C9C4B8;transform:translateY(-1px)}
-.pi-table-wrap{max-height:calc(100vh - 360px);min-height:300px}
-.pi-table th,.pi-table td{white-space:nowrap}
-.pi-table td:first-child{white-space:normal;min-width:260px}
-.pi-status{display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;font-size:9.5px;font-weight:800;letter-spacing:.03em;white-space:nowrap}
-.pi-status.ok{background:#EDF7F0;color:#2F6A45}.pi-status.warn{background:#FFF5DF;color:#8A5A00}.pi-status.danger{background:#FFF0EE;color:#A52A1C}.pi-status.review{background:#EEF3FB;color:#2C4A7C}
-.pi-modal{width:min(980px,100%)!important}.pi-current-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}.pi-current-grid>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--wash)}.pi-current-grid span{display:block;font-size:10.5px;color:var(--muted);margin-bottom:4px}.pi-current-grid b{font-size:17px}
-.pi-version-grid{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:9px}.pi-version-grid>div{border:1px solid var(--line-2);border-radius:9px;padding:9px 10px}.pi-version-grid b{display:block;font-size:17px}.pi-version-grid span{font-size:10.5px;color:var(--muted)}
-.pi-list-audit{box-shadow:var(--shadow-sm)}
-body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:none}
-@media(max-width:1100px){.pi-current-grid{grid-template-columns:1fr 1fr}.pi-version-grid{grid-template-columns:repeat(3,1fr)}.pi-table-wrap{max-height:none}}
-@media(max-width:700px){.pi-current-grid,.pi-version-grid{grid-template-columns:1fr 1fr}.pi-table th:nth-child(6),.pi-table td:nth-child(6),.pi-table th:nth-child(7),.pi-table td:nth-child(7),.pi-table th:nth-child(9),.pi-table td:nth-child(9),.pi-table th:nth-child(10),.pi-table td:nth-child(10){display:none}}
 
-</style>
 <script id="pm-v25-price-intelligence-script">
 (()=>{
   const PM_VERSION_25='2.5 Price Intelligence';
@@ -3036,7 +2865,7 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
   render=function(){
     ensure25();if(page==='intel'){
       prevRenderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender()}
-      renderNav();$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPriceIntel(v,t,sub,act);return;
+      renderNav();$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPriceIntel(v,t,sub,act);return;
     }
     const r=prevRender();setTimeout(()=>{try{renderNav()}catch(e){}},0);return r;
   };
@@ -3070,33 +2899,13 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
   },true);
 
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_25,masterPeriods,costPeriods,customerPeriods,priceIntelRows:intelligenceRows};
-  document.title='Inventory Manager';
+  document.title='CA';
   setTimeout(()=>{try{ensure25();render()}catch(e){console.error('v2.5 init',e)}},90);
 })();
 
 </script>
 
-<style id="pm-v26-pricing-control-room">
-/* Price Manager Pro v2.6 — Pricing Control Room */
-.pc26-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px;margin-bottom:14px}
-.pc26-kpi{border:1px solid var(--line);background:#fff;border-radius:11px;padding:11px 12px;box-shadow:var(--shadow-sm)}
-.pc26-kpi b{display:block;font-size:19px;letter-spacing:-.02em}.pc26-kpi span{font-size:10.5px;color:var(--muted)}
-.pc26-source{font-size:10px;line-height:1.35;color:var(--muted);margin-top:3px;max-width:180px;white-space:normal}
-.pc26-pill{display:inline-flex;border-radius:999px;padding:3px 7px;font-size:9.5px;font-weight:800;white-space:nowrap;background:#EEF3FA;color:#2C4A7C}
-.pc26-pill.lock{background:#FFF2DC;color:#7D570A}.pc26-pill.slab{background:#EDF7F0;color:#2F6A45}.pc26-pill.manual{background:#F3EDF9;color:#654086}.pc26-pill.bad{background:#FFF0EE;color:#A52A1C}
-.pc26-rate-stack{display:grid;gap:7px}.pc26-step{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:center;border:1px solid var(--line-2);border-radius:9px;padding:8px 10px;background:#fff}.pc26-step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--wash);font-size:10px;font-weight:800}.pc26-step strong{font-size:12.5px}.pc26-step small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}.pc26-step .v{font-variant-numeric:tabular-nums;font-weight:800;white-space:nowrap}
-.pc26-context{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.pc26-context>div{border:1px solid var(--line-2);border-radius:9px;padding:9px 10px}.pc26-context span{display:block;color:var(--muted);font-size:10px}.pc26-context b{font-size:14px}
-.pc26-row-note{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
-.pc26-table td{vertical-align:top}.pc26-table td:first-child{min-width:260px;white-space:normal}.pc26-table th{white-space:nowrap}
-.pc26-changed{background:#FFF9ED!important}.pc26-protected{background:#F7FAFF!important}
-.pc26-modal{width:min(1050px,100%)!important}.pc26-mini{font-size:10.5px;color:var(--muted)}
-.pc26-impact-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.pc26-impact-summary>div{border:1px solid var(--line);border-radius:9px;padding:9px 10px}.pc26-impact-summary b{display:block;font-size:18px}.pc26-impact-summary span{font-size:10px;color:var(--muted)}
-.pc26-list-controls{border-top:1px solid var(--line-2);padding-top:10px;margin-top:10px}
-.pc26-prior{font-size:10px;line-height:1.45;color:var(--muted);margin-top:3px;white-space:normal}
-.pc26-prior b{color:var(--text)}
-@media(max-width:1100px){.pc26-context,.pc26-impact-summary{grid-template-columns:1fr 1fr}.pc26-table-wrap{max-height:none}}
-@media(max-width:700px){.pc26-context,.pc26-impact-summary{grid-template-columns:1fr 1fr}.pc26-table th:nth-child(5),.pc26-table td:nth-child(5),.pc26-table th:nth-child(6),.pc26-table td:nth-child(6),.pc26-table th:nth-child(7),.pc26-table td:nth-child(7){display:none}}
-</style>
+
 <script id="pm-v26-pricing-control-room-script">
 (()=>{
   const PM_VERSION_26='2.6 Pricing Control Room';
@@ -3217,7 +3026,7 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
 
   renderNav=function(){prevRenderNav26();const b=document.querySelector('#nav [data-nav="intel"]');if(b)b.innerHTML='<span>Pricing control room</span>'};
 
-  render=function(){ensure26();applyScheduled26();if(page==='pc26'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender26()}$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewControl26(v,t,sub,act);return}return prevRender26()};
+  render=function(){ensure26();applyScheduled26();if(page==='pc26'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender26()}$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewControl26(v,t,sub,act);return}return prevRender26()};
 
   handleAct=function(a,el){ensure26();const id=el.dataset.id;
     if(a==='p26-why'){whyDialog26(id);return}
@@ -3240,38 +3049,11 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
   };
 
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_26,pricing26,activeRateLock:activeLock26,quantitySlab:slab26,lastCommercialRates:prior26,priceListRate:priceListRate26};
-  document.title='Inventory Manager';
+  document.title='CA';
   setTimeout(()=>{try{ensure26();applyScheduled26();render()}catch(e){console.error('v2.6 init',e)}},110);
 })();
 </script>
-<style>
-/* ==================== v2.7 Wholesale Workflow ==================== */
-:root{--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--shadow-soft:0 8px 28px rgba(21,26,34,.08)}
-.card,.stat,.tbl-wrap,.drop{border-radius:var(--radius-md)}
-.modal .box{border-radius:var(--radius-lg)}
-.inventory-virtual th:nth-child(1),.inventory-virtual td:nth-child(1){position:sticky;left:0;z-index:5;background:#fff}
-.inventory-virtual th:nth-child(2),.inventory-virtual td:nth-child(2){position:sticky;left:30px;z-index:5;background:#fff}
-.inventory-virtual th:nth-child(3),.inventory-virtual td:nth-child(3){position:sticky;left:92px;z-index:5;background:#fff;box-shadow:3px 0 8px rgba(0,0,0,.05)}
-.inventory-virtual thead th:nth-child(-n+3){z-index:8;background:var(--wash)}
-.private-cost-table th:nth-child(1),.private-cost-table td:nth-child(1),.pc26-table th:nth-child(1),.pc26-table td:nth-child(1){position:sticky;left:0;z-index:4;background:#fff;box-shadow:2px 0 6px rgba(0,0,0,.04)}
-.private-cost-table thead th:nth-child(1),.pc26-table thead th:nth-child(1){background:var(--wash);z-index:7}
-.v27-purchase-grid{display:grid;grid-template-columns:360px 1fr;gap:14px;align-items:start}
-.v27-map-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.v27-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}
-.v27-kpi{padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}.v27-kpi b{font-size:18px;display:block}.v27-kpi span{font-size:11px;color:var(--muted)}
-.v27-status-ok{color:var(--leaf);font-weight:600}.v27-status-bad{color:var(--kumkum);font-weight:600}.v27-status-warn{color:#9a6410;font-weight:600}
-.v27-bulk{display:flex;gap:8px;flex-wrap:wrap;align-items:end;padding:10px;border:1px solid var(--line);background:#fff;border-radius:10px;margin-bottom:10px}
-.v27-bulk .field{margin:0;min-width:155px}
-.v27-sticky-name{position:sticky;left:0;background:#fff;z-index:3}
-.v27-inline-note{font-size:11px;color:var(--muted);margin-top:3px}
-.v27-drawer{position:fixed;top:0;right:0;height:100vh;width:min(460px,96vw);background:#fff;z-index:120;box-shadow:-16px 0 50px rgba(0,0,0,.18);display:flex;flex-direction:column;animation:v27slide .18s ease-out}.v27-drawer .hd{padding:15px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}.v27-drawer .bd{padding:16px;overflow:auto;flex:1}.v27-drawer .ft{padding:12px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}.v27-drawer-shade{position:fixed;inset:0;background:rgba(21,26,34,.28);z-index:119}
-@keyframes v27slide{from{transform:translateX(24px);opacity:.5}to{transform:none;opacity:1}}
-.v27-tax-table{margin-top:8px}.v27-tax-table th,.v27-tax-table td{font-size:11px}
-.v27-file-drop{border:1.5px dashed #bbb3a7;border-radius:12px;padding:18px;text-align:center;background:#fcfbf8}
-.v27-file-drop.hot{border-color:var(--kumkum);background:#fff7f5}
-.v27-small{font-size:11px;color:var(--muted)}
-@media(max-width:900px){.v27-purchase-grid{grid-template-columns:1fr}.v27-map-grid{grid-template-columns:1fr}.inventory-virtual th:nth-child(3),.inventory-virtual td:nth-child(3){left:86px}}
-</style>
+
 <script>
 (function(){
   'use strict';
@@ -3366,7 +3148,7 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
 
   /* ---------- Navigation / router ---------- */
   renderNav=function(){prevRenderNav27();ensure27();const nav=$('#nav');if(!nav)return;const owner=!!nav.querySelector('[data-nav="cost"]');if(owner&&!nav.querySelector('[data-nav="purchase"]')){const cost=nav.querySelector('[data-nav="cost"]'),btn=document.createElement('button');btn.dataset.nav='purchase';btn.className=page==='purchase'?'on':'';btn.innerHTML='<span>Purchase Excel / Inward</span>';if(cost)cost.after(btn);else nav.appendChild(btn)}};
-  render=function(){ensure27();if(page==='purchase'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender27()}$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPurchase27(v,t,sub,act);return}return prevRender27()};
+  render=function(){ensure27();if(page==='purchase'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender27()}$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPurchase27(v,t,sub,act);return}return prevRender27()};
 
   handleAct=function(a,el){ensure27();if(a==='v27-remind'){const inv=(S.invoices||[]).find(x=>x.id===el.dataset.id);if(inv)reminder27(inv);return}if(a==='v27-filled'){downloadFilled27();return}if(a==='v27-feed'){feedPurchase27();return}if(a==='v27-more'){ui.purchase27.limit+=120;render();return}if(a==='v27-bulk'){bulkPurchase27();return}if(a==='v27-savepdf'){S.settings.stateCode=$('#V27_statecode').value.trim();S.settings.upiId=$('#V27_upi').value.trim();S.settings.upiName=$('#V27_upiname').value.trim();save();toast('Invoice / UPI settings saved');return}return prevHandleAct27(a,el)};
 
@@ -3376,23 +3158,12 @@ body.pm-mask .owner-sensitive{filter:blur(7px);user-select:none;pointer-events:n
   document.addEventListener('focusin',e=>{const i=e.target;if(i&&i.matches?.('input[type="number"],input.rate,input.qty,.cost-input,.cost-wide')&&!i.getAttribute('inputmode'))i.setAttribute('inputmode','decimal')},true);
 
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V27,purchaseRows:mappedPurchase27,gstRows:gstRows27,upiLink:upi27};
-  document.title='Inventory Manager';
+  document.title='CA';
   setTimeout(()=>{try{ensure27();render()}catch(e){console.error('v2.7 init',e)}},140);
 })();
 </script>
 
-<style id="pm-v28-wholesale-integrity-style">
-/* ==================== v2.8 Purchase Integrity + Pricing Automation ==================== */
-:root{--v28-blue:#2C4A7C;--v28-green:#2F6A45;--v28-amber:#8A5A00;--v28-red:#A52A1C}
-.v28-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:14px}.v28-kpi{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md,10px);padding:11px 12px}.v28-kpi b{display:block;font-size:18px}.v28-kpi span{font-size:10.5px;color:var(--muted)}
-.v28-grid{display:grid;grid-template-columns:minmax(300px,.82fr) minmax(520px,1.6fr);gap:14px;align-items:start}.v28-fields{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:9px}.v28-row-source{display:inline-flex;padding:2px 6px;border-radius:999px;font-size:9px;font-weight:800;letter-spacing:.03em}.v28-row-source.invoice{background:#edf7f0;color:#2f6a45}.v28-row-source.history{background:#eef3fb;color:#2c4a7c}.v28-row-source.warning{background:#fff5df;color:#8a5a00}.v28-row-source.manual{background:#fff0ee;color:#a52a1c}
-.v28-ready{color:var(--v28-green);font-weight:700}.v28-block{color:var(--v28-red);font-weight:700}.v28-warn{color:var(--v28-amber);font-weight:700}.v28-diff-ok{background:#edf7f0;border:1px solid #cfe8d6;padding:9px 11px;border-radius:8px}.v28-diff-bad{background:#fff0ee;border:1px solid #f0c9c4;padding:9px 11px;border-radius:8px}
-.v28-table td,.v28-table th{white-space:nowrap}.v28-table td:nth-child(2){white-space:normal;min-width:260px}.v28-table input{min-width:62px}.v28-mini{font-size:10.5px;color:var(--muted)}.v28-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.v28-section{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px}
-.v28-review-table td:first-child{min-width:260px;white-space:normal}.v28-chip{display:inline-flex;padding:3px 7px;border-radius:999px;font-size:9.5px;font-weight:800}.v28-chip.open{background:#fff5df;color:#8a5a00}.v28-chip.done{background:#edf7f0;color:#2f6a45}.v28-chip.ignored{background:#f1f0ed;color:#6e6a62}.v28-chip.risk{background:#fff0ee;color:#a52a1c}
-.v28-drawer{position:fixed;inset:0;z-index:110;background:rgba(21,26,34,.35);display:flex;justify-content:flex-end}.v28-drawer>.panel{width:min(520px,94vw);height:100%;background:#fff;box-shadow:-16px 0 50px rgba(0,0,0,.2);display:flex;flex-direction:column}.v28-drawer .hd{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}.v28-drawer .bd{padding:14px 16px;overflow:auto;flex:1}.v28-drawer .ft{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
-.v28-quality input{width:120px}.v28-quality td:nth-child(2){white-space:normal;min-width:250px}.v28-batch{font-size:10px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
-@media(max-width:1050px){.v28-grid{grid-template-columns:1fr}.v28-fields{grid-template-columns:1fr 1fr}}@media(max-width:650px){.v28-fields{grid-template-columns:1fr}.v28-table th:nth-child(6),.v28-table td:nth-child(6),.v28-table th:nth-child(8),.v28-table td:nth-child(8),.v28-table th:nth-child(9),.v28-table td:nth-child(9){display:none}}
-</style>
+
 <script id="pm-v28-wholesale-integrity-script">
 (function(){
 'use strict';
@@ -3599,7 +3370,7 @@ const nativePrompt28=window.prompt.bind(window);window.prompt=function(msg,def){
 
 /* ---------------- router/nav/actions ---------------- */
 renderNav=function(){prevRenderNav28();ensure28();const nav=$('#nav');if(!nav)return;const owner=!!nav.querySelector('[data-nav="cost"]');if(!owner)return;function add(id,label,after){if(nav.querySelector(`[data-nav="${id}"]`))return;const b=document.createElement('button');b.dataset.nav=id;b.className=page===id?'on':'';b.innerHTML=`<span>${label}</span>`;const a=nav.querySelector(`[data-nav="${after}"]`);if(a)a.after(b);else nav.appendChild(b)}add('review28','Price Review','pc26');add('supplier28','Supplier Intelligence','purchase');add('quality28','Data Quality','supplier28')};
-render=function(){ensure28();if(page==='purchase'||page==='review28'||page==='supplier28'||page==='quality28'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender28()}$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='purchase')viewPurchase28(v,t,sub,act);else if(page==='review28')viewReview28(v,t,sub,act);else if(page==='supplier28')viewSupplier28(v,t,sub,act);else viewQuality28(v,t,sub,act);return}return prevRender28()};
+render=function(){ensure28();if(page==='purchase'||page==='review28'||page==='supplier28'||page==='quality28'){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if(!owner){page='dash';return prevRender28()}$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='purchase')viewPurchase28(v,t,sub,act);else if(page==='review28')viewReview28(v,t,sub,act);else if(page==='supplier28')viewSupplier28(v,t,sub,act);else viewQuality28(v,t,sub,act);return}return prevRender28()};
 handleAct=function(a,el){ensure28();
 if(a==='bill-cancel'){
   const inv=(S.invoices||[]).find(x=>x.id===el.dataset.id);if(!inv)return;
@@ -3632,12 +3403,7 @@ setTimeout(()=>{try{ensure28();render()}catch(e){console.error('v2.8 init',e)}},
 })();
 </script>
 
-<style id="pm-v29-commerce-intelligence-style">
-.v29-kpis{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin-bottom:14px}.v29-kpi{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff}.v29-kpi b{display:block;font-size:19px;font-variant-numeric:tabular-nums}.v29-kpi span{font-size:10.5px;color:var(--muted)}
-.v29-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:9px}.v29-actions{display:flex;gap:7px;align-items:end;flex-wrap:wrap}.v29-chip{display:inline-flex;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:800;background:#eef3fb;color:#2c4a7c}.v29-chip.risk{background:#fff0ee;color:#a52a1c}.v29-chip.good{background:#edf7f0;color:#2f6a45}.v29-table th,.v29-table td{white-space:nowrap}.v29-table td:nth-child(2){white-space:normal;min-width:250px}.v29-muted{font-size:10px;color:var(--muted);margin-top:2px}.v29-card-preview{border:1px dashed var(--line);border-radius:12px;padding:12px;background:var(--wash)}
-.v29-slabs{width:min(900px,100%)!important}.v29-slabs table input,.v29-slabs table select{min-width:90px}.v29-warning{border:1px solid #f0c9c4;background:#fff7f5;color:#8d2d20;border-radius:10px;padding:9px 11px;font-size:11px}.v29-ok{border:1px solid #c9dfcf;background:#f6fbf7;color:#285c3a;border-radius:10px;padding:9px 11px;font-size:11px}
-@media(max-width:1050px){.v29-kpis{grid-template-columns:repeat(3,1fr)}.v29-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.v29-kpis{grid-template-columns:1fr 1fr}.v29-grid{grid-template-columns:1fr}.v29-table th:nth-child(6),.v29-table td:nth-child(6),.v29-table th:nth-child(8),.v29-table td:nth-child(8){display:none}}
-</style>
+
 <script id="pm-v29-commerce-intelligence-script">
 (()=>{
 'use strict';
@@ -3709,7 +3475,7 @@ viewSet=function(v,t,sub){prevViewSet29(v,t,sub);ensure29();const c=document.cre
 
 /* ---------- router / nav ---------- */
 renderNav=function(){prevRenderNav29();ensure29();const nav=$('#nav');if(!nav)return;const owner=!!nav.querySelector('[data-nav="cost"]');function add(id,label,after){if(nav.querySelector(`[data-nav="${id}"]`))return;const b=document.createElement('button');b.dataset.nav=id;b.className=page===id?'on':'';b.innerHTML=`<span>${label}</span>`;const a=nav.querySelector(`[data-nav="${after}"]`);if(a)a.after(b);else nav.appendChild(b)}add('catalog29','WhatsApp Catalog','list');if(owner){add('plan29','Purchase Planning','purchase');add('gst29','GST Reports','bills')}};
-render=function(){ensure29();if(['plan29','gst29','catalog29'].includes(page)){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if((page==='plan29'||page==='gst29')&&!owner){page='dash';return prevRender29()}$('#brandName').textContent='Inventory Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='plan29')viewPlan29(v,t,sub,act);else if(page==='gst29')viewGst29(v,t,sub,act);else viewCatalog29(v,t,sub,act);return}return prevRender29()};
+render=function(){ensure29();if(['plan29','gst29','catalog29'].includes(page)){renderNav();const owner=!!document.querySelector('[data-nav="cost"]');if((page==='plan29'||page==='gst29')&&!owner){page='dash';return prevRender29()}$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='plan29')viewPlan29(v,t,sub,act);else if(page==='gst29')viewGst29(v,t,sub,act);else viewCatalog29(v,t,sub,act);return}return prevRender29()};
 handleAct=function(a,el){ensure29();if(a==='p26-slabs'){slabDialog29(el.dataset.id,slabParty29());return}if(a==='p29-export'){planExport29(planRows29());return}if(a==='p29-save'){saveRequirement29();return}if(a==='g29-excel'){gstExport29();return}if(a==='g29-pdf'){gstPdf29();return}if(a==='c29-all'){catalogRows29().forEach(r=>ui.catalog29.sel.add(r.p.id));render();return}if(a==='c29-none'){ui.catalog29.sel.clear();render();return}if(a==='c29-download'){makeCatalogCards29('download');return}if(a==='c29-share'){makeCatalogCards29('share');return}if(a==='s29-save'){S.settings.reorderLookbackDays=Math.max(1,+$('#S29_look').value||30);S.settings.reorderLeadDays=Math.max(0,+$('#S29_lead').value||0);S.settings.reorderSafetyDays=Math.max(0,+$('#S29_safe').value||0);ui.plan29.lookback=S.settings.reorderLookbackDays;ui.plan29.lead=S.settings.reorderLeadDays;ui.plan29.safety=S.settings.reorderSafetyDays;save();toast('Commerce Intelligence defaults saved');return}return prevHandleAct29(a,el)};
 
 window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V29,normalizeCode:pmNormCode,normalizeBarcode:pmNormBarcode,purchasePlanRows:planRows29,gstReportData:gstData29};
@@ -4160,7 +3926,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     prevOpenProduct34(p, isNew);
     if(isPieceUnit34(p.priceUnit)) return;
     const box = [...document.querySelectorAll('.modal .box')].pop();
-    if(!box || box.querySelector('#e_uom')) return;
+    if(!box || box.querySelector('#e_uom') || box.querySelector('#e_pcsPerUnit')) return;
     const priceField = [...box.querySelectorAll('.field')].find(f => f.querySelector('#e_price'));
     const wrap = document.createElement('div');
     wrap.className = 'field';
@@ -4875,216 +4641,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_37};
 })();
 </script>
-<style id="pm-v38-premium-design">
-/* ============================================================
-   Premium design pass — visual refinement only.
-   No HTML/JS structure changes; every selector below targets
-   classes/ids that already exist across every screen, so this
-   elevates the whole app from one place.
-   ============================================================ */
 
-:root{
-  --shadow-xs: 0 1px 2px rgba(21,26,34,.04);
-  --shadow-sm: 0 2px 10px rgba(21,26,34,.06);
-  --shadow: 0 10px 28px rgba(21,26,34,.10), 0 2px 8px rgba(21,26,34,.05);
-  --shadow-lg: 0 24px 60px rgba(21,26,34,.18), 0 6px 18px rgba(21,26,34,.08);
-  --ring: 0 0 0 3px rgba(44,74,124,.14);
-  --ease: cubic-bezier(.2,.7,.3,1);
-  --kumkum-l: #E8523C;
-  --haldi-l: #F0B94A;
-  --leaf-l: #4F9A68;
-  --indigo-l: #3E63A0;
-  --r: 10px;
-}
-
-/* ---------- base rhythm ---------- */
-body{
-  color:var(--text);
-  letter-spacing:-.001em;
-}
-::selection{ background:rgba(196,42,28,.16); }
-
-/* thin, unobtrusive scrollbars everywhere */
-*{ scrollbar-width:thin; scrollbar-color:#D8D3C6 transparent; }
-*::-webkit-scrollbar{ width:9px; height:9px; }
-*::-webkit-scrollbar-track{ background:transparent; }
-*::-webkit-scrollbar-thumb{ background:#D8D3C6; border-radius:20px; border:2px solid var(--paper); background-clip:padding-box; }
-*::-webkit-scrollbar-thumb:hover{ background:#C7C0AF; }
-.tbl-wrap::-webkit-scrollbar-thumb, .modal *::-webkit-scrollbar-thumb{ border-color:#fff; }
-
-/* universal, tasteful motion — nothing over 200ms */
-button, .btn, .link, .nav button, .card, .stat, input, select, textarea,
-.chip, .tag, .pc26-kpi, .quick-card, tr, .status{
-  transition: background-color .15s var(--ease), border-color .15s var(--ease),
-              color .15s var(--ease), box-shadow .18s var(--ease),
-              transform .15s var(--ease), opacity .15s var(--ease);
-}
-@media (prefers-reduced-motion: reduce){
-  *{ transition-duration:.001ms !important; animation-duration:.001ms !important; }
-}
-
-/* ---------- sidebar ---------- */
-.rail{
-  background:linear-gradient(180deg,#171D27 0%,var(--ink) 60%);
-  box-shadow: 2px 0 24px rgba(0,0,0,.18);
-}
-.brand{ position:relative; }
-.brand b{ font-size:15.5px; }
-.brand .rule{ background:linear-gradient(90deg,var(--kumkum),var(--haldi)); width:30px; }
-.nav{ gap:2px; }
-.nav-section{ opacity:.85 }
-.nav button{
-  position:relative; border-radius:9px; font-size:12.8px;
-  padding:9px 11px 9px 14px;
-}
-.nav button::before{
-  content:""; position:absolute; left:0; top:50%; transform:translateY(-50%) scaleY(0);
-  width:3px; height:60%; border-radius:0 4px 4px 0; background:var(--kumkum);
-  transition: transform .18s var(--ease);
-}
-.nav button:hover{ background:#232B37; transform:translateX(1px); }
-.nav button.on{
-  background:#fff; color:var(--ink); font-weight:650;
-  box-shadow: 0 4px 14px rgba(0,0,0,.16);
-}
-.nav button.on::before{ transform:translateY(-50%) scaleY(1); background:var(--kumkum); }
-.nav button .pill{ font-weight:700; }
-.railfoot{ letter-spacing:.02em; }
-
-/* ---------- top bar ---------- */
-.top{
-  background:rgba(251,250,247,.86);
-  box-shadow: 0 1px 0 var(--line);
-}
-.top h1{ letter-spacing:-.015em; }
-
-/* ---------- buttons ---------- */
-button.btn{
-  font-weight:600; letter-spacing:.002em; position:relative;
-  box-shadow: var(--shadow-xs);
-}
-button.btn:hover{ transform:translateY(-1px); box-shadow:var(--shadow-sm); }
-button.btn:active{ transform:translateY(0); box-shadow:none; }
-button.btn.primary{
-  background:linear-gradient(180deg, var(--kumkum-l), var(--kumkum));
-  border-color:var(--kumkum-d);
-  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(196,42,28,.28);
-}
-button.btn.primary:hover{ box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px rgba(196,42,28,.34); }
-button.btn.ghost{ box-shadow:none; }
-button.btn.ghost:hover{ background:var(--wash); box-shadow:var(--shadow-xs); }
-button.btn:disabled:hover{ transform:none; box-shadow:none; }
-button.link{ border-radius:4px; }
-button.link:hover{ color:var(--indigo-l); text-decoration-thickness:1.5px; }
-
-/* ---------- cards & stats ---------- */
-.card{
-  border-radius:12px; box-shadow:var(--shadow-sm);
-  border-color:var(--line-2);
-}
-.card .hd{ border-bottom-color:var(--line-2); }
-.card .hd h2{ letter-spacing:-.005em; }
-.stat{
-  border-radius:12px; box-shadow:var(--shadow-sm); border-color:var(--line-2);
-  position:relative; overflow:hidden;
-}
-.stat::before{
-  content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:var(--line); transition:background .15s var(--ease);
-}
-.stat.alert::before{ background:var(--kumkum); }
-.stat:not(.alert)::before{ background:var(--leaf); opacity:.55; }
-.stat b{ font-size:22px; letter-spacing:-.02em; }
-.stat.alert b{ color:var(--kumkum-d); }
-button.stat:hover{ box-shadow:var(--shadow); transform:translateY(-1px); border-color:#D9D3C4; }
-
-/* KPI-style grids used across pc26/v27/v28/v29 screens */
-.pc26-kpi, .v27-kpi, .v28-kpi, .v29-kpi, .quick-card{
-  border-radius:12px !important; box-shadow:var(--shadow-sm) !important;
-}
-.pc26-kpi:hover, .v27-kpi:hover, .v28-kpi:hover, .v29-kpi:hover{ box-shadow:var(--shadow) !important; }
-
-/* ---------- inputs ---------- */
-input, select, textarea{
-  border-radius:8px; box-shadow: inset 0 1px 2px rgba(21,26,34,.03);
-}
-input:hover, select:hover, textarea:hover{ border-color:#CFC9BA; }
-input:focus, select:focus, textarea:focus{
-  border-color:var(--indigo); box-shadow: var(--ring);
-}
-.field label{ font-weight:600; letter-spacing:.01em; color:#7B766C; }
-
-/* checkboxes: keep native but give them a touch of intention */
-input[type=checkbox], input[type=radio]{
-  accent-color: var(--kumkum); width:14px; height:14px; cursor:pointer;
-}
-
-/* ---------- tables ---------- */
-.tbl-wrap{ border-radius:12px; box-shadow:var(--shadow-sm); border-color:var(--line-2); }
-th{
-  font-weight:700; letter-spacing:.03em; font-size:10.5px; text-transform:uppercase;
-  color:#8A8578; background:linear-gradient(180deg,#F6F3EC,var(--wash));
-}
-tbody tr{ position:relative; }
-tbody tr:hover td{ background:#FAF8F3; }
-tbody tr:hover{ box-shadow: inset 3px 0 0 var(--indigo); }
-tbody tr.sel td{ background:#FFF6EE; }
-tbody tr.sel{ box-shadow: inset 3px 0 0 var(--kumkum); }
-td.num, .num{ font-variant-numeric:tabular-nums; }
-
-/* ---------- chips / tags / badges ---------- */
-.chip{ font-weight:600; letter-spacing:.01em; }
-.tag{ border-radius:5px; font-weight:600; letter-spacing:.01em; }
-.status{ font-weight:700; letter-spacing:.02em; box-shadow: var(--shadow-xs); }
-.good{ color:#2E7D4F; } .bad{ color:var(--kumkum-d); }
-
-/* ---------- modal ---------- */
-.modal{
-  background:rgba(15,18,24,.56); backdrop-filter: blur(3px);
-  animation: pmFade .16s var(--ease);
-}
-.modal .box{
-  border-radius:14px; box-shadow:var(--shadow-lg);
-  animation: pmPop .2s var(--ease);
-}
-.modal .box .hd{ border-bottom-color:var(--line-2); padding:16px 18px; }
-.modal .box .hd h2{ letter-spacing:-.01em; }
-.modal .box .ft{ border-top-color:var(--line-2); background:#FCFBF8; border-radius:0 0 14px 14px; }
-@keyframes pmFade{ from{opacity:0} to{opacity:1} }
-@keyframes pmPop{ from{opacity:0; transform:translateY(6px) scale(.985)} to{opacity:1; transform:none} }
-
-/* ---------- toast ---------- */
-.toast{
-  border-radius:24px; box-shadow:var(--shadow-lg);
-  animation: pmToast .22s var(--ease);
-  font-weight:600; letter-spacing:.005em;
-}
-@keyframes pmToast{ from{opacity:0; transform:translate(-50%,8px)} to{opacity:1; transform:translate(-50%,0)} }
-
-/* ---------- empty states ---------- */
-.empty, .empty-mini{ }
-.empty b{ font-size:15.5px; letter-spacing:-.01em; }
-
-/* ---------- section titles used by later layers ---------- */
-.section-title{ position:relative; padding-left:2px; }
-
-/* ---------- misc: warn / private notes ---------- */
-.warn, .private-note{ border-radius:9px; box-shadow:var(--shadow-xs); }
-
-/* ---------- bulk bar ---------- */
-.bulk{ border-radius:12px; box-shadow:var(--shadow-lg); backdrop-filter: blur(6px); }
-
-/* ---------- focus visibility for keyboard users ---------- */
-button:focus-visible, .nav button:focus-visible, a:focus-visible{
-  outline:2px solid var(--indigo); outline-offset:2px;
-}
-
-/* ---------- print ---------- */
-@media print{
-  body{ background:#fff; }
-  .card,.stat,.tbl-wrap{ box-shadow:none !important; }
-}
-</style>
 <script id="pm-v39-backup-reminder-script">
 (()=>{
   const PM_VERSION_39 = '2.18 backup reminder — nudges to save a copy off the device';
@@ -5488,9 +5045,9 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   function piecesPerNativeUnit43(p){
     const native=String(p.priceUnit||'').trim().toLowerCase();
     if(['pc','pcs','piece','pieces'].includes(native)) return 1;       // a piece-priced product is already the base unit
-    if(p.uom && p.uom.perUnit) return +p.uom.perUnit;                 // manually confirmed/guessed value
     const master = uomFactorDirect43(p.id, p.priceUnit);
-    if(master) return master;                                         // structured UOM master entry
+    if(master) return +master;                                        // v2.79: structured UOM master is authoritative
+    if(p.uom && p.uom.perUnit) return +p.uom.perUnit;                 // legacy/guessed fallback only
     if(window.PriceManagerAPI && window.PriceManagerAPI.perPieceFactor){
       const heuristic = window.PriceManagerAPI.perPieceFactor(p);      // Dozen/Kg heuristic (rate multiplier)
       if(heuristic) return Math.round((1/heuristic)*100)/100;         // invert to "pieces per unit"
@@ -6070,7 +5627,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   }
 
   function viewCore45(v,t,sub,act){
-    t.textContent='Price & Stock Manager';sub.textContent='Supplier rate → net costing → customer price books → controlled access';act.innerHTML='';
+    t.textContent='CA Command Center';sub.textContent='Supplier rate → net costing → customer price books → controlled access';act.innerHTML='';
     v.innerHTML=`
       <div class="card"><div class="bd">
         <div class="section-title">Your core workflow</div>
@@ -6171,7 +5728,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   renderNav=function(){oldRenderNav45(); if(!ui.viewerSession) coreNav45();};
   render=function(){
     if(page==='core45'||page==='access45'){
-      renderNav();$('#brandName').textContent=S.settings.firm||'Price & Stock Manager';const bs=document.querySelector('.brand span');if(bs)bs.textContent='costing · price books · stock · access';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='core45')viewCore45(v,t,sub,act);else viewAccess45(v,t,sub,act);return;
+      renderNav();$('#brandName').textContent='CA';const bs=document.querySelector('.brand span');if(bs)bs.textContent='costing · price books · stock · access';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';if(page==='core45')viewCore45(v,t,sub,act);else viewAccess45(v,t,sub,act);return;
     }
     const out=oldRender45(); if(!ui.viewerSession) coreNav45();
     const bs=document.querySelector('.brand span');if(bs)bs.textContent='costing · price books · stock · access';
@@ -6345,7 +5902,7 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
   function nav230(){const nav=$('#nav');if(!nav)return;const items=[['supplier230','Supplier & Costing'],['pricing230','Price Lists'],['stock230','Purchase & Inventory'],['access45','Users & Access'],['catalog230','Catalogs']];nav.innerHTML=`<button data-nav="core45" class="${page==='core45'?'on':''}"><span>Home</span></button>`+items.map(([id,l])=>`<button data-nav="${id}" class="${page===id?'on':''}"><span>${l}</span></button>`).join('')+`<div class="nav-section">Other</div><button data-nav="set" class="${page==='set'?'on':''}"><span>Settings</span></button><button id="viewerLoginLink44"><span>Viewer login</span></button>`;const vl=nav.querySelector('#viewerLoginLink44');if(vl)vl.onclick=window.viewerLoginPrompt44}
   renderNav=nav230;
   function hub(v,t,sub,act,kind){const cards={supplier230:[['import','Import supplier price list','PDF/CSV supplier lists and product master.'],['cost','Purchase costing','Net purchase cost, discount, freight and overrides.'],['disc','Discount rules','Category/product/customer discount rules.']],pricing230:[['list','Create / update Price List','Customer final rates, UOM, exceptions and Rate on Request.'],['access45','Saved Price Books','Assign published Price Books to restricted users.']],stock230:[['purchase','Purchase bill / inward','Excel/CSV bills, landed cost and stock inward.'],['inv','Inventory','Stock, product master, units and current rates.']],catalog230:[['access45','Product catalog library','Upload category-wise PDF catalogs and assign users.']]};t.textContent={supplier230:'Supplier & Costing',pricing230:'Price Lists',stock230:'Purchase & Inventory',catalog230:'Catalogs'}[kind];sub.textContent='Focused tools only';act.innerHTML='';const extra=kind==='pricing230'?`<div class="card" style="margin-top:14px"><div class="hd"><h2>Price Book control</h2><div class="spacer"></div><button class="btn ghost sm" id="RT230manage">Rate templates</button><button class="btn ghost sm" id="BR230manage">PDF branding</button></div><div class="tbl-wrap"><table><thead><tr><th>Price Book</th><th>Version</th><th>Current / scheduled</th><th>Last change</th><th class="r">Action</th></tr></thead><tbody>${S.priceBooks.map(pb=>`<tr><td><b>${esc(pb.name)}</b><div class="metric-sub">${esc(pb.category||'Other')}</div></td><td>v${pb.version230||1}</td><td>${pb.scheduled230?`Current + scheduled ${esc(fmtD(pb.scheduled230.effectiveDate))}`:`Effective ${esc(fmtD(pb.effectiveFrom230))}`}</td><td>${pb.lastChange230?`${pb.lastChange230.changed||0} changed · ${pb.lastChange230.added||0} new · ${pb.lastChange230.removed||0} removed`:'—'}</td><td class="r"><button class="link" data-load230="${pb.id}">open</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty-mini">No Price Book yet.</td></tr>'}</tbody></table></div></div>`:'';v.innerHTML=`<div class="core45-grid">${(cards[kind]||[]).map(([id,a,b])=>`<button class="core45-card" data-nav="${id}"><b>${a}</b><span>${b}</span></button>`).join('')}</div>${extra}`;v.querySelector('#RT230manage')?.addEventListener('click',templateDialog);v.querySelector('#BR230manage')?.addEventListener('click',brandingDialog);v.querySelectorAll('[data-load230]').forEach(b=>b.onclick=()=>window.loadPriceBook44(b.dataset.load230))}
-  render=function(){promoteDue();if(['supplier230','pricing230','stock230','catalog230'].includes(page)){renderNav();$('#brandName').textContent=S.settings.firm||'Price & Stock Manager';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');hub(v,t,sub,act,page);return}const out=renderBefore230();setTimeout(()=>{renderNav();if(page==='core45'){const v=$('#view');if(v){const cards=v.querySelector('.core45-grid');if(cards)cards.innerHTML=`<button class="core45-card" data-nav="supplier230"><b>Supplier & Costing</b><span>Supplier lists, net costing and discount rules.</span></button><button class="core45-card" data-nav="pricing230"><b>Price Lists</b><span>Templates, schedules, publish preview, UOM and customer rates.</span></button><button class="core45-card" data-nav="stock230"><b>Purchase & Inventory</b><span>Purchase bills, stock inward and inventory control.</span></button><button class="core45-card" data-nav="access45"><b>Users & Access</b><span>Sales/customer logins, expiry, announcements and activity.</span></button><button class="core45-card" data-nav="catalog230"><b>Catalogs</b><span>Category-wise PDF product catalog library.</span></button>`}}},0);return out};
+  render=function(){promoteDue();if(['supplier230','pricing230','stock230','catalog230'].includes(page)){renderNav();$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');hub(v,t,sub,act,page);return}const out=renderBefore230();setTimeout(()=>{renderNav();if(page==='core45'){const v=$('#view');if(v){const cards=v.querySelector('.core45-grid');if(cards)cards.innerHTML=`<button class="core45-card" data-nav="supplier230"><b>Supplier & Costing</b><span>Supplier lists, net costing and discount rules.</span></button><button class="core45-card" data-nav="pricing230"><b>Price Lists</b><span>Templates, schedules, publish preview, UOM and customer rates.</span></button><button class="core45-card" data-nav="stock230"><b>Purchase & Inventory</b><span>Purchase bills, stock inward and inventory control.</span></button><button class="core45-card" data-nav="access45"><b>Users & Access</b><span>Sales/customer logins, expiry, announcements and activity.</span></button><button class="core45-card" data-nav="catalog230"><b>Catalogs</b><span>Category-wise PDF product catalog library.</span></button>`}}},0);return out};
 
   // Hub and schedule actions.
   document.addEventListener('click',e=>{const l=e.target.closest('[data-load230]');if(l){e.preventDefault();window.loadPriceBook44(l.dataset.load230)}},true);
@@ -6532,110 +6089,7 @@ Amit, 5566,"></textarea>
   window.PriceManagerAPI = {...(window.PriceManagerAPI||{}), version: PM_VERSION_231};
 })();
 </script>
-<style id="pm-v232-viewer-polish">
-/* ============================================================
-   Design polish pass — covers screens added after the original
-   premium-design layer: the 5-section owner hubs, the Home
-   screen, and (most importantly) the customer/sales-facing
-   restricted viewer. Pure CSS, no behaviour changes.
-   ============================================================ */
 
-/* ---------- constrain wide-screen hub/home content so it doesn't float in empty space ---------- */
-#view{ }
-.core45-grid{ max-width: 1080px; }
-#view > .core45-grid, #view > .private-note, #view > .core45-flow{ max-width:1080px; }
-
-/* ---------- Home screen workflow steps: give the numbers real visual weight ---------- */
-.core45-flow{ counter-reset: pmstep; }
-.core45-step{
-  position:relative; padding-top:34px; counter-increment: pmstep;
-  transition: box-shadow .18s ease, transform .18s ease;
-}
-.core45-step:hover{ box-shadow:var(--shadow-sm); transform:translateY(-1px); }
-.core45-step::before{
-  content: counter(pmstep);
-  position:absolute; top:11px; left:11px;
-  width:20px; height:20px; border-radius:50%;
-  background:linear-gradient(180deg, var(--kumkum-l,#E8523C), var(--kumkum));
-  color:#fff; font-size:11px; font-weight:800;
-  display:flex; align-items:center; justify-content:center;
-  box-shadow:0 2px 6px rgba(196,42,28,.35);
-}
-.core45-step b{ display:block; font-size:12.5px; }
-
-/* ---------- hub / home cards: consistent with the premium card language ---------- */
-.core45-card{ transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
-.core45-card:hover{ box-shadow:var(--shadow); transform:translateY(-2px); border-color:#D9D3C4; }
-.core45-card b{ letter-spacing:-.005em; }
-
-/* ---------- role pill on the users table ---------- */
-.role45{ font-weight:700; }
-
-/* ================= restricted viewer (cv47) — the screen customers/sales actually use ================= */
-#cloudViewer46{ }
-#cloudViewer46 .cv47-wrap{ }
-#cloudViewer46 .cv47-head{
-  background:linear-gradient(180deg, #fff, #FBFAF7);
-  margin:-20px -14px 18px; padding:22px 18px 16px;
-  border-bottom:1px solid var(--line-2); border-radius:0 0 16px 16px;
-  box-shadow:0 2px 10px rgba(35,31,25,.03);
-}
-#cloudViewer46 .cv47-head b{ font-size:19px; letter-spacing:-.01em; }
-#cloudViewer46 .cv47-switch .card{ transition: box-shadow .18s ease; }
-#cloudViewer46 .cv47-switch .card:hover{ box-shadow:var(--shadow-sm); }
-#cloudViewer46 .cv47-search{ backdrop-filter: blur(6px); background:rgba(246,242,233,.92); }
-#cloudViewer46 .cv47-searchbox input,
-#cloudViewer46 .cv47-searchbox select{ box-shadow:var(--shadow-xs); }
-#cloudViewer46 .cv47-searchbox input:focus{ box-shadow:var(--ring); }
-
-/* result rows: lift them into real cards with a rate-forward layout */
-#cloudViewer46 .cv47-results > div{
-  background:#fff; border:1px solid var(--line-2); border-radius:12px;
-  padding:12px 14px; box-shadow:var(--shadow-xs);
-  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
-}
-#cloudViewer46 .cv47-results > div:hover{
-  box-shadow:var(--shadow-sm); transform:translateY(-1px); border-color:#D9D3C4;
-}
-#cloudViewer46 .cv47-rate{ color:var(--kumkum-d); }
-#cloudViewer46 .cv47-star{ transition: transform .15s ease; }
-#cloudViewer46 .cv47-star:hover{ transform:scale(1.2); }
-
-/* price-book / catalog cards at the bottom */
-#cloudViewer46 #cv47priceSection .card,
-#cloudViewer46 #cv47catalogSection .card{
-  transition: box-shadow .18s ease, transform .18s ease; border-color:var(--line-2);
-}
-#cloudViewer46 #cv47priceSection .card:hover,
-#cloudViewer46 #cv47catalogSection .card:hover{
-  box-shadow:var(--shadow); transform:translateY(-2px);
-}
-#cloudViewer46 #cv47priceSection .card b,
-#cloudViewer46 #cv47catalogSection .card b{ font-size:15px; }
-
-/* notice / announcement banners: a touch more presence */
-#cloudViewer46 .cv47-notice,.cv47-announce{ box-shadow:var(--shadow-xs); }
-#cloudViewer46 .cv47-notice{ background:linear-gradient(180deg,#FFFBEF,#FFF8DC); }
-#cloudViewer46 .cv47-announce{ background:linear-gradient(180deg,#F6F9FF,#F3F7FF); }
-
-/* buttons inside the viewer: match the app-wide premium button styling */
-#cloudViewer46 .btn.primary{
-  background:linear-gradient(180deg, var(--kumkum-l,#E8523C), var(--kumkum));
-  box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 4px 14px rgba(196,42,28,.24);
-}
-#cloudViewer46 .btn{ transition: box-shadow .15s ease, transform .15s ease; }
-#cloudViewer46 .btn:hover{ transform:translateY(-1px); }
-
-/* ---------- preview banner refinement (from v231) ---------- */
-#preview231Banner{
-  box-shadow:0 2px 10px rgba(0,0,0,.15);
-  background:linear-gradient(180deg,#4a3c1f,#3a2f18) !important;
-}
-
-@media (max-width:700px){
-  #cloudViewer46 .cv47-head{ margin:-16px -14px 14px; padding:18px 14px 14px; }
-}
-</style>
 <script id="pm-v233-order-and-language">
 (()=>{
   const PM_VERSION_233 = '2.76 private cart + locked order price context + smart viewer search';
@@ -6868,9 +6322,11 @@ Amit, 5566,"></textarea>
     const profileSnap = await session.db.collection('accessProfiles').doc(session.uid).get();
     const profile = profileSnap.exists ? profileSnap.data() : null;
     if(!profile || !profile.ownerUid) return null;
+    // Equality-only query avoids requiring a custom composite Firestore index on every deployment.
     const snap = await session.db.collection('orderRequests').doc(profile.ownerUid).collection('items')
-      .where('viewerUid', '==', session.uid).orderBy('createdAt', 'desc').limit(30).get();
-    return snap.docs.map(d => ({id: d.id, ...d.data()}));
+      .where('viewerUid', '==', session.uid).get();
+    const ts=o=>{const v=o?.createdAt;try{return typeof v==='number'?v:(v?.toMillis?.()||0)}catch(e){return 0}};
+    return snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b)=>ts(b)-ts(a)).slice(0,30);
   }
   window.cancelMyOrder233 = async function(orderId){
     if(!confirm('Cancel this order request? The owner will see that you cancelled it.')) return;
@@ -6886,6 +6342,28 @@ Amit, 5566,"></textarea>
     }catch(e){ toast('Could not cancel: ' + (e.message||'')); }
   };
 
+  function activePayloadBook279(b){
+    if(!b)return null;const sc=b.scheduled,at=sc?.effectiveDate?new Date(sc.effectiveDate+'T00:00:00').getTime():0;
+    if(sc&&at&&at<=Date.now())return {...b,items:sc.items||b.items||[],name:b.name,category:b.category,audience270:b.audience270};
+    return b;
+  }
+  function currentReorderItem279(order,oldItem){
+    const session=window.getCloudSession233?.(),payload=session?.payload||{},book=activePayloadBook279((payload.priceBooks||[]).find(b=>String(b.id)===String(order.priceBookId)));
+    if(!book)return null;const it=(book.items||[]).find(x=>String(x.id||'')===String(oldItem.productId||'') || (x.code&&oldItem.code&&String(x.code).trim().toUpperCase()===String(oldItem.code).trim().toUpperCase()));
+    if(!it)return null;const u=String(oldItem.uom||it.defaultUom||''),rr=(it.uomRates||[]).find(x=>String(x.u||'').trim().toLowerCase()===u.trim().toLowerCase());
+    if(!it.rateOnRequest&&!rr)return null;const rate=it.rateOnRequest?null:Number(rr.r),cur=payload.currency||'₹';
+    return {book,it,uom:u,rate,rateOnRequest:!!it.rateOnRequest,rateText:it.rateOnRequest?'Rate on request':cur+Number(rate).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+u};
+  }
+  function orderPrimary279(p,it){
+    const qty=Number(it?.qty)||0,unit=String(it?.uom||p?.priceUnit||'').trim(),native=String(p?.priceUnit||'').trim();
+    let nf=null,tf=null;try{nf=+window.piecesPerNativeUnit43?.(p)}catch(e){}
+    if(!(nf>0))nf=['pc','pcs','piece','pieces'].includes(native.toLowerCase())?1:null;
+    if(unit.toLowerCase()===native.toLowerCase())tf=nf;else if(['pc','pcs','piece','pieces'].includes(unit.toLowerCase()))tf=1;else{const r=(S.uomMaster||[]).find(x=>x.productId===p.id&&String(x.unit||'').trim().toLowerCase()===unit.toLowerCase());if(r&&+r.pcsPerUnit>0)tf=+r.pcsPerUnit}
+    const ratio=(nf>0&&tf>0)?tf/nf:1,primaryQty=Math.round(qty*ratio*10000)/10000;
+    const raw=it?.rate==null?null:Number(it.rate),primaryRate=(raw!=null&&Number.isFinite(raw)&&ratio>0)?Math.round(raw/ratio*10000)/10000:null;
+    return {qty:primaryQty,rate:primaryRate,ratio,converted:Math.abs(ratio-1)>1e-9,unit,native:native||'Unit'};
+  }
+
   window.openMyOrders233 = async function(){
     const m = document.createElement('div'); m.className = 'modal'; m.style.zIndex = '200010';
     m.innerHTML = `<div class="box" style="max-width:600px"><div class="hd"><h2 style="margin:0">My orders</h2></div><div class="bd"><div class="note">Loading…</div></div><div class="ft"><button class="btn ghost" data-x="close">Close</button></div></div>`;
@@ -6897,19 +6375,24 @@ Amit, 5566,"></textarea>
         const order = window.__myOrders233Cache?.find(o => o.id === rb.dataset.reorder233);
         if(!order) return;
         let cart = loadCart233();
-        const ctx={rateMode:String(order.rateMode||''),bookId:String(order.priceBookId||''),bookName:String(order.priceBookName||'')};
+        const session=window.getCloudSession233?.(),liveBook=activePayloadBook279((session?.payload?.priceBooks||[]).find(b=>String(b.id)===String(order.priceBookId)));
+        if(!liveBook)return toast('Reorder unavailable — this Price List is no longer assigned. Search the current list instead.');
+        const ctx={rateMode:inferOrderMode233(liveBook),bookId:String(liveBook.id||''),bookName:String(liveBook.name||'')};
         if(cart.length&&!sameOrderContext233(cartContext233(cart),ctx)){ if(!window.guardOrderContext275(ctx))return; cart=loadCart233(); }
-        let added = 0;
-        (Array.isArray(order.items)?order.items:[]).forEach(it => {
-          const existing = cart.find(c => c.productId === it.productId && c.uom === it.uom && String(c.bookId||'')===ctx.bookId && String(c.rateMode||'')===ctx.rateMode);
-          if(existing) existing.qty += Number(it.qty)||0;
-          else cart.push({productId: it.productId, code: it.code, name: it.name, uom: it.uom, qty: Number(it.qty)||1, rate: it.rate ?? null, rateOnRequest: !!it.rateOnRequest, rateText: it.rateText, bookId:ctx.bookId, bookName:ctx.bookName, rateMode:ctx.rateMode});
+        let added = 0, skipped = 0;
+        (Array.isArray(order.items)?order.items:[]).forEach(oldIt => {
+          const cur=currentReorderItem279(order,oldIt);if(!cur){skipped++;return}
+          const liveCtx={rateMode:inferOrderMode233(cur.book),bookId:String(cur.book.id||''),bookName:String(cur.book.name||'')};
+          const existing = cart.find(c => c.productId === cur.it.id && String(c.uom||'').toLowerCase()===String(cur.uom||'').toLowerCase() && String(c.bookId||'')===liveCtx.bookId && String(c.rateMode||'')===liveCtx.rateMode);
+          if(existing){ existing.qty += Number(oldIt.qty)||0; existing.rate=cur.rate; existing.rateOnRequest=cur.rateOnRequest; existing.rateText=cur.rateText; }
+          else cart.push({productId: cur.it.id, code: cur.it.code, name: cur.it.name, uom: cur.uom, qty: Number(oldIt.qty)||1, rate: cur.rate, rateOnRequest: cur.rateOnRequest, rateText: cur.rateText, bookId:liveCtx.bookId, bookName:liveCtx.bookName, rateMode:liveCtx.rateMode});
           added++;
         });
+        if(!added)return toast('Reorder unavailable — this Price List/product UOM is no longer assigned. Search the current list instead.');
         saveCart233(cart);
         updateCartBar233();
         m.remove();
-        toast(added + ' product(s) added back to your order');
+        toast(added + ' product(s) re-added at current rates' + (skipped?' · '+skipped+' unavailable item(s) skipped':''));
         return;
       }
       const cb = e.target.closest('[data-cancel233]');
@@ -6955,10 +6438,10 @@ Amit, 5566,"></textarea>
     const rawOrderItems233=Array.isArray(order.items)?order.items:[],orderItems233=rawOrderItems233.filter(it=>it&&typeof it==='object'&&String(it.productId||it.code||'').trim()&&Number.isFinite(+it.qty)&&+it.qty>0&&+it.qty<=100000).map(it=>({...it,qty:+it.qty})),invalidOrderItems233=rawOrderItems233.length-orderItems233.length;
     const rows = orderItems233.map(it => {
       const p = S.products.find(x => x.id === it.productId);
-      const stock = p ? (+p.stock || 0) : null;
-      const short = stock != null && stock < it.qty;
+      const stock = p ? (+p.stock || 0) : null,conv=p?orderPrimary279(p,it):null;
+      const need = conv?conv.qty:it.qty,short = stock != null && stock < need;
       return `<tr>
-        <td><b>${esc(it.code)}</b> · ${esc(it.name)}${short?` <span class="tag" style="background:#FDECEC;color:var(--kumkum-d,#8f1f14)">⚠ only ${stock} in stock</span>`:''}${p?'':' <span class="metric-sub">(product no longer in inventory)</span>'}</td>
+        <td><b>${esc(it.code)}</b> · ${esc(it.name)}${short?` <span class="tag" style="background:#FDECEC;color:var(--kumkum-d,#8f1f14)">⚠ only ${stock} ${esc(p?.priceUnit||'units')} in stock</span>`:''}${p?'':' <span class="metric-sub">(product no longer in inventory)</span>'}${p&&conv?.converted?`<div class="metric-sub">Stock equivalent: ${conv.qty} ${esc(conv.native)}</div>`:''}</td>
         <td>${it.qty}</td><td>${esc(it.uom||'')}</td><td>${esc(it.rateText||'')}</td>
       </tr>`;
     }).join('');
@@ -7004,17 +6487,20 @@ Amit, 5566,"></textarea>
           party = {id: uid(), name: order.viewerName||'New party', city:'', phone:'', type:'Retailer', createdAt: Date.now(), credit:30};
           S.parties.push(party);
         }
-        const items = [], missing = [];
+        const items = [], missing = [], conversions=[];
         (order.items||[]).forEach(it => {
           const p = S.products.find(x => x.id === it.productId) || (typeof findByCode==='function' ? findByCode(it.code) : null);
-          if(p) items.push({id: p.id, qty: it.qty});
-          else missing.push(it.code);
+          if(p){
+            const cv=orderPrimary279(p,it),qi={id:p.id,qty:cv.qty,sourceOrderUom233:it.uom,sourceOrderQty233:it.qty};
+            if(it.rate!=null&&!it.rateOnRequest&&Number.isFinite(cv.rate)){qi.rateOverride=cv.rate;qi.rateSource26='manual';qi.sourceOrderRate233=it.rate}
+            items.push(qi);if(cv.converted)conversions.push(`${it.code}: ${it.qty} ${it.uom} = ${cv.qty} ${p.priceUnit||'Unit'}`);
+          } else missing.push(it.code);
         });
         if(!items.length) return toast('None of the products in this order exist in inventory anymore');
         ui.quote = ui.quote || {};
         ui.quote.party = party.id;
         ui.quote.items = items;
-        ui.quote.note = [order.priceBookName?('Order context: '+String(order.rateMode||'').toUpperCase()+' · '+order.priceBookName):'', order.note||''].filter(Boolean).join('\n');
+        ui.quote.note = [order.priceBookName?('Order context: '+String(order.rateMode||'').toUpperCase()+' · '+order.priceBookName):'', conversions.length?('UOM conversion: '+conversions.join(' · ')):'', order.note||''].filter(Boolean).join('\n');
         try{
           const a = window.PMFirebase41;
           if(a && a.isConnected()) await a.db.collection('orderRequests').doc(a.auth.currentUser.uid).collection('items').doc(order.id).update({status:'converted'});
@@ -7031,8 +6517,8 @@ Amit, 5566,"></textarea>
   let newOrderCount233 = 0;
   function hasStockShortage233(order){
     return (order.items||[]).some(it => {
-      const p = S.products.find(x => x.id === it.productId);
-      return p && (+p.stock || 0) < it.qty;
+      const p = S.products.find(x => x.id === it.productId);if(!p)return false;
+      return (+p.stock || 0) < orderPrimary279(p,it).qty;
     });
   }
   window.downloadOrderHistory233 = async function(){
@@ -7508,7 +6994,7 @@ Amit, 5566,"></textarea>
       return;
     }
     ensureOwnerCreds238();
-    const brandName = (typeof S !== 'undefined' && S.settings && (S.settings.firmName||S.settings.firm)) || 'Price & Stock Manager';
+    const brandName = 'CA';
     const el = document.createElement('div');
     el.id = 'entryGate238';
     el.style.cssText = 'position:fixed;inset:0;z-index:300000;background:var(--bg,#F3EEE3);display:flex;align-items:center;justify-content:center;padding:20px';
@@ -7530,7 +7016,7 @@ Amit, 5566,"></textarea>
     function renderNormal(){
       const blocked = blockedRemaining238(), ownerReady=ownerConfigured238();
       el.innerHTML = `<div style="width:100%;max-width:390px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
-        <div style="font-weight:850;font-size:18px;letter-spacing:-.02em;margin-bottom:4px;text-align:center">${esc(brandName)}</div>
+        <div class="ca-entry-brand"><img src="ca-logo.png" alt="CA"><b>${esc(brandName)}</b></div>
         <div class="note" style="margin-bottom:20px;text-align:center">${ownerReady?'Sign in to continue':'Sales / Customer login'}</div>
         <div class="field"><label>Username</label><input id="eg238_user" autocomplete="username" ${blocked?'disabled':''}></div>
         <div class="field" style="margin-top:10px"><label>PIN</label><input id="eg238_pin" type="password" autocomplete="current-password" ${blocked?'disabled':''}></div>
@@ -7590,7 +7076,7 @@ Amit, 5566,"></textarea>
 
     function renderOwnerCloudVerify238(){
       el.innerHTML = `<div style="width:100%;max-width:410px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
-        <div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:4px">Existing Owner login</div>
+        <div class="ca-entry-brand"><img src="ca-logo.png" alt="CA"><b>CA</b></div><div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:4px">Existing Owner login</div>
         <div class="note" style="text-align:center;margin-bottom:18px">New Owner registration is disabled. Sign in only with the Firebase account already recorded as this project's Owner. On a new Owner device, the existing Owner profile is restored from the Owner cloud backup.</div>
         <div class="field"><label>Owner Firebase email</label><input id="eg238_oe" type="email" autocomplete="username"></div>
         <div class="field" style="margin-top:10px"><label>Firebase password</label><input id="eg238_op" type="password" autocomplete="current-password"></div>
@@ -8171,18 +7657,7 @@ Amit, 5566,"></textarea>
 })();
 </script>
 
-<style id="pm-v263-responsive-accessibility">
-@media(max-width:900px){
-  .tbl-wrap,.pc26-table-wrap,.pi-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .cost-table th:nth-child(5),.cost-table td:nth-child(5),.cost-table th:nth-child(6),.cost-table td:nth-child(6),
-  .private-cost-table th:nth-child(5),.private-cost-table td:nth-child(5),.private-cost-table th:nth-child(6),.private-cost-table td:nth-child(6),.private-cost-table th:nth-child(8),.private-cost-table td:nth-child(8),
-  .pi-table th:nth-child(6),.pi-table td:nth-child(6),.pi-table th:nth-child(7),.pi-table td:nth-child(7),.pi-table th:nth-child(9),.pi-table td:nth-child(9),.pi-table th:nth-child(10),.pi-table td:nth-child(10),
-  .pc26-table th:nth-child(5),.pc26-table td:nth-child(5),.pc26-table th:nth-child(6),.pc26-table td:nth-child(6),.pc26-table th:nth-child(7),.pc26-table td:nth-child(7),
-  .v28-table th:nth-child(6),.v28-table td:nth-child(6),.v28-table th:nth-child(8),.v28-table td:nth-child(8),.v28-table th:nth-child(9),.v28-table td:nth-child(9),
-  .v29-table th:nth-child(6),.v29-table td:nth-child(6),.v29-table th:nth-child(8),.v29-table td:nth-child(8){display:table-cell!important}
-  button.link{min-height:44px;padding:8px 7px}
-}
-</style>
+
 
 <script id="pm-v263-integrity-security-fixes">
 (()=>{
@@ -8354,11 +7829,7 @@ Amit, 5566,"></textarea>
 })();
 </script>
 
-<style id="pm-v265-style">
-/* v2.65 Stability + Speed + Automation + Premium access UI */
-.access265>.tbl-wrap{overflow:visible;max-height:none}.a265-user{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.a265-status{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.02em;border:1px solid transparent}.a265-status.ready{background:#edf7f0;color:#2f6a45;border-color:#cfe8d6}.a265-status.pending,.a265-status.syncing{background:#fff7e5;color:#8a5a00;border-color:#edd9a3}.a265-status.failed,.a265-status.disabled{background:#fff0ee;color:#a52a1c;border-color:#f0c9c4}.a265-clamp{max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.a265-actions{position:relative}.a265-menu{display:inline-block;position:relative}.a265-menu>summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:5px 10px;font-weight:800;user-select:none;background:#fff}.a265-menu>summary::-webkit-details-marker{display:none}.a265-menu-pop{position:absolute;right:0;top:calc(100% + 5px);z-index:50;min-width:185px;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:5px;text-align:left}.a265-menu-pop button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:8px 9px;border-radius:7px;font:inherit;color:inherit;cursor:pointer}.a265-menu-pop button:hover{background:var(--wash,#f6f2e9)}.a265-menu-pop .bad{color:var(--danger,#a52a1c)}.a265-progress{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,260px);gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--wash,#faf7ef)}.a265-progress b,.a265-progress span{display:block}.a265-progress span{font-size:11px;color:var(--muted);margin-top:2px}.a265-progress progress{width:100%}.health265{border-left:4px solid #2f6a45}.health265.warn{border-left-color:#b67a00}.health265.bad{border-left-color:#a52a1c}.health265-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin-top:10px}.health265-mini{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff}.health265-mini b{display:block;font-size:17px}.rec265-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
-@media(max-width:800px){.access265 .tbl-wrap{overflow:visible}.access265-table,.access265-table tbody,.access265-table tr,.access265-table td{display:block;width:100%}.access265-table thead{display:none}.access265-table tr{border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin:9px;background:#fff}.access265-table td{border:0!important;padding:5px 0!important;text-align:left!important}.access265-table td[data-label]:before{content:attr(data-label);display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:2px}.a265-menu{width:100%}.a265-menu>summary{text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center}.a265-menu-pop{left:0;right:auto;width:min(280px,85vw)}.a265-clamp{max-width:100%;white-space:normal}.a265-progress{grid-template-columns:1fr}}
-</style>
+
 <script id="pm-v265-stability-speed-automation-ui">
 (()=>{
   const PM_VERSION_265='2.65 A+B+C+E Stability · Speed · Automation · Premium UI';
@@ -8473,25 +7944,7 @@ Amit, 5566,"></textarea>
 </script>
 
 
-<style id="pm-v266-ui">
-/* v2.67 stabilization + practical premium UX */
-:root{--shadow-soft:0 10px 28px rgba(40,34,22,.07)}
-.card{box-shadow:var(--shadow-soft)}
-#topActions{gap:7px;flex-wrap:wrap}
-.btn,.button,button{touch-action:manipulation}
-.a266-attention{border:1px solid var(--line);background:linear-gradient(180deg,#fff,#fcfaf5);border-radius:14px;padding:13px 14px;margin-bottom:14px;box-shadow:var(--shadow-soft)}
-.a266-attention-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.a266-attention-hd h2{margin:0;font-size:15px}.a266-attention-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}.a266-attn{border:1px solid var(--line);border-radius:11px;background:#fff;padding:10px 11px;text-align:left;cursor:pointer}.a266-attn b{display:block;font-size:18px}.a266-attn span{font-size:11px;color:var(--muted)}.a266-attn.good{cursor:default;background:#f7fbf8}
-.a266-access-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line-2);background:#fcfbf8}.a266-access-tools input{min-width:220px;flex:1}.a266-filter{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800;cursor:pointer}.a266-filter.on{background:var(--wash,#f5f0e5);border-color:#b9aa8b}.a266-filter b{margin-left:4px}
-.a266-cloud-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-top:10px}.a266-cloud-mini{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 10px}.a266-cloud-mini b{display:block;font-size:17px}.a266-cloud-mini span{font-size:10.5px;color:var(--muted)}
-.a266-health-table button{white-space:nowrap}.a266-issue-list{max-height:55vh;overflow:auto}.a266-issue-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)}
-.a266-palette{position:fixed;inset:0;z-index:130;background:rgba(20,23,28,.42);display:flex;justify-content:center;align-items:flex-start;padding:10vh 14px}.a266-palette-box{width:min(720px,100%);background:#fff;border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.25);overflow:hidden}.a266-palette-box input{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:16px 18px;font-size:17px;outline:0}.a266-palette-results{max-height:58vh;overflow:auto;padding:7px}.a266-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;width:100%;border:0;background:transparent;text-align:left;padding:10px 11px;border-radius:9px;cursor:pointer;color:inherit}.a266-search-row:hover,.a266-search-row:focus{background:var(--wash,#f6f2e9);outline:none}.a266-search-row small{display:block;color:var(--muted);margin-top:2px}.a266-kind{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted);align-self:center}.a266-empty{padding:22px;text-align:center;color:var(--muted)}
-.a266-secure-erase{border-color:#e6bbb5!important;background:#fff8f6!important}.a266-secure-erase .bad{font-weight:800}
-.a266-menu-open{z-index:90}
-.a266-status-icon::before{content:'●';font-size:8px;margin-right:5px}
-.a265-status.ready::before{content:'✓';margin-right:4px}.a265-status.pending::before{content:'◷';margin-right:4px}.a265-status.syncing::before{content:'↻';margin-right:4px}.a265-status.failed::before{content:'!';margin-right:4px}.a265-status.disabled::before{content:'×';margin-right:4px}
-@media(max-width:1024px){.access265 .tbl-wrap{overflow:visible}.access265-table,.access265-table tbody,.access265-table tr,.access265-table td{display:block;width:100%}.access265-table thead{display:none}.access265-table tr{border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin:9px 0;background:#fff}.access265-table td{border:0!important;padding:5px 0!important;text-align:left!important}.access265-table td[data-label]:before{content:attr(data-label);display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:2px}.a265-actions{margin-top:4px}.a265-menu{width:100%}.a265-menu>summary{min-height:42px;display:flex;align-items:center;justify-content:center}.a265-menu-pop{left:0;right:auto;width:min(320px,88vw)}.a266-access-tools input{min-width:100%}}
-@media(max-width:640px){.a266-attention-grid{grid-template-columns:1fr 1fr}.a266-cloud-grid{grid-template-columns:1fr 1fr}.a266-palette{padding:5vh 8px}.a266-access-tools{align-items:stretch}.a266-filter{flex:1}.modal{padding:18px 8px}.modal .box{border-radius:14px}.btn,.button{min-height:40px}}
-</style>
+
 <script id="pm-v266-stability-ui">
 (()=>{
   const PM_VERSION_266='2.67 Stabilization · Security · Sync Correctness';
@@ -8619,22 +8072,7 @@ Amit, 5566,"></textarea>
 </script>
 
 
-<style id="pm-v268-style">
-/* v2.68 refinement: inventory cards, product tabs, command center, update banner, modal accessibility */
-.p268-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;border-bottom:1px solid var(--line-2);background:var(--wash,#faf7ef)}
-.p268-tab{border:0;background:transparent;padding:9px 12px;border-radius:9px 9px 0 0;font-weight:800;color:var(--muted);cursor:pointer}.p268-tab.on{background:#fff;color:var(--ink);box-shadow:0 -1px 0 var(--line),1px 0 0 var(--line),-1px 0 0 var(--line)}
-.p268-panel{display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.p268-panel.on{display:grid}.p268-panel .field{margin:0}.p268-panel .p268-wide{grid-column:1/-1}.p268-unsaved{font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;background:#fff4dd;color:#8a5a00;border:1px solid #ead39a}
-.modal[data-product-editor="1"] .ft{position:sticky;bottom:0;background:#fff;z-index:4;border-top:1px solid var(--line);box-shadow:0 -8px 18px rgba(20,20,20,.04)}
-.a268-command-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.a268-command-head>span{font-size:10px;color:var(--muted);white-space:nowrap}.a268-cmd-group{border-top:1px solid var(--line-2)}.a268-cmd-title{display:flex;justify-content:space-between;padding:7px 10px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:800;color:var(--muted)}.a268-cmd-title span{font-variant-numeric:tabular-nums}.a266-search-row.active{background:var(--wash,#f5f0e6);outline:1px solid var(--line)}
-.a268-update{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:300000;display:flex;align-items:center;gap:12px;max-width:min(620px,calc(100vw - 24px));background:#161b23;color:#fff;padding:11px 13px;border-radius:13px;box-shadow:0 16px 44px rgba(0,0,0,.28)}.a268-update b{display:block}.a268-update span{font-size:11px;color:#d8d8d4}.a268-update .btn{white-space:nowrap}
-.a268-health-detail{display:grid;gap:7px}.a268-health-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}.a268-health-row small{display:block;color:var(--muted);margin-top:2px}.a268-health-head{display:flex;gap:8px;align-items:center;margin-bottom:10px}.a268-verified{color:#2f6a45;font-weight:800}
-.a268-batch-note{font-size:10px;color:var(--muted);margin-top:2px}
-@media(max-width:900px){
-  .p268-panel{grid-template-columns:1fr}.p268-panel .p268-wide{grid-column:auto}.a268-command-head{grid-template-columns:1fr}.a268-command-head>span{display:none}
-  .inv268-table,.inv268-table tbody,.inv268-table tr,.inv268-table td{display:block;width:100%}.inv268-table thead{display:none}.inv268-table tr{margin:9px 0;padding:10px 12px;border:1px solid var(--line)!important;border-radius:13px;background:#fff;box-shadow:0 2px 8px rgba(25,25,25,.025)}.inv268-table td{border:0!important;padding:5px 0!important;text-align:left!important}.inv268-table td[data-label]:before{content:attr(data-label);display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--muted);margin-bottom:2px}.inv268-table td:first-child{position:absolute;right:20px;width:auto}.inv268-table td .rate,.inv268-table td .qty{max-width:140px}.filters{grid-template-columns:1fr 1fr!important}.a268-update{bottom:10px}
-}
-@media(max-width:560px){.filters{grid-template-columns:1fr!important}.p268-tabs{overflow:auto;flex-wrap:nowrap}.p268-tab{white-space:nowrap}.a268-health-row{grid-template-columns:1fr}.a268-update{align-items:flex-start;flex-direction:column;width:calc(100vw - 20px)}}
-</style>
+
 <script id="pm-v268-refinement">
 (()=>{
   const PM_VERSION_268='2.68 Refinement · Batch Integrity · Device Privacy · UI Polish';
@@ -8693,7 +8131,7 @@ Amit, 5566,"></textarea>
   new MutationObserver(ms=>ms.forEach(mu=>mu.addedNodes.forEach(n=>{if(n.nodeType!==1)return;if(n.matches?.('.modal'))prepModal268(n);n.querySelectorAll?.('.modal').forEach(prepModal268)}))).observe(document.body,{childList:true,subtree:true});document.querySelectorAll('.modal').forEach(prepModal268);
 
   /* PWA update visibility: no manual cache clearing */
-  function updateBanner268(){if(document.getElementById('update268'))return;const b=document.createElement('div');b.id='update268';b.className='a268-update';b.innerHTML='<div><b>New Tota Price Manager version is ready</b><span>Reload to use the latest fixes. Your saved data stays intact.</span></div><button class="btn primary sm">Reload now</button>';document.body.appendChild(b);b.querySelector('button').onclick=()=>location.reload()}
+  function updateBanner268(){if(document.getElementById('update268'))return;const b=document.createElement('div');b.id='update268';b.className='a268-update';b.innerHTML='<div><b>New CA version is ready</b><span>Reload to use the latest fixes. Your saved data stays intact.</span></div><button class="btn primary sm">Reload now</button>';document.body.appendChild(b);b.querySelector('button').onclick=()=>location.reload()}
   if('serviceWorker'in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)updateBanner268();had=true});window.addEventListener('load',()=>setTimeout(async()=>{const r=window.__swRegistration233||await navigator.serviceWorker.getRegistration();if(!r)return;r.addEventListener('updatefound',()=>{const w=r.installing;if(w)w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)updateBanner268()})});try{await r.update()}catch(e){}setInterval(()=>r.update().catch(()=>{}),15*60*1000)},800))}
 
   const renderBefore268=render;render=function(){const out=renderBefore268();setTimeout(()=>{refreshAttention268();const health=document.getElementById('health266card');if(health){const h=window.scanDataHealth265?.();const note=health.querySelector('.note');if(note&&h)note.textContent=`Integrity score · ${h.shared?.length||0} shared barcode relationship${(h.shared?.length||0)===1?'':'s'} need review/verification`}},35);return out};
@@ -8702,18 +8140,7 @@ Amit, 5566,"></textarea>
 })();
 </script>
 
-<style id="pm-v269-mobile-health-polish">
-/* v2.69 Data Health interaction + restricted viewer mobile polish */
-.modal[data-health269="1"] .box{max-height:min(88vh,820px);display:flex;flex-direction:column}
-.modal[data-health269="1"] .bd{overflow:auto;overscroll-behavior:contain}
-.health269-titlebar{display:flex;align-items:flex-start;gap:10px;width:100%}
-.health269-titlebar>div{min-width:0;flex:1}.health269-x{border:0;background:transparent;font-size:22px;line-height:1;padding:4px 7px;border-radius:8px;cursor:pointer;color:var(--muted)}.health269-x:hover{background:var(--wash)}
-.health269-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}.health269-nav .spacer{flex:1}
-@media(max-width:700px){
-  .modal[data-health269="1"]{padding:0;align-items:flex-end}.modal[data-health269="1"] .box{width:100%;max-width:none!important;max-height:92dvh;border-radius:18px 18px 0 0;margin:0}.modal[data-health269="1"] .hd{padding:14px 14px 10px}.modal[data-health269="1"] .bd{padding:10px 12px 16px}.modal[data-health269="1"] .ft{position:sticky;bottom:0;background:#fff;padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:3;box-shadow:0 -8px 20px rgba(0,0,0,.05)}
-  .modal[data-health269="1"] .tbl-wrap{overflow:visible}.modal[data-health269="1"] table,.modal[data-health269="1"] tbody,.modal[data-health269="1"] tr,.modal[data-health269="1"] td{display:block;width:100%}.modal[data-health269="1"] thead{display:none}.modal[data-health269="1"] tr{border:1px solid var(--line);border-radius:12px;padding:9px 10px;margin:8px 0;background:#fff}.modal[data-health269="1"] td{border:0!important;padding:3px 0!important;text-align:left!important}.modal[data-health269="1"] td:last-child{padding-top:8px!important}.modal[data-health269="1"] td:last-child .link{width:100%;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--wash)}
-}
-</style>
+
 <script id="pm-v269-health-mobile-viewer">
 (()=>{
   const PM_VERSION_269='2.69 Data Health Fix · Mobile Viewer Polish';
@@ -8824,31 +8251,7 @@ Amit, 5566,"></textarea>
 </script>
 
 
-<style id="pm-v270-premium-polish">
-:root{--r:10px;--shadow-sm:0 1px 2px rgba(21,26,34,.05),0 8px 24px rgba(21,26,34,.045);--shadow-md:0 14px 40px rgba(21,26,34,.12);--surface-soft:#F7F4ED}
-body{background:#F7F5EF;color:#20242A}
-.rail{width:214px;background:#161B23;box-shadow:8px 0 32px rgba(21,26,34,.07)}
-.brand{padding:19px 17px 16px}.brand b{font-size:15.5px}.brand span{font-size:11px;letter-spacing:.015em}
-.nav{padding:12px 9px;gap:3px}.nav button{min-height:38px;padding:9px 11px;border-radius:9px;transition:background .14s ease,color .14s ease,transform .14s ease}.nav button:hover{transform:translateX(1px)}.nav button.on{box-shadow:0 5px 18px rgba(0,0,0,.16)}
-.top{padding:14px 22px;background:rgba(247,245,239,.94);box-shadow:0 1px 0 rgba(21,26,34,.03)}.top h1{font-size:17px;font-weight:700}.wrap{padding:21px 22px 90px}
-.card,.stat,.tbl-wrap{border-color:#E5E0D5}.card{border-radius:13px;box-shadow:var(--shadow-sm)}.card .hd{padding:13px 15px}.card .hd h2{font-size:14px;font-weight:700}.card .bd{padding:15px}.stat{border-radius:12px;box-shadow:var(--shadow-sm);padding:14px 15px}.stat b{font-size:23px;font-weight:700}
-button.btn{min-height:36px;border-radius:9px;padding:7px 14px;font-weight:650;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}button.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 7px 18px rgba(21,26,34,.11)}button.btn.sm{min-height:32px;padding:5px 10px}.btn.primary{box-shadow:0 5px 14px rgba(196,42,28,.17)}
-input,select,textarea{min-height:36px;border-radius:9px;border-color:#DDD7CB;background:#FFFEFC}textarea{min-height:auto}.field label{font-size:11px;font-weight:650;letter-spacing:.015em}
-.tbl-wrap{border-radius:12px;box-shadow:0 2px 14px rgba(21,26,34,.035)}th{padding:9px 9px;background:#F5F1E8;font-size:10.5px;letter-spacing:.025em}td{padding:8px 9px}tr:hover td{background:#FFFCF5}
-.modal{background:rgba(15,20,28,.58);backdrop-filter:blur(3px);padding-top:5vh}.modal .box{border-radius:15px;box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,.55)}.modal .box .hd{padding:15px 17px}.modal .box .bd{padding:17px}.modal .box .ft{padding:12px 17px;background:#FCFAF6;border-radius:0 0 15px 15px}
-.toast{border-radius:12px;padding:10px 15px;box-shadow:0 12px 32px rgba(0,0,0,.24)}
-.a266-attention,.health265{box-shadow:var(--shadow-sm)}
-/* Restricted portal premium + rate-context safety */
-#cloudViewer46{background:#F5F2EA!important}#cloudViewer46 .cv47-wrap{max-width:1040px!important;padding-top:16px!important}
-#cloudViewer46 .cv47-head{background:#fff;border:1px solid #E4DED2!important;border-radius:16px;padding:14px 15px!important;margin-bottom:12px!important;box-shadow:var(--shadow-sm)}
-#cloudViewer46 .cv47-search{top:0!important;background:rgba(245,242,234,.96)!important;backdrop-filter:blur(10px);padding:9px 0 13px!important}
-#cloudViewer46 .cv47-searchbox{background:#fff;border:1px solid #E2DCCD;border-radius:14px;padding:10px;box-shadow:var(--shadow-sm)}
-#cloudViewer46 .cv47-results>.card{overflow:hidden;border-radius:14px;transition:transform .12s ease,box-shadow .12s ease}#cloudViewer46 .cv47-results>.card:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(21,26,34,.08)}
-#cloudViewer46 .cv47-rate{font-size:20px!important;color:#1F3B2A}#cloudViewer46 .cv270-rate-wholesale{color:#9A351F!important}
-.cv270-context{display:flex;justify-content:space-between;gap:14px;align-items:center;background:#fff;border:1px solid #DDD6C7;border-radius:14px;padding:12px 14px;margin:0 0 12px;box-shadow:var(--shadow-sm)}.cv270-context b{display:block;font-size:14px}.cv270-context small{display:block;color:var(--muted);margin-top:2px}.cv270-context.require{border-color:#D8B66A;background:#FFFAEC}.cv270-context.wholesale{border-color:#E2A897;background:#FFF5F1}.cv270-context.retail{border-color:#B9D7C3;background:#F3FAF5}.cv270-context-badge{display:inline-flex;align-items:center;min-height:28px;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:850;letter-spacing:.055em;white-space:nowrap;background:#EEE9DF;color:#625D54}.cv270-context.wholesale .cv270-context-badge{background:#F9D9D0;color:#8E2A18}.cv270-context.retail .cv270-context-badge{background:#DDEEE2;color:#2D6640}.cv270-aud{display:inline-flex;align-items:center;padding:2px 6px;border-radius:999px;margin-right:5px;font-size:9px;font-weight:850;letter-spacing:.045em}.cv270-aud.wholesale{background:#F9D9D0;color:#8E2A18}.cv270-aud.retail{background:#DDEEE2;color:#2D6640}.cv270-aud.custom{background:#E8EAF0;color:#4A5265}.cv270-wholesale-note{font-size:10.5px;font-weight:700;color:#8E2A18;margin-top:4px}.cv270-context-empty{border:1px dashed #D7BC7A;background:#FFF9E9;border-radius:14px;padding:18px;text-align:center;color:#66562E}.cv270-context-empty b{display:block;color:#3E382B;margin-bottom:4px}.cv270-bookmeta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
-@media(max-width:900px){.rail{width:100%;box-shadow:none}.wrap{padding:15px 13px 88px}.top{padding:11px 13px}.card{border-radius:12px}.cv270-context{align-items:flex-start}.cv270-context-badge{flex:none}}
-@media(max-width:700px){#cloudViewer46 .cv47-wrap{padding:10px 10px calc(108px + env(safe-area-inset-bottom))!important}#cloudViewer46 .cv47-head{position:relative}#cloudViewer46 .cv47-search{margin:0 -2px}.cv270-context{flex-direction:column;gap:8px}.cv270-context-badge{align-self:flex-start}#cloudViewer46 .cv47-results>.card .bd{padding:14px!important}#cloudViewer46 .cv47-rate{font-size:22px!important}}
-</style>
+
 <script id="pm-v270-interaction-premium">
 (()=>{
   const PM_VERSION_270='2.70 Interaction Audit · Safe Rate Context · Premium UI';
@@ -8864,24 +8267,13 @@ input,select,textarea{min-height:36px;border-radius:9px;border-color:#DDD7CB;bac
 </script>
 
 
-<style id="pm-v272-premium-redesign">
-:root{--premium-ink:#18212a;--premium-muted:#6d736f;--premium-line:#e4dfd5;--premium-bg:#f5f3ee;--premium-panel:#fffdfa;--premium-dark:#121c25;--premium-accent:#9b3d2d;--premium-gold:#a17a34;--premium-shadow:0 8px 28px rgba(23,30,35,.06);--premium-shadow-lg:0 20px 55px rgba(20,27,32,.13)}
-body{background:radial-gradient(circle at 100% 0,#fbfaf7 0,transparent 28%),var(--premium-bg);color:var(--premium-ink);font-feature-settings:"kern" 1,"liga" 1}.rail{background:linear-gradient(180deg,#101a23 0,#16232d 100%)!important;border-right:1px solid rgba(255,255,255,.04);box-shadow:10px 0 34px rgba(15,22,28,.08)!important}.brand{padding-top:21px!important}.brand b{letter-spacing:-.01em}.nav button{border:1px solid transparent!important;color:rgba(255,255,255,.68)!important}.nav button:hover{background:rgba(255,255,255,.055)!important;color:#fff!important}.nav button.on{background:linear-gradient(135deg,rgba(255,255,255,.13),rgba(255,255,255,.075))!important;color:#fff!important;border-color:rgba(255,255,255,.08)!important;box-shadow:none!important}.top{background:rgba(245,243,238,.88)!important;backdrop-filter:blur(16px);border-bottom:1px solid rgba(211,205,194,.72)!important}.top h1{font-size:18px!important;letter-spacing:-.02em}.wrap{max-width:1500px}.card,.stat{background:var(--premium-panel)!important;border:1px solid var(--premium-line)!important;box-shadow:var(--premium-shadow)!important}.card{border-radius:16px!important}.card .hd{border-bottom:1px solid #eee9df}.card .hd h2{font-size:14px!important;letter-spacing:-.01em}.stat{border-radius:15px!important}.stat b{letter-spacing:-.03em}.btn{border-radius:10px!important;font-weight:720!important}.btn.primary{background:linear-gradient(135deg,#a64532,#8e3426)!important;border-color:#873022!important;box-shadow:0 7px 18px rgba(147,53,39,.18)!important}.btn.ghost{background:#fffdf9!important;border-color:#dcd5c9!important}.btn.danger{border-radius:10px!important}input,select,textarea{background:#fff!important;border-color:#ddd6ca!important;border-radius:10px!important;transition:border-color .15s ease,box-shadow .15s ease}input:focus,select:focus,textarea:focus{border-color:#8f9ba2!important;box-shadow:0 0 0 3px rgba(80,101,115,.08)!important;outline:none}.tbl-wrap{background:#fffdfa;border-radius:14px!important;border-color:var(--premium-line)!important;box-shadow:0 4px 18px rgba(20,27,32,.035)!important}table{border-collapse:separate!important;border-spacing:0!important}th{background:#f4f1ea!important;color:#656b67!important;text-transform:uppercase;font-size:10px!important;letter-spacing:.05em!important}td{border-bottom-color:#eee9df!important}tr:last-child td{border-bottom:0!important}.modal{backdrop-filter:blur(7px)!important;background:rgba(12,18,24,.55)!important}.modal .box{border-radius:18px!important;border:1px solid rgba(255,255,255,.64)!important;box-shadow:var(--premium-shadow-lg)!important}.modal .box .hd{border-bottom:1px solid #eee9df}.modal .box .ft{background:#faf8f3!important;border-top:1px solid #eee9df}.role45,.a265-status{border-radius:999px!important}.section-title{letter-spacing:-.01em}.empty-mini{padding:22px!important}.note,.metric-sub{line-height:1.45}
-@media(max-width:900px){.wrap{padding-left:13px!important;padding-right:13px!important}.top{backdrop-filter:none}.card{border-radius:14px!important}}
-</style>
+
 <script id="pm-v272-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.72 Premium Redesign · Retail/Wholesale Mode'};</script>
-<style id="pm-v275-order-ui">
-#cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle{min-height:36px!important;padding:5px 9px!important;border-radius:10px!important;font-size:10.5px!important;margin-right:0!important}
-@media(max-width:600px){#cloudViewer46 .cv272-session{gap:4px!important}#cloudViewer46 .cv272-session #myOrders233btn,#cloudViewer46 .cv272-session #lang233toggle,#cloudViewer46 .cv272-session #cv46out{padding:5px 7px!important;font-size:9.5px!important;min-width:auto!important}}
-</style>
+
 <script id="pm-v276-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.76 Smart Search · Catalog Share · Order Safety'};</script>
 
 
-<style id="pm-v277-owner-alt-uom-style">
-.alt277-card{border:1px solid var(--premium-line,var(--line));background:linear-gradient(180deg,#fffdfa,#faf7f0);border-radius:14px;padding:13px 14px;margin:10px 0;box-shadow:0 5px 18px rgba(20,27,32,.04)}
-.alt277-head{display:flex;align-items:flex-start;gap:12px}.alt277-head>div:first-child{min-width:0;flex:1}.alt277-title{font-size:13px;font-weight:850;letter-spacing:-.01em}.alt277-sub{font-size:11px;color:var(--muted);line-height:1.45;margin-top:3px}.alt277-count{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:#eee8dc;color:#625b4d;font-size:10px;font-weight:800;white-space:nowrap}.alt277-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.alt277-table{width:100%}.alt277-table input{min-height:36px}.alt277-primary{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.7fr) auto;gap:10px;align-items:end;padding:12px;border:1px solid #e7e1d5;border-radius:12px;background:#fff;margin-bottom:13px}.alt277-primary .field{margin:0}.alt277-built{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:10px;background:#f5f1e8;border:1px solid #e6ded0;font-size:11px;color:#655f55;margin-bottom:12px}.alt277-row-actions{display:flex;gap:6px;justify-content:flex-end}.alt277-preview{font-weight:800;white-space:nowrap}.alt277-new{display:grid;grid-template-columns:minmax(130px,1fr) minmax(130px,.8fr) auto;gap:8px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid #eee8dc}.alt277-help{margin-top:10px;padding:9px 11px;border-radius:10px;background:#f8f5ee;color:var(--muted);font-size:11px;line-height:1.5}
-@media(max-width:700px){.alt277-primary,.alt277-new{grid-template-columns:1fr}.alt277-table thead{display:none}.alt277-table,.alt277-table tbody,.alt277-table tr,.alt277-table td{display:block;width:100%}.alt277-table tr{padding:10px;border:1px solid #e6dfd2;border-radius:12px;margin:8px 0;background:#fff}.alt277-table td{border:0!important;padding:4px 0!important;text-align:left!important}.alt277-row-actions{justify-content:stretch}.alt277-row-actions .btn{flex:1}.alt277-preview{padding:3px 0}.alt277-head{align-items:center}}
-</style>
+
 <script id="pm-v277-owner-alt-uom">
 (()=>{
   const PM_VERSION_277='2.77 Owner Alternative UOM Manager';
@@ -8964,7 +8356,11 @@ body{background:radial-gradient(circle at 100% 0,#fbfaf7 0,transparent 28%),var(
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_277,openAlternativeUomManager:openManager277};
 })();
 </script>
-<script id="pm-v278-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.78 Price List View'};</script>
+<script id="pm-v279-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 Deep Regression Fixes'};</script>
+
+
+<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.81 CA Workspace"};</script>
+<script src="ca-workspace.js"></script>
 
 </body>
 </html>

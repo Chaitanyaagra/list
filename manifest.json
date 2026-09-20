@@ -1,12 +1,12 @@
 {
-  "name": "Tota Price Manager",
-  "short_name": "Tota Prices",
-  "description": "Supplier costing, customer price books, purchase inventory, and secure sales/customer rate portal",
+  "name": "CA",
+  "short_name": "CA",
+  "description": "CA business pricing, inventory, price books, sales access and customer rate portal",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F5F3EE",
-  "theme_color": "#14212D",
+  "background_color": "#F6F2E9",
+  "theme_color": "#111111",
   "orientation": "any",
   "icons": [
     {

@@ -1,4 +1,4 @@
-TOTA PRICE MANAGER v2.76 — SINGLE OWNER + SMART SALES SEARCH + CATALOG SHARE
+CA v2.80 — SINGLE OWNER + SMART SALES SEARCH + CATALOG SHARE
 
 IMPORTANT FOR THIS DEPLOYMENT
 - Publish the firestore.rules included with v2.76. Order requests now optionally carry validated Retail/Wholesale/Custom + exact Price Book context.
@@ -10,7 +10,7 @@ IMPORTANT FOR THIS DEPLOYMENT
 - Sales/Customer accounts are still provisioned normally from Users & Access; this lock applies only to the single Owner identity.
 
 LEGACY / INITIAL PROJECT SETUP REFERENCE (do not use to create a second Owner)
-TOTA PRICE MANAGER v2.68 — IMPORTANT SECURE OWNER BOOTSTRAP
+CA — IMPORTANT SECURE OWNER BOOTSTRAP
 ============================================================
 
 Existing Firebase projects that already contain Firestore document meta/security do not need this one-time step.

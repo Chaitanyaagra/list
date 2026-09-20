@@ -1,0 +1,9 @@
+CA v2.80 Premium Redesign
+
+- Rebranded app/product name to CA across PWA metadata, browser title, app shell, secure lock and restricted viewer.
+- Uses the supplied CA logo for in-app branding and regenerated PWA/install icons.
+- New premium light design system: warm ivory canvas, carbon black, restrained champagne-gold accent.
+- Redesigned navigation rail, top bar, cards, stats, forms, tables, buttons, modals, toasts, upload areas and mobile spacing.
+- Refined Sales/Customer portal with matching CA visual system while retaining Retail/Wholesale safety and all v2.79 fixes.
+- Service Worker cache bumped to v2.80 and CA logo included offline.
+- No Firebase rules changes.

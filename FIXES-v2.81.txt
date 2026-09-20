@@ -1,0 +1,39 @@
+CA 2.81 — Price-list workspace
+
+FIXES
+- Removed the self-triggering CA branding MutationObserver and redundant render wrapper.
+- Separated checkbox/radio dimensions from text-input styling.
+- Separated error/negative-profit red from gold brand accents.
+- Preserved the existing storage keys, product seed, Firebase configuration and access rules.
+- Updated PWA cache to v281 and included the new theme/workspace assets.
+
+WORKSPACE
+- Owner landing screen now opens Price Lists with search, customer and rate-type filters.
+- Saved lists expose View / Share / Download, Edit rates and Assign / publish.
+- Publication status checks assigned active users and payload freshness; saved does not imply published.
+- Scheduled dates, effective dates and last-updated dates are visible.
+- Builder brings original customer/list selectors to the top, preserving their existing handlers.
+- Draft workspace is identified separately from saved/published list status.
+- More tools retains the existing advanced export/template actions.
+- Preview search filters currently loaded preview rows (load more rows using the existing control).
+- New-list action starts from a fresh initial working configuration.
+- Viewer list/catalog action order is View / Share / Download.
+- Product details and owner rate calculations/other units can be expanded.
+
+DESIGN
+- Consolidated 22 document stylesheets into ca-theme.css, retaining legacy component rules.
+- Main body/input text 16px; regular labels/navigation/buttons/table headers 14px; metadata 13px.
+- Reduced card shadows, consistent touch targets and visible keyboard focus.
+- Responsive owner preview rows and context controls; reduced-motion support.
+- Existing per-component overrides remain where needed for compatibility; this is not a full CSS rewrite.
+
+VALIDATION
+- All 58 inline scripts and all external JavaScript files parse successfully.
+- Local HTML asset references and all 11 service-worker shell entries resolve.
+- Product seed unchanged; PWA manifest parses successfully.
+- Targeted VM checks: draft, unassigned, published, pending, error, disabled and unrelated-user publication states; rate-type selection and invalid dates.
+- Agent filter registration, valid/invalid input and locked/restricted paths checked with mocks.
+- Browser rendering, real WebMCP context, live Firebase authentication/rules/sync, PDF generation and device share sheet were not exercised in this environment.
+
+UPDATE
+Upload the entire ZIP contents together to your existing app location, including ca-theme.css and ca-workspace.js. Existing local data belongs to the original browser/origin; a new Sites address starts with separate local storage. Close/reopen or reload after the app update is available.
