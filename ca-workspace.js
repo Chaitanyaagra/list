@@ -2,17 +2,17 @@
 (()=>{
   'use strict';
   const date=x=>{if(!x)return 'Not set';const d=new Date(typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)?x+'T00:00:00':x);return Number.isNaN(d.getTime())?'Not set':d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})};
-  const audience=b=>{if(['retail','wholesale','custom'].includes(b?.audience270))return b.audience270;const n=(b?.name+' '+b?.category).toLowerCase();return /wholesale|distributor|dealer|stockist|trade|bulk/.test(n)?'wholesale':/retail|consumer|counter|mrp/.test(n)?'retail':'custom'};
+  const audience=b=>{if(typeof window.priceBookAudience283==='function')return window.priceBookAudience283(b);const explicit=String(b?.audience270||b?.audience||'').trim().toLowerCase();if(['retail','wholesale','custom'].includes(explicit))return explicit;const n=[b?.name,b?.category].filter(Boolean).join(' ').toLowerCase();return /wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(n)?'wholesale':/retail|consumer|counter|mrp/.test(n)?'retail':'custom'};
   const modeLabel=x=>({retail:'Retail',wholesale:'Wholesale / Trade',custom:'Custom'}[x]||'Custom');
-  function publication(pb){
+  function publication(pb,freshness=new Map()){
     if(!pb)return {key:'draft',label:'Draft',detail:'Unsaved working list'};
     const users=(S.viewerUsers||[]).filter(u=>u.active!==false&&(u.allowedPriceBookIds||[]).includes(pb.id));
     if(!users.length)return {key:'draft',label:'Saved · not assigned',detail:'Assign this list in Users & Access'};
-    const ready=users.filter(u=>u.cloudUid&&u.cloudSyncState==='ready'&&typeof window.userNeedsPublish281==='function'&&!window.userNeedsPublish281(u)).length;
+    const ready=users.filter(u=>{if(!u.cloudUid||u.cloudSyncState!=='ready'||typeof window.userNeedsPublish281!=='function')return false;if(!freshness.has(u))freshness.set(u,!window.userNeedsPublish281(u));return freshness.get(u)}).length;
     if(ready===users.length)return {key:'published',label:'Published',detail:`Current for ${ready} assigned login${ready===1?'':'s'}`};
     return {key:users.some(u=>u.cloudSyncState==='error')?'error':'pending',label:ready?'Partly published':'Publish pending',detail:`${ready} of ${users.length} assigned logins current`};
   }
-  const badges=pb=>{const st=publication(pb);return `<span class="ca281-status ${st.key}" title="${esc(st.detail)}">${esc(st.label)}</span>${pb?.scheduled230?`<span class="ca281-status scheduled">Scheduled ${esc(date(pb.scheduled230.effectiveDate))}</span>`:''}`};
+  const badges=(pb,st=publication(pb))=>`<span class="ca281-status ${st.key}" title="${esc(st.detail)}">${esc(st.label)}</span>${pb?.scheduled230?`<span class="ca281-status scheduled">Scheduled ${esc(date(pb.scheduled230.effectiveDate))}</span>`:''}`;
   const safeName=x=>(String(x||'price-list').replace(/\.pdf$/i,'').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').trim()||'price-list')+'.pdf';
   function config(pb){
     if(!pb)return listConfig();
@@ -34,8 +34,11 @@
   const filters={q:'',party:'',mode:''};
   const initialList=JSON.parse(JSON.stringify(ui.list||{}));
   function drawBooks(target){
-    const q=filters.q.trim().toLowerCase(),books=(S.priceBooks||[]).filter(b=>(!q||[b.name,b.category,(S.parties||[]).find(p=>p.id===b.config?.party)?.name].join(' ').toLowerCase().includes(q))&&(!filters.party||b.config?.party===filters.party)&&(!filters.mode||audience(b)===filters.mode));
-    target.innerHTML=books.length?books.map(b=>{const party=(S.parties||[]).find(p=>p.id===b.config?.party);return `<article class="card ca281-book"><div class="ca281-meta">${badges(b)}</div><h2>${esc(b.name)}</h2><p>${esc(party?.name||'General price list')} · ${esc(modeLabel(audience(b)))}</p><p class="note">Effective ${esc(date(b.effectiveFrom230))} · Updated ${esc(date(b.updatedAt||b.createdAt))}</p><p class="note">${esc(publication(b).detail)}</p>${actions(b)}<div class="ca281-actions"><button class="btn ghost" data-ca-edit="${esc(b.id)}">Edit rates</button><button class="btn ghost" data-nav="access45">Assign / publish</button></div></article>`}).join(''):`<div class="ca281-empty"><b>${S.priceBooks?.length?'No matching price lists':'Create your first price list'}</b><p>${S.priceBooks?.length?'Try another name, customer or rate type.':'Choose products and customer rates, then save your Price Book.'}</p><button class="btn primary" data-ca-new>New price list</button></div>`;
+    // Cache only for this synchronous draw, so data edits and scheduled rates
+    // are checked afresh on every render without hashing each user per card.
+    const freshness=new Map(),parties=new Map((S.parties||[]).map(p=>[p.id,p]));
+    const q=filters.q.trim().toLowerCase(),books=(S.priceBooks||[]).filter(b=>(!q||[b.name,b.category,parties.get(b.config?.party)?.name].join(' ').toLowerCase().includes(q))&&(!filters.party||b.config?.party===filters.party)&&(!filters.mode||audience(b)===filters.mode));
+    target.innerHTML=books.length?books.map(b=>{const party=parties.get(b.config?.party),status=publication(b,freshness);return `<article class="card ca281-book"><div class="ca281-meta">${badges(b,status)}</div><h2>${esc(b.name)}</h2><p>${esc(party?.name||'General price list')} · ${esc(modeLabel(audience(b)))}</p><p class="note">Effective ${esc(date(b.effectiveFrom230))} · Updated ${esc(date(b.updatedAt||b.createdAt))}</p><p class="note">${esc(status.detail)}</p>${actions(b)}<div class="ca281-actions"><button class="btn ghost" data-ca-edit="${esc(b.id)}">Edit rates</button><button class="btn ghost" data-nav="access45">Assign / publish</button></div></article>`}).join(''):`<div class="ca281-empty"><b>${S.priceBooks?.length?'No matching price lists':'Create your first price list'}</b><p>${S.priceBooks?.length?'Try another name, customer or rate type.':'Choose products and customer rates, then save your Price Book.'}</p><button class="btn primary" data-ca-new>New price list</button></div>`;
   }
   function hub(v,t,sub,act){
     t.textContent='Price lists';sub.textContent='Customer rates, effective dates and publishing';
@@ -45,7 +48,8 @@
     for(const b of [oldTemplates,oldBrand])if(b)act.append(b);
     v.innerHTML=`<div class="ca281-toolbar"><div><label for="ca281-find">Search price lists</label><input type="search" id="ca281-find" placeholder="Name, category or customer" value="${esc(filters.q)}"></div><div><label for="ca281-customer">Customer</label><select id="ca281-customer"><option value="">All customers</option>${(S.parties||[]).filter(p=>!p.archived).map(p=>`<option value="${esc(p.id)}" ${p.id===filters.party?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div><label for="ca281-mode">Rate type</label><select id="ca281-mode"><option value="">All rate types</option>${['retail','wholesale','custom'].map(x=>`<option value="${x}" ${filters.mode===x?'selected':''}>${modeLabel(x)}</option>`).join('')}</select></div></div><div class="ca281-books" id="ca281-books"></div>`;
     const target=v.querySelector('#ca281-books');drawBooks(target);
-    for(const [id,key,event] of [['ca281-find','q','input'],['ca281-customer','party','change'],['ca281-mode','mode','change']])v.querySelector('#'+id).addEventListener(event,e=>{filters[key]=e.target.value;drawBooks(target)});
+    let searchTimer283;
+    for(const [id,key,event] of [['ca281-find','q','input'],['ca281-customer','party','change'],['ca281-mode','mode','change']])v.querySelector('#'+id).addEventListener(event,e=>{filters[key]=e.target.value;clearTimeout(searchTimer283);if(event==='input'&&filters.q.trim())searchTimer283=setTimeout(()=>{if(target.isConnected)drawBooks(target)},150);else drawBooks(target)});
   }
   const originalList=viewList;
   viewList=function(v,t,sub,act){
@@ -62,7 +66,7 @@
     for(const b of [...act.children])if(b.tagName==='BUTTON'&&!['save-pricebook-44','schedule-book-230'].includes(b.dataset.act))menu.append(b);
     if(menu.children.length)act.append(more);
     const rates=[...v.querySelectorAll('[data-list-rate]')];
-    if(rates.length){const card=rates[0].closest('.card');card?.classList.add('ca281-preview');const body=card?.querySelector('.bd');if(body){const search=document.createElement('input');search.type='search';search.className='ca281-preview-search';search.placeholder='Find product in preview';search.setAttribute('aria-label','Filter preview rows');body.prepend(search);search.oninput=()=>{const q=search.value.trim().toLowerCase();rates.forEach(input=>{const row=input.closest('tr');row.hidden=!row.textContent.toLowerCase().includes(q)});};}
+    if(rates.length){const card=rates[0].closest('.card');card?.classList.add('ca281-preview');const body=card?.querySelector('.bd');if(body){const search=document.createElement('input');search.type='search';search.className='ca281-preview-search';search.placeholder='Smart search: name, code, Hindi/Hinglish';search.setAttribute('aria-label','Filter preview rows');body.prepend(search);search.oninput=()=>{const q=search.value.trim().toLowerCase();rates.forEach(input=>{const row=input.closest('tr'),product=(S.products||[]).find(p=>p.id===input.dataset.listRate)||{name:row.textContent};row.hidden=!!q&&!(window.smartProductMatch282?window.smartProductMatch282(q,product,pb||{}):row.textContent.toLowerCase().includes(q))});};}
       for(const input of rates){const row=input.closest('tr');[...row.children].forEach((td,i)=>td.dataset.label=['Code','Product','Final rate','Actions'][i]||'');for(const el of row.querySelectorAll('.uom-matrix230,.pc26-source')){const details=document.createElement('details');details.className='ca281-details';const summary=document.createElement('summary');summary.textContent=el.classList.contains('uom-matrix230')?'Other units':'Rate calculation';el.before(details);details.append(summary,el)}}
     }
   };

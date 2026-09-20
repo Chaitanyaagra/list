@@ -4823,7 +4823,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
 (()=>{
   const PM_VERSION_41 = '2.28 transactional Firebase sync + serial queue';
   const CONFIG_KEY='firebaseConfig', CONFIG_KEY_LOCAL='pm-firebaseConfig-local', SCHEMA=2, CHUNK_CHARS=180000;
-  let app=null,authRef=null,dbRef=null,saveDebounce=null,cloudQueue=Promise.resolve(),suppressAuto=false;
+  let app=null,authRef=null,dbRef=null,saveDebounce=null,cloudQueue=Promise.resolve(),suppressAuto=false,ownerEditVersion283=0;
 
   async function getSavedConfig(){
     try{
@@ -4855,19 +4855,20 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   function manifestRef(uid){return base(uid).doc('manifest')}
   function splitState(str){const out=[];for(let i=0;i<str.length;i+=CHUNK_CHARS)out.push(str.slice(i,i+CHUNK_CHARS));return out}
   function versionId(){return Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
-  async function readCloud(uid){
-    const man=await manifestRef(uid).get();
+  async function readCloud(uid,sourceDb=dbRef){
+    const source=sourceDb.collection('users').doc(uid).collection('appData');
+    const man=await source.doc('manifest').get();
     if(man.exists && man.data().schema===SCHEMA){
       const m=man.data(),ids=Array.isArray(m.chunkIds)?m.chunkIds:[];
       if(!ids.length)throw new Error('Cloud manifest is incomplete');
-      const docs=await Promise.all(ids.map(id=>base(uid).doc(id).get()));
+      const docs=await Promise.all(ids.map(id=>source.doc(id).get()));
       if(docs.some(d=>!d.exists))throw new Error('Cloud save is incomplete. Try again after the other device finishes syncing.');
       const ordered=docs.map((d,i)=>({id:ids[i],d:d.data()}));
       if(ordered.some((x,i)=>x.d.version!==m.version||(+x.d.index||0)!==i))throw new Error('Cloud save parts do not match the active manifest. Publish again from the latest device.');
       const json=ordered.map(x=>x.d.data||'').join('');
       return {state:JSON.parse(json),updatedAt:m.updatedAt||0,updatedAtReadable:m.updatedAtReadable||'',revision:+m.revision||0,schema:SCHEMA};
     }
-    const old=await legacyRef(uid).get();
+    const old=await source.doc('state').get();
     if(!old.exists)return null;
     const d=old.data();return {state:d.state,updatedAt:d.updatedAt||0,updatedAtReadable:d.updatedAtReadable||'',revision:0,schema:1};
   }
@@ -4896,14 +4897,14 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     if(window.__restrictedFirebaseSession46)return;
     const user=authRef&&authRef.currentUser;if(!user)throw new Error('Sign in first');
     if(S.settings.privacyEnabled)throw new Error('Turn off Privacy Mode first — cloud sync sends the owner state to Firebase.');
-    const json=JSON.stringify(S);
+    const json=JSON.stringify(S),snapshotEditVersion283=ownerEditVersion283;
     if(manual && !force){
       const m=await manifestRef(user.uid).get();
       if(m.exists){const d=m.data(),cloudRev=+d.revision||0,knownRev=+S.settings.lastKnownCloudRevision||0,cloud=+d.updatedAt||0,known=+S.settings.lastKnownCloudUpdatedAt||0,conflict=cloudRev>0?(cloudRev!==knownRev):(cloud>known);if(conflict){if(!confirm('The cloud copy is newer or was changed by another device. Overwrite it with THIS device anyway?'))return false;force=true}}
     }
     suppressAuto=true;
     try{await writeCloud(user.uid,json,{checkConflict:!force});return true}
-    finally{suppressAuto=false}
+    finally{suppressAuto=false;if(ownerEditVersion283!==snapshotEditVersion283)scheduleAuto()}
   }
   function scheduleAuto(){
     if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
@@ -4947,7 +4948,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   window.firebasePushNow30=async()=>{try{const ok=await enqueue(()=>pushSnapshot({manual:true}));if(ok){suppressAuto=true;try{prevSave41()}finally{suppressAuto=false}render();toast('Saved to cloud in '+(await manifestRef(authRef.currentUser.uid).get()).data().chunkCount+' chunk(s)')}}catch(e){toast('Could not save to cloud: '+e.message)}};
 
   const prevSave41=save;
-  save=function(){const out=prevSave41();scheduleAuto();return out};
+  save=function(){ownerEditVersion283++;const out=prevSave41();scheduleAuto();return out};
 
   (async()=>{const cfg=await getSavedConfig();if(!cfg)return;try{ensureFirebase(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings())}catch(e){}})();
 
@@ -6118,7 +6119,8 @@ Amit, 5566,"></textarea>
   function loadCart233(){ try{ const v=JSON.parse(localStorage.getItem(cartKey233())||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
   function saveCart233(cart){ try{ localStorage.setItem(cartKey233(), JSON.stringify(Array.isArray(cart)?cart:[])); }catch(e){} }
   function inferOrderMode233(book){
-    const explicit=String(book?.audience270||'').trim().toLowerCase();
+    if(typeof window.priceBookAudience283==='function')return window.priceBookAudience283(book);
+    const explicit=String(book?.audience270||book?.audience||'').trim().toLowerCase();
     if(['retail','wholesale','custom'].includes(explicit)) return explicit;
     const t=String([book?.name,book?.category].filter(Boolean).join(' ')).toLowerCase();
     if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';
@@ -7008,7 +7010,7 @@ Amit, 5566,"></textarea>
       el.innerHTML = `<div style="width:100%;max-width:410px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
         <div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:6px">Owner registration locked</div>
         <div class="note" style="text-align:center;margin-bottom:16px">This deployment already has one Owner. New Owner accounts cannot be created from the app.</div>
-        <button class="btn primary" style="width:100%;padding:12px;font-size:14px" id="eg238_locked_back">Back to Sales / Customer login</button>
+        <button class="btn primary" style="width:100%;padding:12px;font-size:14px" id="eg238_locked_back">Back to login</button>
       </div>`;
       el.querySelector('#eg238_locked_back').onclick=renderNormal;
     }
@@ -7017,14 +7019,14 @@ Amit, 5566,"></textarea>
       const blocked = blockedRemaining238(), ownerReady=ownerConfigured238();
       el.innerHTML = `<div style="width:100%;max-width:390px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
         <div class="ca-entry-brand"><img src="ca-logo.png" alt="CA"><b>${esc(brandName)}</b></div>
-        <div class="note" style="margin-bottom:20px;text-align:center">${ownerReady?'Sign in to continue':'Sales / Customer login'}</div>
-        <div class="field"><label>Username</label><input id="eg238_user" autocomplete="username" ${blocked?'disabled':''}></div>
-        <div class="field" style="margin-top:10px"><label>PIN</label><input id="eg238_pin" type="password" autocomplete="current-password" ${blocked?'disabled':''}></div>
-        <div id="eg238_msg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):(ownerReady?'':'Use the username and PIN provided by the Owner.')}</div>
+        <div class="note" style="margin-bottom:20px;text-align:center">Sign in to continue</div>
+        <div class="field"><label for="eg238_user">Username or email</label><input id="eg238_user" autocomplete="username" ${blocked?'disabled':''}></div>
+        <div class="field" style="margin-top:10px"><label for="eg238_pin">PIN or password</label><input id="eg238_pin" type="password" autocomplete="current-password" ${blocked?'disabled':''}></div>
+        <div id="eg238_msg" class="pm-lock-msg" style="margin-top:8px">${blocked?('Too many attempts. Try again in '+Math.ceil(blocked/1000)+' seconds.'):'Use your saved login details.'}</div>
         <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_go" ${blocked?'disabled':''}>Log in</button>
         ${ownerReady
-          ? '<button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_forgot">Forgot Owner PIN?</button>'
-          : '<div style="height:1px;background:var(--line,#e6e0d5);margin:18px 0 12px"></div><button class="link" style="display:block;text-align:center;width:100%" id="eg238_owner_access">Owner login</button>'}
+          ? '<button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_forgot">Forgot PIN?</button>'
+          : ''}
       </div>`;
       const userEl = el.querySelector('#eg238_user'), pinEl = el.querySelector('#eg238_pin'), msgEl = el.querySelector('#eg238_msg'), goBtn = el.querySelector('#eg238_go');
       if(!blocked) userEl.focus();
@@ -7036,10 +7038,12 @@ Amit, 5566,"></textarea>
         return /could not reach firebase/i.test(msg) || /network-request-failed/i.test(msg) || code === 'auth/network-request-failed' || /failed to fetch/i.test(msg);
       }
       async function attempt(){
+        if(goBtn.disabled)return;
         const u = userEl.value.trim(), p = pinEl.value;
-        if(!u || !p){ msgEl.textContent = 'Enter both username and PIN.'; return; }
+        if(!u || !p){ msgEl.textContent = 'Enter your username/email and PIN/password.'; return; }
         if(blockedRemaining238() > 0){ renderNormal(); return; }
         goBtn.disabled = true; msgEl.textContent = 'Checking…';
+        try{
         ensureOwnerCreds238();
         if(ownerConfigured238() && u.toLowerCase() === String(S.settings.ownerUsername||'').toLowerCase().trim() && await verifyOwnerPin238(p)){
           clearAttempts238();
@@ -7047,8 +7051,12 @@ Amit, 5566,"></textarea>
           el.remove();
           return;
         }
-        try{
-          if(typeof window.secureViewerLogin46!=='function') throw new Error('Sales/Customer login module is not ready. Reload the app and try again.');
+          if(u.includes('@')){
+            let owner=false;
+            try{owner=await loginOwnerEmail282(u,p)}catch(error){if(!isNetworkError238(error))throw error}
+            if(owner){clearAttempts238();window.__entryGate238Resolved=true;el.remove();render();return}
+          }
+          if(typeof window.secureViewerLogin46!=='function') throw new Error('Login module is not ready. Reload the app and try again.');
           await window.secureViewerLogin46(u, p);
           clearAttempts238();
           window.__entryGate238Resolved = true;
@@ -7063,7 +7071,7 @@ Amit, 5566,"></textarea>
           const st = recordFailedAttempt238();
           if(st.blockedUntil && st.blockedUntil > Date.now()){ renderNormal(); return; }
           goBtn.disabled = false;
-          msgEl.textContent = (e&&e.message&&/disabled|expired|published|Firebase|configured/i.test(e.message)) ? e.message : 'Incorrect username or PIN.';
+          msgEl.textContent = (e&&e.message&&/disabled|expired|published|Firebase|configured/i.test(e.message)) ? e.message : 'Incorrect login details.';
           pinEl.select();
         }
       }
@@ -7071,49 +7079,41 @@ Amit, 5566,"></textarea>
       pinEl.onkeydown = e => { if(e.key === 'Enter') attempt(); };
       userEl.onkeydown = e => { if(e.key === 'Enter') pinEl.focus(); };
       const forgot=el.querySelector('#eg238_forgot'); if(forgot)forgot.onclick = renderRecovery;
-      const ownerAccess=el.querySelector('#eg238_owner_access'); if(ownerAccess)ownerAccess.onclick = renderOwnerCloudVerify238;
     }
 
-    function renderOwnerCloudVerify238(){
-      el.innerHTML = `<div style="width:100%;max-width:410px;background:#fff;border-radius:18px;box-shadow:var(--shadow,0 10px 30px rgba(0,0,0,.12));padding:28px 24px">
-        <div class="ca-entry-brand"><img src="ca-logo.png" alt="CA"><b>CA</b></div><div style="font-weight:850;font-size:17px;text-align:center;margin-bottom:4px">Existing Owner login</div>
-        <div class="note" style="text-align:center;margin-bottom:18px">New Owner registration is disabled. Sign in only with the Firebase account already recorded as this project's Owner. On a new Owner device, the existing Owner profile is restored from the Owner cloud backup.</div>
-        <div class="field"><label>Owner Firebase email</label><input id="eg238_oe" type="email" autocomplete="username"></div>
-        <div class="field" style="margin-top:10px"><label>Firebase password</label><input id="eg238_op" type="password" autocomplete="current-password"></div>
-        <div id="eg238_omsg" class="pm-lock-msg" style="margin-top:8px"></div>
-        <button class="btn primary" style="width:100%;padding:12px;font-size:14px;margin-top:14px" id="eg238_overify">Sign in as existing Owner</button>
-        <button class="link" style="display:block;margin-top:12px;text-align:center;width:100%" id="eg238_oback">Back to Sales / Customer login</button>
-      </div>`;
-      const email=el.querySelector('#eg238_oe'),pw=el.querySelector('#eg238_op'),msg=el.querySelector('#eg238_omsg'),btn=el.querySelector('#eg238_overify');
-      email.focus();el.querySelector('#eg238_oback').onclick=renderNormal;
-      btn.onclick=async()=>{
-        const em=email.value.trim(),pass=pw.value;if(!em||!pass){msg.textContent='Enter the existing Owner Firebase email and password.';return}
-        btn.disabled=true;msg.textContent='Verifying existing Owner…';
-        try{
-          const a=window.PMFirebase41;if(!a)throw new Error('Firebase module is not ready. Reload while online and try again.');
-          const cfg=(await a.getSavedConfig?.())||window.PM_FIREBASE_CONFIG;if(!cfg)throw new Error('Firebase is not configured in this app build.');
-          a.ensureFirebase(cfg);const auth=a.auth,db=a.db;if(!auth||!db)throw new Error('Firebase could not be initialized.');
-          const cred=await auth.signInWithEmailAndPassword(em,pass),uid=cred.user.uid;
-          let sec=null;
-          try{sec=await db.collection('meta').doc('security').get()}catch(e){throw new Error('Could not verify the Owner security record. Check internet/Firebase access and try again.');}
-          if(!sec || !sec.exists){try{await auth.signOut()}catch(e){}throw new Error('Owner registration is locked, but this Firebase project has no existing Owner security record. Restore meta/security from Firebase Console or your backup; the app will not create a new Owner.');}
-          const authorised=String(sec.data()?.ownerUid||'')===String(uid);
-          if(!authorised){try{await auth.signOut()}catch(e){}throw new Error('This Firebase account is not the existing authorized Owner for this project.');}
-          msg.textContent='Owner verified. Restoring this Owner device…';
-          const cloud=await a.readCloudState(uid);
-          if(!cloud || !cloud.state){throw new Error('No Owner cloud backup is available for this account. Use the existing Owner device to save to cloud first; new Owner registration is disabled.');}
-          const cs=cloud.state||{};
-          const restoredSettings={...DEF_SETTINGS,...(cs.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};
-          const hasOwnerCreds=!!(restoredSettings.ownerUsername && (restoredSettings.ownerPinVerifier265 || restoredSettings.ownerPin));
-          if(!hasOwnerCreds)throw new Error('The Owner cloud backup does not contain an existing Owner login. New Owner registration is disabled; update the cloud backup from the existing Owner device first.');
-          S={...S,...cs,settings:restoredSettings};
-          try{save()}catch(e){}
-          window.__ownerCloudVerified238=uid;clearAttempts238();
-          msg.textContent='Owner restored. Use the existing Owner username and PIN.';
-          setTimeout(()=>{renderNormal();const u=el.querySelector('#eg238_user');if(u){u.value=String(S.settings.ownerUsername||'');el.querySelector('#eg238_pin')?.focus()}},250);
-        }catch(e){btn.disabled=false;msg.textContent=(e&&e.message)||'Owner login failed.'}
-      };
-      pw.onkeydown=e=>{if(e.key==='Enter')btn.click()};
+    async function loginOwnerEmail282(email,password){
+      const a=window.PMFirebase41;if(!a)throw new Error('Login module is not ready. Reload while online.');
+      const cfg=(await a.getSavedConfig?.())||window.PM_FIREBASE_CONFIG;
+      if(!cfg)throw new Error('Firebase is not configured in this app build.');
+      if(typeof firebase==='undefined')throw new Error('Could not reach Firebase. Open the app online and try again.');
+      const probe=firebase.initializeApp(cfg,'ca-login-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+      try{
+        await probe.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);
+        let cred;
+        try{cred=await probe.auth().signInWithEmailAndPassword(email,password)}catch(err){
+          if(['auth/invalid-credential','auth/invalid-login-credentials','auth/user-not-found','auth/wrong-password','auth/invalid-email'].includes(err.code))return false;
+          throw err;
+        }
+        const uid=cred.user.uid,record=await probe.firestore().collection('meta').doc('security').get();
+        if(!record.exists||String(record.data()?.ownerUid||'')!==String(uid))return false;
+        // Restore only a fresh owner device; never overwrite existing local edits during login.
+        let restored=null;
+        if(!ownerConfigured238()){
+          const cloud=await a.readCloudState(uid,probe.firestore());
+          if(!cloud?.state)throw new Error('No cloud backup is available. Save to cloud from your existing device first.');
+          const settings={...DEF_SETTINGS,...(cloud.state.settings||{}),lastKnownCloudRevision:+cloud.revision||0,lastKnownCloudUpdatedAt:cloud.updatedAt||Date.now(),lastCloudSyncAt:Date.now()};
+          if(!settings.ownerUsername||!(settings.ownerPinVerifier265||settings.ownerPin))throw new Error('Cloud backup has no configured login. Update it from your existing device.');
+          restored={...S,...cloud.state,settings};
+        }
+        a.ensureFirebase(cfg);
+        await a.auth.signInWithEmailAndPassword(email,password);
+        if(restored){S=restored;save()}
+        window.__restrictedFirebaseSession46=false;window.__ownerCloudVerified238=uid;
+        return true;
+      }finally{
+        try{await probe.auth().signOut()}catch(_){}
+        try{await probe.delete()}catch(_){}
+      }
     }
 
     function renderRecovery(){
@@ -8255,7 +8255,7 @@ Amit, 5566,"></textarea>
 <script id="pm-v270-interaction-premium">
 (()=>{
   const PM_VERSION_270='2.70 Interaction Audit · Safe Rate Context · Premium UI';
-  function inferAudience270(pb){const explicit=String(pb?.audience270||'').toLowerCase();if(['retail','wholesale','custom'].includes(explicit))return explicit;const t=String([pb?.name,pb?.category].filter(Boolean).join(' ')).toLowerCase();if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';if(/retail|consumer|counter|mrp/.test(t))return'retail';return'custom'}
+  function inferAudience270(pb){if(typeof window.priceBookAudience283==='function')return window.priceBookAudience283(pb);const explicit=String(pb?.audience270||pb?.audience||'').trim().toLowerCase();if(['retail','wholesale','custom'].includes(explicit))return explicit;const t=String([pb?.name,pb?.category].filter(Boolean).join(' ')).toLowerCase();if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';if(/retail|consumer|counter|mrp/.test(t))return'retail';return'custom'}
   window.inferPriceBookAudience270=inferAudience270;
   function enhanceAudienceTags270(){if(page!=='access45')return;document.querySelectorAll('[data-pb-load]').forEach(btn=>{const id=btn.dataset.pbLoad,pb=(S.priceBooks||[]).find(x=>x.id===id),tr=btn.closest('tr');if(!pb||!tr||tr.querySelector('[data-audience270]'))return;const td=tr.children[1];if(!td)return;const sel=document.createElement('select');sel.dataset.audience270=id;sel.className='sm';sel.style.cssText='margin-left:8px;min-height:29px;padding:3px 7px;width:auto';const current=pb.audience270||inferAudience270(pb);sel.innerHTML=`<option value="retail">Retail</option><option value="wholesale">Wholesale / Trade</option><option value="custom">Custom</option>`;sel.value=current;sel.title='Controls the safety label shown to Sales Team users';sel.onchange=()=>{pb.audience270=sel.value;pb.updatedAt=Date.now();save();window.markRestrictedPublish265?.();toast('Rate type updated · cloud users will refresh')};td.appendChild(sel)})}
   const renderBefore270=render;render=function(){const out=renderBefore270();setTimeout(enhanceAudienceTags270,0);return out};
@@ -8359,7 +8359,7 @@ Amit, 5566,"></textarea>
 <script id="pm-v279-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 Deep Regression Fixes'};</script>
 
 
-<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.81 CA Workspace"};</script>
+<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.83 CA Workspace"};</script>
 <script src="ca-workspace.js"></script>
 
 </body>

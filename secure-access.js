@@ -1,8 +1,9 @@
 (()=>{
   const CACHE_PREFIX='pm-restricted-payload-v228:';
-  const PAYLOAD_SCHEMA=3, PUBLISH_REV='v279-r1', PART_CHARS=150000, OFFLINE_TTL=24*60*60*1000;
+  const PAYLOAD_SCHEMA=3, PUBLISH_REV='v283-r1', PART_CHARS=150000, OFFLINE_TTL=24*60*60*1000;
   const VIEWER_SESSION_KEY='pm-viewer-session-v271', VIEWER_SESSION_APP='pm-viewer-session-v271', VIEWER_SESSION_MS=6*60*60*1000;
   let cloudSession=null, publishTimer=null, publishSuppress=false, restrictedSyncQueue=Promise.resolve(), cloudPublishDirty265=true, viewerSessionTimer271=null;
+  let publishInFlight283=null;
   const safe=x=>String(x??''), norm=x=>safe(x).trim().toLowerCase(), clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
   const round2=x=>Math.round((+x||0)*100)/100;
   const fmtRate=x=>x==null||isNaN(x)?'—':((S.settings&&S.settings.currency)||'₹')+Number(x).toLocaleString('en-IN',{minimumFractionDigits:Number(x)%1?2:0,maximumFractionDigits:2});
@@ -138,15 +139,17 @@
     try{return fn()}finally{keys.forEach(k=>{if(saved[k]===undefined)delete ui.list[k];else ui.list[k]=saved[k]})}
   }
   function nativePieces(p){try{const x=+window.piecesPerNativeUnit43(p);if(x>0)return x}catch(e){}if(['pc','piece'].includes(norm(p.priceUnit)))return 1;const r=(S.uomMaster||[]).find(x=>x.productId===p.id&&norm(x.unit)===norm(p.priceUnit));return r&&+r.pcsPerUnit>0?+r.pcsPerUnit:null}
-  function rateForProduct(p){const L=ui.list||{},party=L.party||'',qty=+L.qtyBasis26||1,extra=+L.extraPct||0,ov=L.overrides&&Object.prototype.hasOwnProperty.call(L.overrides,p.id)?+L.overrides[p.id]:null;try{const x=window.PriceManagerAPI?.pricing26?.(p,party,qty,extra,null,ov);if(x&&x.final!=null)return +x.final}catch(e){}try{return +priceOf(p,profileFor(party,extra)).net}catch(e){return p.price==null?null:+p.price}}
+  function priceNumber283(value){if(value==null||typeof value==='boolean'||String(value).trim()==='')return null;const n=Number(value);return Number.isFinite(n)?n:null}
+  function rateForProduct(p){const L=ui.list||{},party=L.party||'',qty=+L.qtyBasis26||1,extra=+L.extraPct||0,ov=L.overrides&&Object.prototype.hasOwnProperty.call(L.overrides,p.id)?priceNumber283(L.overrides[p.id]):null;try{const x=window.PriceManagerAPI?.pricing26?.(p,party,qty,extra,null,ov);if(x&&Object.prototype.hasOwnProperty.call(x,'final'))return priceNumber283(x.final)}catch(e){}try{return priceNumber283(priceOf(p,profileFor(party,extra)).net)}catch(e){return priceNumber283(p.price)}}
   function uomRatesFor(p,nativeRate){
-    if(nativeRate==null||isNaN(nativeRate))return[];const out=[],seen=new Set(),add=(u,r)=>{u=safe(u||'Unit').trim()||'Unit';const k=norm(u);if(!k||seen.has(k)||r==null||isNaN(r))return;seen.add(k);out.push({u,r:round2(r)})};
+    nativeRate=priceNumber283(nativeRate);if(nativeRate==null)return[];const out=[],seen=new Set(),add=(u,r)=>{u=safe(u||'Unit').trim()||'Unit';const k=norm(u);r=priceNumber283(r);if(!k||seen.has(k)||r==null)return;seen.add(k);out.push({u,r:round2(r)})};
     const native=safe(p.priceUnit||'Unit').trim()||'Unit';add(native,nativeRate);const pcs=nativePieces(p);if(pcs&&pcs>0){const perPc=nativeRate/pcs;add('Pc',perPc);(S.uomMaster||[]).filter(x=>x.productId===p.id&&+x.pcsPerUnit>0).forEach(x=>add(x.unit,perPc*(+x.pcsPerUnit)))}return out;
   }
   function structuredBook(pb,cfg){return withBookConfig(cfg||pb?.config||{},()=>{const products=typeof listItems==='function'?listItems():[],defaults=(cfg||pb?.config||{}).productUoms227||{},ror=(cfg||pb?.config||{}).rateOnRequest230||{};return products.map(p=>{const onRequest=!!ror[p.id],native=onRequest?null:rateForProduct(p),rates=onRequest?[]:uomRatesFor(p,native),wanted=defaults[p.id]||p.priceListUnit||p.priceUnit||'Unit',def=rates.find(x=>norm(x.u)===norm(wanted))||rates[0]||null;return{id:p.id||'',code:p.code||'',name:p.name||'',size:p.size||'',category:p.category||'',packing:p.packing||'',barcode:p.barcode||'',mrp:p.mrp??null,keywords:safe(p.keywords||p.tags||''),rateOnRequest:onRequest,defaultUom:def?def.u:wanted,uomRates:rates}})})}
   function cfgForBook(cfg){return withBookConfig(cfg||{},()=>sanitizeCfg(listConfig()))}
   function changeSet(oldItems,newItems){const a=new Map((oldItems||[]).map(x=>[x.id||x.code,x])),b=new Map((newItems||[]).map(x=>[x.id||x.code,x]));const details=[];let changed=0,increased=0,decreased=0,added=0,removed=0;const primary=x=>x.rateOnRequest?null:((x.uomRates||[]).find(r=>norm(r.u)===norm(x.defaultUom))||(x.uomRates||[])[0]||{}).r;for(const [k,n] of b){const o=a.get(k);if(!o){added++;details.push({code:n.code,name:n.name,type:'New product',oldRate:null,newRate:primary(n),onRequest:n.rateOnRequest,uom:n.defaultUom});continue}const or=primary(o),nr=primary(n),different=!!o.rateOnRequest!==!!n.rateOnRequest||Math.abs((+or||0)-(+nr||0))>.009||norm(o.defaultUom)!==norm(n.defaultUom);if(different){changed++;if(or!=null&&nr!=null&&nr>or)increased++;if(or!=null&&nr!=null&&nr<or)decreased++;details.push({code:n.code,name:n.name,type:'Rate changed',oldRate:or,newRate:nr,oldOnRequest:o.rateOnRequest,onRequest:n.rateOnRequest,oldUom:o.defaultUom,uom:n.defaultUom})}}for(const [k,o] of a)if(!b.has(k)){removed++;details.push({code:o.code,name:o.name,type:'Removed',oldRate:primary(o),newRate:null,oldUom:o.defaultUom})}return{changed,increased,decreased,added,removed,details:details.slice(0,250)}}
   function audience230(b){const explicit=norm(b?.audience270||b?.audience||'');if(['retail','wholesale','custom'].includes(explicit))return explicit;const t=norm([b?.name,b?.category].filter(Boolean).join(' '));if(/wholesale|whole\s*sale|distributor|dealer|stockist|trade|bulk/.test(t))return'wholesale';if(/retail|consumer|counter|mrp/.test(t))return'retail';return'custom'}
+  window.priceBookAudience283=audience230;
   function audienceLabel230(b){const a=audience230(b);return a==='wholesale'?'Wholesale / Trade':a==='retail'?'Retail':'Custom'}
   function brandFor(cfg){const id=cfg?.brandingTemplateId230||'default',b=(S.pdfBrandTemplates230||[]).find(x=>x.id===id)||(S.pdfBrandTemplates230||[])[0];return b?{name:b.name||'',firm:b.firm||'',subtitle:b.subtitle||'',contact:b.contact||'',footer:b.footer||'',showEffective:b.showEffective!==false}:null}
   function bookPayload(pb){const currentCfg=pb.config||{},items=structuredBook(pb,currentCfg),prevItems=pb.previousConfig230?structuredBook(pb,pb.previousConfig230):[],base={id:pb.id,name:pb.name,category:pb.category||'Other',audience:audience230(pb),updatedAt:pb.updatedAt||pb.createdAt||null,version:+pb.version230||1,effectiveFrom:pb.effectiveFrom230||'',cfg:cfgForBook(currentCfg),branding:brandFor(currentCfg),items,changes:changeSet(prevItems,items)};if(pb.scheduled230){const sc=pb.scheduled230.config||{},si=structuredBook(pb,sc);base.scheduled={effectiveDate:pb.scheduled230.effectiveDate,note:pb.scheduled230.note||'',cfg:cfgForBook(sc),branding:brandFor(sc),items:si,changes:changeSet(items,si)}}return base}
@@ -436,9 +439,13 @@
     }
     const phrase=smartNorm276(q);if(phrase&&primary.includes(phrase))total+=80;else if(phrase&&packing.includes(phrase))total+=25;if(tokens.length>1)total+=tokens.length*8;return total
   }
-  function searchRows(p,q,bookId,category,mode){
+  window.smartProductMatch282=(q,product,book={})=>smartScore276(q,product,book)>0;
+  function searchRows(p,q,bookId,category,mode,rateMode=''){
+    const assignedModes=[...new Set(activeBooks230(p).map(audience230))];
+    const scope=rateMode||(assignedModes.length===1?assignedModes[0]:'');
+    if(!assignedModes.includes(scope))return [];
     const pr=prefs230(p),out=[],hasQuery=mode==='search'&&String(q||'').trim().length>0;
-    activeBooks230(p).filter(b=>!bookId||b.id===bookId).forEach(b=>(b.items||[]).forEach(it=>{
+    activeBooks230(p).filter(b=>(!bookId||b.id===bookId)&&audience230(b)===scope).forEach(b=>(b.items||[]).forEach(it=>{
       if(category&&norm(it.category)!==norm(category))return;const key=productKey230(b,it);if(mode==='favorites'&&!pr.favorites.includes(key))return;if(mode==='recent'&&!pr.recentProducts.includes(key))return;
       const smartScore=hasQuery?smartScore276(q,it,b):1;if(hasQuery&&!smartScore)return;out.push({b,it,key,smartScore})
     }));
@@ -450,13 +457,13 @@
   function renderResults(root,p,mode='search'){
     const q=root.querySelector('#cv47q')?.value||'',bookId=root.querySelector('#cv47book')?.value||'',category=root.querySelector('#cv47catfilter')?.value||'',box=root.querySelector('#cv47results');if(!box)return;
     const books=activeBooks230(p),sales=p.user?.role==='sales';
-    if(sales&&books.length>1&&!bookId){box.innerHTML=`<div class="cv47-empty"><b>Select the exact price list first</b><div style="margin-top:5px">Rates remain hidden until the current pricing context is unambiguous.</div></div>`;return}
+    if(!root.dataset.rateMode282&&new Set(books.map(audience230)).size>1){box.innerHTML='<div class="cv47-empty"><b>Choose a pricing mode first</b><div style="margin-top:5px">Select Retail, Wholesale or Custom above, then search across its assigned lists.</div></div>';return}
     if(mode==='search'&&!q.trim()){
       const pr=prefs230(p),chips=pr.recentQueries.slice(0,6).map(x=>`<button data-q230="${esc(x)}">${esc(x)}</button>`).join('');
-      box.innerHTML=`<div class="cv47-empty"><div style="font-size:25px;margin-bottom:7px">⌕</div><b>Search products in the selected price list</b><div style="margin-top:4px">Type in English, Hindi/Hinglish, code/barcode, or even an approximate spelling.</div>${chips?'<div class="cv272-tools" style="justify-content:center;margin-top:12px">'+chips+'</div>':''}</div>`;
+      box.innerHTML=`<div class="cv47-empty"><div style="font-size:25px;margin-bottom:7px">⌕</div><b>Search your assigned products</b><div style="margin-top:4px">Type in English, Hindi/Hinglish, code/barcode, or even an approximate spelling.</div>${chips?'<div class="cv272-tools" style="justify-content:center;margin-top:12px">'+chips+'</div>':''}</div>`;
       box.querySelectorAll('[data-q230]').forEach(b=>b.onclick=()=>{root.querySelector('#cv47q').value=b.dataset.q230;renderResults(root,p)});return
     }
-    const rows=searchRows(p,q,bookId,category,mode);if(mode==='search')rememberResults230(p,rows,q);const pr=prefs230(p);
+    const rows=searchRows(p,q,bookId,category,mode,root.dataset.rateMode282||'');if(mode==='search')rememberResults230(p,rows,q);const pr=prefs230(p);
     box.innerHTML=rows.length?rows.map((r,i)=>{const aud=audience230(r.b),label=audienceLabel230(r.b),rate=selectedRate(r.it,r.it.defaultUom,p),wh=sales&&aud==='wholesale';return `<article class="cv272-product"><div class="cv272-listline"><span class="cv272-tag ${aud}">${esc(label)}</span><span class="cv272-list-name">${esc(r.b.name)}${r.it.category?' · '+esc(r.it.category):''}</span></div><div class="cv272-product-top"><div style="min-width:0;flex:1"><div class="cv272-product-code">${esc(r.it.code||'')}</div><div class="cv272-product-name">${esc(r.it.name||'')}</div><details class="ca281-mobile-detail"><summary>Product details</summary><div class="cv272-product-meta">${[r.it.size,r.it.packing,r.it.mrp!=null?'MRP '+(p.currency||'₹')+Number(r.it.mrp).toLocaleString('en-IN',{maximumFractionDigits:2}):''].filter(Boolean).map(esc).join(' · ')}</div></details>${wh?'<div class="cv272-warning">Wholesale / trade rate — verify buyer before quoting.</div>':''}${window.orderRowExtra233?window.orderRowExtra233(r,i):''}</div><button class="cv272-star" data-star230="${i}" title="Favorite">${pr.favorites.includes(r.key)?'★':'☆'}</button><div class="cv272-ratebox"><div class="cv272-rate ${aud==='wholesale'?'wholesale':''}" data-rate47="${i}">${rate}</div>${!r.it.rateOnRequest&&(r.it.uomRates||[]).length>1?`<select class="cv272-uom" data-uom47="${i}">${r.it.uomRates.map(x=>`<option value="${esc(x.u)}" ${norm(x.u)===norm(r.it.defaultUom)?'selected':''}>${esc(x.u)}</option>`).join('')}</select>`:`<div class="metric-sub" style="margin-top:5px">${r.it.rateOnRequest?'Contact owner / sales team':esc(r.it.defaultUom||'')}</div>`}</div></div></article>`}).join(''):`<div class="cv47-empty"><div style="font-size:24px;margin-bottom:7px">⌕</div><b>No matching product</b><div style="margin-top:4px">Try another spelling, Hindi/Hinglish word, product code, or a shorter term.</div></div>`;
     box.querySelectorAll('[data-uom47]').forEach(sel=>sel.onchange=()=>{const i=+sel.dataset.uom47,row=rows[i],rate=box.querySelector(`[data-rate47="${i}"]`);if(row&&rate)rate.textContent=selectedRate(row.it,sel.value,p)});
     box.querySelectorAll('[data-star230]').forEach(st=>st.onclick=()=>{const r=rows[+st.dataset.star230],x=prefs230(p);x.favorites=x.favorites.includes(r.key)?x.favorites.filter(k=>k!==r.key):[r.key,...x.favorites];savePrefs230(p,x);renderResults(root,p,mode)});if(window.wireOrderRows233)window.wireOrderRows233(box,rows,p)
@@ -485,22 +492,19 @@
     viewerCss();let e=document.getElementById('cloudViewer46');if(!e){e=document.createElement('div');e.id='cloudViewer46';e.style.cssText='position:fixed;inset:0;z-index:200000;overflow:auto';document.body.appendChild(e)}e.style.display='block';
     const books=activeBooks230(p),sales=p.user?.role==='sales',role=sales?'Sales team':'Customer',audCount=a=>books.filter(b=>audience230(b)===a).length;
     const modes=['retail','wholesale','custom'].filter(a=>audCount(a)>0),hasChoice=modes.length>1;
-    let initialMode=(cloudSession?.rateMode272&&modes.includes(cloudSession.rateMode272))?cloudSession.rateMode272:'';
-    if(!initialMode&&modes.length===1)initialMode=modes[0];
-    // For Sales with more than one audience, never silently default to a rate class.
-    if(!initialMode&&!sales&&modes.includes('retail'))initialMode='retail';
+    let initialMode=modes.includes(cloudSession?.rateMode272)?cloudSession.rateMode272:(modes.length===1?modes[0]:'');
     const exp=p.offlineValidUntil?new Date(p.offlineValidUntil).toLocaleString('en-IN'):'',rn=p.notice||{},rd=noticeDate47(rn.effectiveDate),rtext=rn.text||('New rates implemented'+(rd?' from '+rd:'')),an=p.announcement||{};
     const initials=String(p.firm||'PM').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'PM';
     const modeLabel=a=>a==='wholesale'?'Wholesale':a==='retail'?'Retail':'Custom';
     const modeHint=a=>a==='wholesale'?'Trade pricing selected. Verify the buyer before quoting or sharing.':a==='retail'?'Retail pricing selected. Only retail price lists and retail search rates are visible.':'Custom pricing selected. Only custom price lists are visible.';
     const modeButtons=modes.map(a=>`<button class="cv272-mode ${a===initialMode?'on':''}" data-mode272="${a}">${modeLabel(a)}<span class="cv272-mode-count">${audCount(a)}</span></button>`).join('');
     e.innerHTML=`<div class="cv272-shell"><div class="cv272-topbar"><div class="cv272-topbar-in"><div class="cv272-mark"><img src="ca-logo.png" alt="CA"></div><div class="cv272-brand"><b>CA</b><span>${esc(p.firm||'Business')} · ${esc(p.user?.name||'')} · ${role}${off?' · Offline':''}</span></div><div class="cv272-session"><span class="cv272-role">${role}</span><button class="btn ghost sm cv272-logout" id="cv46out">Log out</button></div></div></div><div class="cv47-wrap">
-      <section class="cv272-hero"><div><h1>${sales?'Rate Desk':'Your Price Desk'}</h1><p>${sales?'Choose a rate type, then search products or open a price list.':'Search your assigned rates, open price lists and catalogs from one clean workspace.'}</p></div><div class="cv272-hero-stat"><div class="cv272-pill"><b>${books.length}</b><span>Price lists</span></div><div class="cv272-pill"><b>${(p.catalogs||[]).length}</b><span>Catalogs</span></div></div></section>
+      <section class="cv272-hero"><div><h1>${sales?'Rate Desk':'Your Price Desk'}</h1><p>${sales?'Choose a rate type, then search across its assigned price lists.':'Search your assigned rates, open price lists and catalogs from one clean workspace.'}</p></div><div class="cv272-hero-stat"><div class="cv272-pill"><b>${books.length}</b><span>Price lists</span></div><div class="cv272-pill"><b>${(p.catalogs||[]).length}</b><span>Catalogs</span></div></div></section>
       ${rn.enabled?`<div class="cv47-notice"><b>Rate update</b><div>${esc(rtext)}</div>${rd&&rn.text?`<div class="note" style="margin-top:3px">Effective from ${esc(rd)}</div>`:''}</div>`:''}${activeAnnouncement230(an)?`<div class="cv47-announce"><b>${esc(an.title||'Announcement')}</b><div>${esc(an.text)}</div></div>`:''}
       <section class="cv272-mode-panel"><div class="cv272-mode-head"><div><b>Choose pricing mode</b><span>${hasChoice?'Rates and price lists will be filtered to the selected mode.':'Only one pricing mode is assigned to this login.'}</span></div>${off&&exp?`<span>Offline valid until ${esc(exp)}</span>`:''}</div><div class="cv272-segment">${modeButtons||'<span class="note">No rate mode assigned</span>'}</div><div id="cv272modeNote" class="cv272-mode-note ${initialMode||'required'}">${initialMode?esc(modeHint(initialMode)):'Select Retail / Wholesale / Custom before viewing rates.'}</div></section>
-      <div class="cv272-toolbar"><div class="cv272-field"><label>Price list context</label><select id="cv47switchbook"><option value="">Choose pricing mode first</option></select></div><div class="cv272-field"><label>Catalog</label><select id="cv47switchcat"><option value="">All assigned catalogs</option>${(p.catalogs||[]).map(c=>`<option value="${c.id}">${esc(c.title||c.name||'Catalog')}</option>`).join('')}</select></div></div>
+      <div class="cv272-toolbar"><div class="cv272-field"><label>Price list context · optional</label><select id="cv47switchbook"><option value="">Choose pricing mode first</option></select></div><div class="cv272-field"><label>Catalog</label><select id="cv47switchcat"><option value="">All assigned catalogs</option>${(p.catalogs||[]).map(c=>`<option value="${c.id}">${esc(c.title||c.name||'Catalog')}</option>`).join('')}</select></div></div>
       <div class="cv272-tabs"><button class="cv272-tab on" data-tab272="products">Products</button><button class="cv272-tab" data-tab272="lists">Price Lists <small id="cv272listCount"></small></button><button class="cv272-tab" data-tab272="catalogs">Catalogs <small>${(p.catalogs||[]).length}</small></button></div>
-      <section id="cv272products"><div class="cv47-search"><div class="cv272-search-panel"><div class="cv47-searchbox"><div class="cv272-search-main"><input id="cv47q" type="search" autocomplete="off" enterkeyhint="search" placeholder="Smart search: product, गलत spelling, हिंदी, code..."></div><select id="cv47catfilter"><option value="">All categories</option></select></div><div class="cv276-smart-note"><span>✦ Smart Search</span> Wrong spelling + Hindi/Hinglish supported · e.g. <b>kapur / कपूर</b>, <b>rangoly / रंगोली</b></div><div class="cv272-tools"><button id="cv47fav">★ Favorites</button><button id="cv47recent">Recent products</button></div></div><div id="cv47results" class="cv47-results"></div></div></section>
+      <div class="cv47-search"><div class="cv272-search-panel"><div class="cv47-searchbox"><div class="cv272-search-main"><input id="cv47q" aria-label="Search assigned products" type="search" autocomplete="off" enterkeyhint="search" placeholder="Smart search: product, गलत spelling, हिंदी, code..."></div><select id="cv47catfilter"><option value="">All categories</option></select></div><div class="cv276-smart-note"><span>✦ Smart Search</span> Wrong spelling + Hindi/Hinglish supported · e.g. <b>kapur / कपूर</b>, <b>rangoly / रंगोली</b></div><div class="cv272-tools"><button id="cv47fav">★ Favorites</button><button id="cv47recent">Recent products</button></div></div></div><section id="cv272products"><div id="cv47results" class="cv47-results"></div></section>
       <section id="cv272lists" hidden><div class="cv272-section-title"><b>Price Lists</b><span id="cv272listSub">Choose a pricing mode</span></div><div id="cv272listGrid" class="cv272-listgrid"></div></section>
       <section id="cv272catalogs" hidden><div class="cv272-section-title"><b>Product Catalogs</b><span>Assigned to this login</span></div><div class="cv47-catgrid">${(p.catalogs||[]).map(c=>`<div class="cv272-cat-card" data-cat-card="${c.id}"><span class="cv272-tag custom">${esc(c.category||'Catalog')}</span><h3>${esc(c.title||c.name||'Catalog')}</h3><div class="cv272-card-meta">PDF catalog · available offline after first online open</div><div class="cv272-actions"><button class="btn ghost sm" data-cat-view="${c.id}">View</button><button class="btn ghost sm" data-cat-share276="${c.id}">Share</button><button class="btn primary sm" data-cat-down="${c.id}">Download</button></div></div>`).join('')||'<div class="cv47-empty">No catalog assigned.</div>'}</div></section>
     </div></div>`;
@@ -512,25 +516,22 @@
     const safeBookAction=(b,fn)=>{if(!b)return;if(sales&&audience230(b)==='wholesale'&&!window.confirm('Wholesale / Trade price list\n\nConfirm this is intended for a trade/wholesale buyer before continuing.'))return;fn(b)};
     function paintLists(){
       const bs=modeBooks();listCount.textContent=rateMode?String(bs.length):'';listSub.textContent=rateMode?`${modeLabel(rateMode)} mode · ${bs.length} assigned list${bs.length===1?'':'s'}`:'Choose a pricing mode';
-      listGrid.innerHTML=bs.length?bs.map(b=>`<div class="cv272-book-card" data-book-card="${b.id}"><span class="cv272-tag ${rateMode}">${esc(modeLabel(rateMode))}</span><h3>${esc(b.name)}</h3><div class="ca281-meta"><span class="ca281-status published">Published</span>${b.scheduled&&!b.scheduledActivated?'<span class="ca281-status scheduled">Scheduled '+esc(noticeDate47(b.scheduled.effectiveDate))+'</span>':''}</div><div class="cv272-card-meta">${(b.items||[]).length} products${b.effectiveFrom?' · Effective '+esc(noticeDate47(b.effectiveFrom)):''}${b.updatedAt?' · Updated '+esc(new Date(b.updatedAt).toLocaleDateString('en-IN')):''}</div>${sales&&rateMode==='wholesale'?'<div class="cv272-warning">Wholesale / trade list — verify buyer before sharing.</div>':''}<div class="cv272-actions"><button class="btn ghost sm" data-viewbook278="${b.id}">View</button><button class="btn ghost sm" data-share="${b.id}">Share</button><button class="btn primary sm" data-pdf="${b.id}">Download</button>${sales&&((b.changes?.details||[]).length)?`<button class="btn ghost sm" data-changes230="${b.id}">Changes</button>`:''}</div></div>`).join(''):'<div class="cv47-empty">No price list is assigned for this mode.</div>';
+      listGrid.innerHTML=bs.length?bs.map(b=>`<div class="cv272-book-card" data-book-card="${b.id}"><span class="cv272-tag ${audience230(b)}">${esc(audienceLabel230(b))}</span><h3>${esc(b.name)}</h3><div class="ca281-meta"><span class="ca281-status published">Published</span>${b.scheduled&&!b.scheduledActivated?'<span class="ca281-status scheduled">Scheduled '+esc(noticeDate47(b.scheduled.effectiveDate))+'</span>':''}</div><div class="cv272-card-meta">${(b.items||[]).length} products${b.effectiveFrom?' · Effective '+esc(noticeDate47(b.effectiveFrom)):''}${b.updatedAt?' · Updated '+esc(new Date(b.updatedAt).toLocaleDateString('en-IN')):''}</div>${sales&&audience230(b)==='wholesale'?'<div class="cv272-warning">Wholesale / trade list — verify buyer before sharing.</div>':''}<div class="cv272-actions"><button class="btn ghost sm" data-searchbook282="${b.id}">Search products</button><button class="btn ghost sm" data-viewbook278="${b.id}">View</button><button class="btn ghost sm" data-share="${b.id}">Share</button><button class="btn primary sm" data-pdf="${b.id}">Download</button>${sales&&((b.changes?.details||[]).length)?`<button class="btn ghost sm" data-changes230="${b.id}">Changes</button>`:''}</div></div>`).join(''):'<div class="cv47-empty">No price list is assigned for this mode.</div>';
+      listGrid.querySelectorAll('[data-searchbook282]').forEach(x=>x.onclick=()=>{bookSel.value=x.dataset.searchbook282;bookSel.onchange();e.querySelector('[data-tab272="products"]')?.click();q.focus()});
       listGrid.querySelectorAll('[data-viewbook278]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.viewbook278),bookView));
       listGrid.querySelectorAll('[data-pdf]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.pdf),bookPdf));
       listGrid.querySelectorAll('[data-share]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.share),bookShare));
       listGrid.querySelectorAll('[data-changes230]').forEach(x=>x.onclick=()=>changesDialog230((p.priceBooks||[]).find(b=>b.id===x.dataset.changes230),p));
     }
     function paintBookSelect(prefer=''){
-      const bs=modeBooks();bookSel.innerHTML='';
+      const bs=modeBooks();bookSel.innerHTML='';bookSel.disabled=!rateMode;
       if(!rateMode){bookSel.innerHTML='<option value="">Choose pricing mode first</option>';selectedBook='';return}
-      if(bs.length===1){bookSel.innerHTML=`<option value="${bs[0].id}">${esc(bs[0].name)}</option>`;selectedBook=bs[0].id;bookSel.value=selectedBook;return}
-      bookSel.innerHTML=`<option value="">Select exact ${esc(modeLabel(rateMode))} price list</option>`+bs.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
+      bookSel.innerHTML=`<option value="">All ${esc(modeLabel(rateMode))} price lists</option>`+bs.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
       selectedBook=(prefer&&bs.some(b=>b.id===prefer))?prefer:'';bookSel.value=selectedBook;
     }
     function paintCategories(){const old=catFilter.value;catFilter.innerHTML='<option value="">All categories</option>'+categories().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');if([...catFilter.options].some(o=>o.value===old))catFilter.value=old}
     function renderSafeResults(){
-      const bs=modeBooks();
-      if(!rateMode){e.querySelector('#cv47results').innerHTML='<div class="cv47-empty"><b>Choose Retail or Wholesale first</b><div style="margin-top:5px">Search results stay hidden until a pricing mode is selected.</div></div>';return}
-      if(bs.length>1&&!bookSel.value){e.querySelector('#cv47results').innerHTML=`<div class="cv47-empty"><b>Select the exact ${esc(modeLabel(rateMode))} price list</b><div style="margin-top:5px">This prevents quoting a rate from the wrong customer/list.</div></div>`;return}
-      renderResults(e,p,mode)
+      e.dataset.rateMode282=rateMode;renderResults(e,p,mode)
     }
     const compat=document.createElement('select');compat.id='cv47book';compat.hidden=true;e.querySelector('#cv272products').prepend(compat);
     const syncCompat=()=>{compat.innerHTML=bookSel.innerHTML;compat.value=bookSel.value||''};
@@ -543,12 +544,13 @@
       e.querySelectorAll('[data-mode272]').forEach(b=>b.classList.toggle('on',b.dataset.mode272===next));
       modeNote.className='cv272-mode-note '+next;modeNote.textContent=modeHint(next);
       paintBookSelect(cloudSession?.rateContextBookId270||'');syncCompat();if(cloudSession)cloudSession.rateContextBookId270=bookSel.value||'';
-      paintCategories();paintLists();mode='search';q.value='';renderSafeResults();return true
+      paintCategories();paintLists();mode='search';renderSafeResults();return true
     }
     e.querySelectorAll('[data-mode272]').forEach(b=>b.onclick=()=>applyMode(b.dataset.mode272,true));
-    bookSel.onchange=()=>{const next=bookSel.value,b=books.find(x=>x.id===next);if(next&&window.guardOrderContext275&&!window.guardOrderContext275({rateMode,bookId:next,bookName:b?.name||''})){bookSel.value=selectedBook||'';return}selectedBook=next;if(cloudSession)cloudSession.rateContextBookId270=selectedBook||'';syncCompat();mode='search';renderSafeResults()};
-    q.oninput=()=>{mode='search';renderSafeResults()};catFilter.onchange=renderSafeResults;
-    e.querySelector('#cv47fav').onclick=()=>{mode='favorites';q.value='';renderSafeResults()};e.querySelector('#cv47recent').onclick=()=>{mode='recent';q.value='';renderSafeResults()};
+    bookSel.onchange=()=>{const next=bookSel.value,b=books.find(x=>x.id===next);if(next&&window.guardOrderContext275&&!window.guardOrderContext275({rateMode:audience230(b),bookId:next,bookName:b?.name||''})){bookSel.value=selectedBook||'';return}selectedBook=next;if(cloudSession)cloudSession.rateContextBookId270=selectedBook||'';syncCompat();mode='search';renderSafeResults()};
+    let searchTimer282;const revealProducts282=()=>e.querySelector('[data-tab272="products"]')?.click();
+    q.oninput=()=>{mode='search';revealProducts282();clearTimeout(searchTimer282);searchTimer282=setTimeout(()=>{if(e.isConnected)renderSafeResults()},120)};catFilter.onchange=()=>{revealProducts282();renderSafeResults()};
+    e.querySelector('#cv47fav').onclick=()=>{mode='favorites';q.value='';revealProducts282();renderSafeResults()};e.querySelector('#cv47recent').onclick=()=>{mode='recent';q.value='';revealProducts282();renderSafeResults()};
     e.querySelectorAll('[data-tab272]').forEach(b=>b.onclick=()=>{e.querySelectorAll('[data-tab272]').forEach(x=>x.classList.toggle('on',x===b));['products','lists','catalogs'].forEach(k=>{const sec=e.querySelector('#cv272'+k);if(sec)sec.hidden=b.dataset.tab272!==k})});
     const sc=e.querySelector('#cv47switchcat');sc.onchange=()=>{const id=sc.value;e.querySelectorAll('[data-cat-card]').forEach(c=>c.style.display=!id||c.dataset.catCard===id?'':'none');if(id)e.querySelector('[data-tab272="catalogs"]')?.click()};
     e.querySelectorAll('[data-cat-view]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Loading…';try{await viewCatalog(p.catalogs.find(c=>c.id===x.dataset.catView))}finally{x.disabled=false;x.textContent=orig}});
@@ -633,7 +635,7 @@
     // are included, but every dependency that can change a restricted user's rate/PDF is covered.
     const ph=fastHash265(JSON.stringify((S.products||[]).map(p=>[p.id,p.updatedAt||0,p.code,p.name,p.size,p.category,p.packing,p.barcode,p.mrp,p.price,p.stock,p.status,p.priceUnit,p.priceListUnit,p.keywords,p.tags])));
     const rh=fastHash265(JSON.stringify(S.rules||[]));
-    const pbh=fastHash265(JSON.stringify((S.priceBooks||[]).map(pb=>[pb.id,pb.name,pb.category,pb.version230||0,pb.effectiveFrom230||'',pb.config||{},pb.scheduled230||null,pb.previousConfig230||null])));
+    const pbh=fastHash265(JSON.stringify((S.priceBooks||[]).map(pb=>[pb.id,pb.name,pb.category,pb.audience270,pb.audience,pb.version230||0,pb.effectiveFrom230||'',pb.config||{},pb.scheduled230||null,pb.previousConfig230||null])));
     const uh=fastHash265(JSON.stringify((S.viewerUsers||[]).map(u=>[u.id,u.name,u.role,u.active!==false,u.accessExpiresOn||'',u.allowedPriceBookIds||[],u.allowedCatalogFileIds||[],u.rateNotice||{},u.announcement||{},u.credentialPending265||false])));
     const ch=fastHash265(JSON.stringify((S.catalogFiles||[]).map(c=>[c.id,c.storagePath,c.title,c.category,c.filename,c.size,c.uploadedAt||0])));
     const policy=fastHash265(JSON.stringify([S.uomMaster||[],S.quantityPriceSlabs||[],S.customerRateLocks||[],S.customerRateTemplates230||[],S.scheduledRates||[]]));
@@ -648,16 +650,25 @@
   }
   window.userNeedsPublish281=userNeedsPublish265;
   async function publishPending(){
+    if(publishInFlight283)return publishInFlight283;
     if(!cloudPublishDirty265)return true;
-    const a=api();if(!navigator.onLine||!a?.auth?.currentUser)return false;
-    const users=(S.viewerUsers||[]).filter(x=>x.active!==false||x.cloudUid).filter(userNeedsPublish265);
-    if(!users.length){cloudPublishDirty265=false;return true}
-    const failures=[];
-    for(const u of users){try{await syncOne(u.id)}catch(e){failures.push({name:u.name,error:cloudErrorMessage(e)})}}
-    cloudPublishDirty265=failures.length>0;
-    if(page==='access45')setTimeout(()=>render(),0);
-    if(failures.length)throw Error(failures.map(x=>x.name+': '+x.error).join(' | '));
-    return true;
+    const run=async()=>{
+      do{
+        const a=api();if(!navigator.onLine||!a?.auth?.currentUser||window.__restrictedFirebaseSession46)return false;
+        // Consume only the work known at the start. Edits during awaits set this
+        // flag again and are drained by the same loop, even if their timer fires.
+        cloudPublishDirty265=false;
+        try{
+          const users=(S.viewerUsers||[]).filter(x=>x.active!==false||x.cloudUid).filter(userNeedsPublish265),failures=[];
+          for(const u of users){try{await syncOne(u.id)}catch(e){failures.push({name:u.name,error:cloudErrorMessage(e)})}}
+          if(page==='access45')setTimeout(()=>render(),0);
+          if(failures.length)throw Error(failures.map(x=>x.name+': '+x.error).join(' | '));
+        }catch(e){cloudPublishDirty265=true;throw e}
+      }while(cloudPublishDirty265);
+      return true;
+    };
+    publishInFlight283=run().finally(()=>{publishInFlight283=null});
+    return publishInFlight283;
   }
   function schedulePublish(delay=1400){if(publishSuppress||window.__restrictedFirebaseSession46)return;cloudPublishDirty265=true;clearTimeout(publishTimer);publishTimer=setTimeout(()=>publishPending().catch(()=>{}),delay)}
   function flushPublishNow233(){if(publishSuppress||window.__restrictedFirebaseSession46||!cloudPublishDirty265)return;clearTimeout(publishTimer);return publishPending().catch(()=>{})}

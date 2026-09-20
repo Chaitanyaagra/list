@@ -743,6 +743,42 @@ button.btn{min-height:44px!important}button:disabled{cursor:not-allowed;opacity:
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
+/* CA 2.82: content-sized tiles and consistent rounded-square brand marks. */
+.ca-brand-logo,.ca-lock-logo,.ca-entry-brand img,.ca-viewer-login img{border-radius:24%!important;object-fit:contain!important;background:#fff;box-sizing:border-box;flex-shrink:0}
+#cloudViewer46 .cv272-mark{border-radius:24%!important;flex-shrink:0;padding:4px}
+#cloudViewer46 .cv272-mark img{object-fit:contain;border-radius:0}
+.card,.stat,.quick-card,.field,.ca281-toolbar>*,.ca281-context>*{min-width:0}
+.card h2,.card h3,.card p,.card .note,.stat,.ca281-meta,.ca281-status{overflow-wrap:anywhere}
+.ca281-actions button,.ca281-meta>*{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ca281-preview td{overflow-wrap:anywhere}
+#entryGate238{overflow:auto;align-items:safe center!important}
+#entryGate238>div{flex-shrink:0;min-width:0;margin:auto}
+#entryGate238 .field input{width:100%;min-width:0;box-sizing:border-box}
+#cloudViewer46 .cv272-segment{flex-wrap:wrap;overflow:visible}
+#cloudViewer46 .cv272-mode{flex:1 1 100px;min-width:0;white-space:normal}
+#cloudViewer46 .cv272-product,#cloudViewer46 .cv272-book-card,#cloudViewer46 .cv272-cat-card,#cloudViewer46 .cv272-field,#cloudViewer46 .cv272-search-main{min-width:0;overflow-wrap:anywhere}
+#cloudViewer46 .cv272-product-top{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:10px}
+#cloudViewer46 .cv272-product-top>div:first-child{grid-column:1}
+#cloudViewer46 .cv272-star{grid-column:2;grid-row:1;width:44px;height:44px}
+#cloudViewer46 .cv272-ratebox{grid-column:1/-1;min-width:0;max-width:100%;text-align:left;border-top:1px solid var(--cv-line);padding-top:10px}
+#cloudViewer46 .cv272-rate{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+#cloudViewer46 .cv272-uom{width:auto;max-width:100%;min-height:44px}
+#cloudViewer46 .cv272-actions .btn{flex:1 1 100px;min-width:0;white-space:normal;overflow-wrap:anywhere}
+#cloudViewer46 .cv272-brand span,#cloudViewer46 .cv272-section-title{overflow-wrap:anywhere}
+#cloudViewer46 .cv272-mode-head span{display:block;margin-top:4px}
+#cloudViewer46 .cv47-wrap .cv47-search{position:relative!important;top:auto!important;z-index:auto!important;backdrop-filter:none;margin:0!important}
+#cloudViewer46 .cv272-search-main input{width:100%;min-width:0}
+#cloudViewer46 #cv47q{padding-left:41px!important}
+#cloudViewer46 select{min-width:0;max-width:100%}
+#cloudViewer46 .cv272-section-title{flex-wrap:wrap}
+@media(max-width:700px){
+ #cloudViewer46 .cv272-search-panel .cv47-searchbox{grid-template-columns:minmax(0,1fr)!important}
+ #cloudViewer46 .cv272-session{width:100%;justify-content:flex-end}
+ .ca281-books{grid-template-columns:minmax(0,1fr)}
+}
+
 [hidden]{display:none!important}
 
 .ca281-more{position:relative}.ca281-more>summary{cursor:pointer;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:.875rem;background:var(--surface)}.ca281-menu{position:absolute;right:0;top:100%;z-index:50;min-width:230px;max-width:85vw;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 22px #0002;display:grid;gap:7px}
+
+#cloudViewer46 .ord233-add{flex-wrap:wrap}#cloudViewer46 .ord233-add .btn{white-space:normal;min-width:0;max-width:100%}
