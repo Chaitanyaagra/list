@@ -1,4 +1,10 @@
 (()=>{
+  // Safe initialization agar S pehle se declared na ho
+  if(typeof window.S === 'undefined'){
+    window.S = { products:[], rules:[], parties:[], quotes:[], invoices:[], payments:[], settings:{}, imports:[], history:[] };
+  }
+  window.S.catalogFiles = window.S.catalogFiles || [];
+
   const CACHE_PREFIX='pm-restricted-payload-v228:';
   const PAYLOAD_SCHEMA=3, PUBLISH_REV='v283-r1', PART_CHARS=150000, OFFLINE_TTL=24*60*60*1000;
   const VIEWER_SESSION_KEY='pm-viewer-session-v271', VIEWER_SESSION_APP='pm-viewer-session-v271', VIEWER_SESSION_MS=6*60*60*1000;
@@ -8,7 +14,6 @@
   const round2=x=>Math.round((+x||0)*100)/100;
   const fmtRate=x=>x==null||isNaN(x)?'—':((S.settings&&S.settings.currency)||'₹')+Number(x).toLocaleString('en-IN',{minimumFractionDigits:Number(x)%1?2:0,maximumFractionDigits:2});
   const api=()=>window.PMFirebase41||null;
-  S.catalogFiles=S.catalogFiles||[];
 
   async function ready(){
     const a=api();if(!a)throw Error('Firebase module is not ready');
@@ -395,212 +400,6 @@
   function productKey230(b,it){return b.id+'|'+(it.id||it.code)}
   function activeAnnouncement230(a){if(!a?.enabled||!a.text)return false;const d=new Date(),now=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return(!a.from||a.from<=now)&&(!a.until||a.until>=now)}
   
-  const SMART_PHRASES_276=[
-    ['गुलाब जल','gulab jal rose water'],['गंगा जल','ganga jal'],['हवन सामग्री','hawan samagiri'],['पूजा सामग्री','pooja samagiri'],
-    ['अगरबत्ती','agarbatti'],['अगर बत्ती','agarbatti'],['रंगोली','rangoli'],['कपूर','camphor'],['पूजा','pooja'],['पूजन','pooja'],
-    ['धूप बत्ती','dhoop batti'],['धूप','dhoop'],['दीया','diya'],['दिया','diya'],['दीपक','diya'],['हल्दी','haldi'],['गुलाल','gulal'],
-    ['रोली','roli'],['कुमकुम','kumkum'],['सिंदूर','sindoor'],['चंदन','chandan'],['अष्टगंधा','ashtagandha'],['विभूति','vibhuti'],
-    ['बाती','batti wick'],['बत्ती','batti wick'],['रुई','cotton'],['रूई','cotton'],['मौली','moli'],['मोली','moli'],['कलावा','kalawa'],
-    ['गुग्गल','guggal'],['गुग्गुल','guggal'],['लोबान','loban'],['साम्ब्रानी','sambrani'],['संभरानी','sambrani'],['स्टेंसिल','stencil'],['स्टैंसिल','stencil'],
-    ['अबीर','abir'],['गुलाब','gulab rose'],['थाल','thaal'],['थाली','thaal'],['बांके बिहारी','bankey bihari'],['बांकेबिहारी','bankey bihari'],
-    ['भगवान','bhagwan'],['यमुना','yamuna'],['भीमसेनी','bheemseni'],['तोटा','tota'],['सतरंगा','satranga'],['बोतल','bottle'],['पाउच','pouch'],['जार','jar'],
-    ['डिब्बी','dibbi'],['पैकेट','packet'],['पैक','pack'],['बॉक्स','box'],['ट्रे','tray'],['किट','kit'],['पाउडर','powder'],['स्प्रे','spray'],['किलोग्राम','kg'],['किलो','kg'],['ग्राम','gm'],['मिलीलीटर','ml'],['लीटर','ltr'],['पीस','pcs']
-  ];
-  const SMART_ALIASES_276={
-    kapur:'camphor',kapoor:'camphor',camfor:'camphor',camphar:'camphor',camphor:'camphor',
-    puja:'pooja',pooja:'pooja',poojaa:'pooja',
-    rangoly:'rangoli',rangolee:'rangoli',rangolie:'rangoli',rangoli:'rangoli',
-    agarbati:'agarbatti',aggarbatti:'agarbatti',
-    dhoop:'dhoop',dhup:'dhoop',diya:'diya',deeya:'diya',deepak:'diya',
-    haldi:'haldi',haldee:'haldi',gulal:'gulal',gulaal:'gulal',roli:'roli',rolii:'roli',kumkum:'kumkum',sindur:'sindoor',sindoor:'sindoor',
-    chandan:'chandan',chandanam:'chandan',ashtagandh:'ashtagandha',ashtagandha:'ashtagandha',vibhuti:'vibhuti',bhasm:'vibhuti',
-    bati:'batti',batti:'batti',wick:'batti',wicks:'batti',rui:'cotton',rooi:'cotton',cotton:'cotton',moli:'moli',mauli:'moli',kalava:'kalawa',kalawa:'kalawa',
-    guggal:'guggal',guggul:'guggal',loban:'loban',sambrani:'sambrani',sambhrani:'sambrani',
-    stensil:'stencil',stencel:'stencil',stensel:'stencil',stencil:'stencil',
-    abeer:'abir',abir:'abir',gulaab:'gulab',gulab:'gulab',rose:'rose',havan:'hawan',hawan:'hawan',samagri:'samagiri',samagiri:'samagiri',
-    banke:'bankey',bankey:'bankey',biharee:'bihari',bihari:'bihari',bhagwaan:'bhagwan',bhagwan:'bhagwan',bhimseni:'bheemseni',bheemseni:'bheemseni',
-    tota:'tota',thali:'thaal',thal:'thaal',thaal:'thaal',botal:'bottle',botel:'bottle',bottle:'bottle',pauch:'pouch',pouch:'pouch',dibbi:'dibbi',dibby:'dibbi'
-  };
-  function smartNorm276(v){
-    let x=String(v??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,' ');
-    for(const [from,to] of SMART_PHRASES_276)x=x.split(from).join(' '+to+' ');
-    return x.replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ')
-  }
-  function smartTokens276(v){
-    const raw=smartNorm276(v).split(/\s+/).filter(Boolean).map(t=>SMART_ALIASES_276[t]||t),out=[],units=new Set(['g','gm','kg','ml','l','ltr','pc','pcs']);
-    for(let i=0;i<raw.length;i++){if(/^\d+(?:\.\d+)?$/.test(raw[i])&&units.has(raw[i+1])){out.push(raw[i]+raw[i+1]);i++;continue}out.push(raw[i])}return out
-  }
-  function editDistance276(a,b){
-    if(a===b)return 0;if(!a)return b.length;if(!b)return a.length;const n=a.length,m=b.length;if(Math.abs(n-m)>3)return 4;
-    let prev=Array.from({length:m+1},(_,i)=>i),cur=new Array(m+1);
-    for(let i=1;i<=n;i++){cur[0]=i;let rowMin=cur[0];for(let j=1;j<=m;j++){cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));rowMin=Math.min(rowMin,cur[j])}if(rowMin>3)return 4;[prev,cur]=[cur,prev]}
-    return prev[m]
-  }
-  function phonetic276(v){return String(v||'').replace(/ph/g,'f').replace(/ck/g,'k').replace(/qu/g,'k').replace(/[aeiouy]/g,'').replace(/(.)\1+/g,'$1')}
-  function tokenScore276(q,w){
-    if(!q||!w)return 0;if(q===w)return 120;
-    if(/^\d+(?:\.\d+)?$/.test(q)&&new RegExp('^'+q+'(?:g|gm|kg|ml|l|ltr|pc|pcs)?$').test(w))return 116;
-    if((w.startsWith(q)||q.startsWith(w))&&Math.min(q.length,w.length)>=3)return 104;
-    if((w.includes(q)||q.includes(w))&&Math.min(q.length,w.length)>=4)return 94;
-    if(q.length<=2||w.length<=2)return 0;
-    if(q.length>=4&&w.length>=4&&phonetic276(q)===phonetic276(w))return 88;
-    const d=editDistance276(q,w),mx=Math.max(q.length,w.length),ratio=1-d/mx;
-    if(d<=1&&mx<=6)return 86;if(d<=2&&mx>=6&&ratio>=.66)return 78;if(d<=3&&mx>=9&&ratio>=.70)return 70;return 0
-  }
-  function smartScore276(q,it,b){
-    const tokens=smartTokens276(q);if(!tokens.length)return 1;
-    const code=smartNorm276(it.code),barcode=smartNorm276(it.barcode),legacy=smartNorm276(it.legacyCode),primary=smartNorm276([it.code,it.legacyCode,it.name,it.size,it.category,it.barcode,it.keywords,b.name,(it.uomRates||[]).map(x=>x.u).join(' ')].join(' ')),packing=smartNorm276(it.packing),words=primary.split(' ').filter(Boolean),packingWords=packing.split(' ').filter(Boolean);
-    let total=0;
-    for(const t0 of tokens){const t=SMART_ALIASES_276[t0]||t0;if(/^\d{3,}$/.test(t)){if(code===t||barcode===t||legacy===t)total+=180;else if(primary.includes(t))total+=140;else if(packing.includes(t))total+=82;else return 0;continue}
-      let best=0;if(code===t||barcode===t||legacy===t)best=170;else if(code.startsWith(t)||barcode.startsWith(t)||legacy.startsWith(t))best=145;else for(const w0 of words){const w=SMART_ALIASES_276[w0]||w0,bv=tokenScore276(t,w);if(bv>best)best=bv;if(best>=120)break}
-      if(best<68){let packBest=0;for(const w0 of packingWords){const w=SMART_ALIASES_276[w0]||w0,bv=tokenScore276(t,w);if(bv>packBest)packBest=bv}best=Math.round(packBest*.72)}
-      if(best<68)return 0;total+=best
-    }
-    const phrase=smartNorm276(q);if(phrase&&primary.includes(phrase))total+=80;else if(phrase&&packing.includes(phrase))total+=25;if(tokens.length>1)total+=tokens.length*8;return total
-  }
-  window.smartProductMatch282=(q,product,book={})=>smartScore276(q,product,book)>0;
-  function searchRows(p,q,bookId,category,mode,rateMode=''){
-    const assignedModes=[...new Set(activeBooks230(p).map(audience230))];
-    const scope=rateMode||(assignedModes.length===1?assignedModes[0]:'');
-    if(!assignedModes.includes(scope))return [];
-    const pr=prefs230(p),out=[],hasQuery=mode==='search'&&String(q||'').trim().length>0;
-    activeBooks230(p).filter(b=>(!bookId||b.id===bookId)&&audience230(b)===scope).forEach(b=>(b.items||[]).forEach(it=>{
-      if(category&&norm(it.category)!==norm(category))return;const key=productKey230(b,it);if(mode==='favorites'&&!pr.favorites.includes(key))return;if(mode==='recent'&&!pr.recentProducts.includes(key))return;
-      const smartScore=hasQuery?smartScore276(q,it,b):1;if(hasQuery&&!smartScore)return;out.push({b,it,key,smartScore})
-    }));
-    if(mode==='recent')out.sort((a,b)=>pr.recentProducts.indexOf(a.key)-pr.recentProducts.indexOf(b.key));else if(hasQuery)out.sort((a,b)=>b.smartScore-a.smartScore||String(a.it.name||'').localeCompare(String(b.it.name||'')));
-    return out.slice(0,100)
-  }
-  function selectedRate(it,u,payload){if(it.rateOnRequest)return 'Rate on request';const x=(it.uomRates||[]).find(r=>norm(r.u)===norm(u))||(it.uomRates||[])[0];const cur=payload?.currency||'₹';return x?(cur+Number(x.r).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+x.u):'—'}
-  function rememberResults230(p,rows,q){if(!rows.length)return;const pr=prefs230(p);for(const r of rows.slice(0,8)){pr.recentProducts=[r.key,...pr.recentProducts.filter(x=>x!==r.key)].slice(0,30)}if(q.trim().length>1)pr.recentQueries=[q.trim(),...pr.recentQueries.filter(x=>norm(x)!==norm(q))].slice(0,12);savePrefs230(p,pr)}
-  
-  function renderResults(root,p,mode='search'){
-    const q=root.querySelector('#cv47q')?.value||'',bookId=root.querySelector('#cv47book')?.value||'',category=root.querySelector('#cv47catfilter')?.value||'',box=root.querySelector('#cv47results');if(!box)return;
-    const books=activeBooks230(p),sales=p.user?.role==='sales';
-    if(!root.dataset.rateMode282&&new Set(books.map(audience230)).size>1){box.innerHTML='<div class="cv47-empty"><b>Choose a pricing mode first</b><div style="margin-top:5px">Select Retail, Wholesale or Custom above, then search across its assigned lists.</div></div>';return}
-    if(mode==='search'&&!q.trim()){
-      const pr=prefs230(p),chips=pr.recentQueries.slice(0,6).map(x=>`<button data-q230="${esc(x)}">${esc(x)}</button>`).join('');
-      box.innerHTML=`<div class="cv47-empty"><div style="font-size:25px;margin-bottom:7px">⌕</div><b>Search your assigned products</b><div style="margin-top:4px">Type in English, Hindi/Hinglish, code/barcode, or even an approximate spelling.</div>${chips?'<div class="cv272-tools" style="justify-content:center;margin-top:12px">'+chips+'</div>':''}</div>`;
-      box.querySelectorAll('[data-q230]').forEach(b=>b.onclick=()=>{root.querySelector('#cv47q').value=b.dataset.q230;renderResults(root,p)});return
-    }
-    const rows=searchRows(p,q,bookId,category,mode,root.dataset.rateMode282||'');if(mode==='search')rememberResults230(p,rows,q);const pr=prefs230(p);
-    box.innerHTML=rows.length?rows.map((r,i)=>{const aud=audience230(r.b),label=audienceLabel230(r.b),rate=selectedRate(r.it,r.it.defaultUom,p),wh=sales&&aud==='wholesale';return `<article class="cv272-product"><div class="cv272-listline"><span class="cv272-tag ${aud}">${esc(label)}</span><span class="cv272-list-name">${esc(r.b.name)}${r.it.category?' · '+esc(r.it.category):''}</span></div><div class="cv272-product-top"><div style="min-width:0;flex:1"><div class="cv272-product-code">${esc(r.it.code||'')}</div><div class="cv272-product-name">${esc(r.it.name||'')}</div><details class="ca281-mobile-detail"><summary>Product details</summary><div class="cv272-product-meta">${[r.it.size,r.it.packing,r.it.mrp!=null?'MRP '+(p.currency||'₹')+Number(r.it.mrp).toLocaleString('en-IN',{maximumFractionDigits:2}):''].filter(Boolean).map(esc).join(' · ')}</div></details>${wh?'<div class="cv272-warning">Wholesale / trade rate — verify buyer before quoting.</div>':''}${window.orderRowExtra233?window.orderRowExtra233(r,i):''}</div><button class="cv272-star" data-star230="${i}" title="Favorite">${pr.favorites.includes(r.key)?'★':'☆'}</button><div class="cv272-ratebox"><div class="cv272-rate ${aud==='wholesale'?'wholesale':''}" data-rate47="${i}">${rate}</div>${!r.it.rateOnRequest&&(r.it.uomRates||[]).length>1?`<select class="cv272-uom" data-uom47="${i}">${r.it.uomRates.map(x=>`<option value="${esc(x.u)}" ${norm(x.u)===norm(r.it.defaultUom)?'selected':''}>${esc(x.u)}</option>`).join('')}</select>`:`<div class="metric-sub" style="margin-top:5px">${r.it.rateOnRequest?'Contact owner / sales team':esc(r.it.defaultUom||'')}</div>`}</div></div></article>`}).join(''):`<div class="cv47-empty"><div style="font-size:24px;margin-bottom:7px">⌕</div><b>No matching product</b><div style="margin-top:4px">Try another spelling, Hindi/Hinglish word, product code, or a shorter term.</div></div>`;
-    box.querySelectorAll('[data-uom47]').forEach(sel=>sel.onchange=()=>{const i=+sel.dataset.uom47,row=rows[i],rate=box.querySelector(`[data-rate47="${i}"]`);if(row&&rate)rate.textContent=selectedRate(row.it,sel.value,p)});
-    box.querySelectorAll('[data-star230]').forEach(st=>st.onclick=()=>{const r=rows[+st.dataset.star230],x=prefs230(p);x.favorites=x.favorites.includes(r.key)?x.favorites.filter(k=>k!==r.key):[r.key,...x.favorites];savePrefs230(p,x);renderResults(root,p,mode)});if(window.wireOrderRows233)window.wireOrderRows233(box,rows,p)
-  }
-  function noticeDate47(v){if(!v)return'';try{const d=new Date(v+'T00:00:00');if(!isNaN(d))return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){}return safe(v)}
-  function viewerBookCfg230(book,p){const b=activeBook230(book),cur=p?.currency||'₹',groups=[],gm=new Map();for(const it of b.items||[]){const cat=it.category||'Other';if(!gm.has(cat)){const g={name:cat,rows:[]};gm.set(cat,g);groups.push(g)}const rr=(it.uomRates||[]).find(x=>norm(x.u)===norm(it.defaultUom))||(it.uomRates||[])[0],rate=it.rateOnRequest?'Rate on request':rr?cur+Number(rr.r).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+rr.u:'—';gm.get(cat).rows.push([it.code||'',it.name||'',it.size||'',it.packing||'',it.mrp==null?'—':cur+Number(it.mrp).toLocaleString('en-IN',{maximumFractionDigits:2}),rate])}const br=b.branding||{},effective=b.effectiveFrom?`Effective ${noticeDate47(b.effectiveFrom)}`:'';return{columns:[{key:'code',label:'Code',w:1},{key:'name',label:'Product',w:3.4},{key:'size',label:'Size',w:1},{key:'packing',label:'Packing',w:1.5},{key:'mrp',label:'MRP',align:'right',w:1},{key:'final',label:'Rate',align:'right',w:1.4,bold:true}],groups,landscape:true,firm:br.firm||p.firm||'Price List',meta:[br.subtitle,br.contact].filter(Boolean).join('  ·  '),title:b.name,count:(b.items||[]).length,sub:[effective,b.category].filter(Boolean).join('  ·  '),footer:br.footer||''}}
-  function bookView(b){
-    let w=null;
-    try{
-      w=window.open('about:blank','_blank');
-      const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p)),blob=doc.output('blob'),url=URL.createObjectURL(blob);
-      if(w){w.location.href=url}else{
-        const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener';document.body.appendChild(link);link.click();link.remove();
-      }
-      setTimeout(()=>URL.revokeObjectURL(url),120000);
-    }catch(e){
-      try{if(w&&!w.closed)w.close()}catch(_){ }
-      toast(e?.message||'Could not open price list preview');
-    }
-  }
-  function bookPdf(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p));doc.save((a.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
-  async function bookShare(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),d=buildPDF(viewerBookCfg230(a,p)),blob=d.output('blob'),file=new File([blob],(a.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:a.name,text:a.name,files:[file]});d.save(file.name)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
-  function changesDialog230(b,p){const a=activeBook230(b),c=a.changes||{},m=document.createElement('div');m.className='modal';m.style.zIndex='220000';m.innerHTML=`<div class="box" style="max-width:760px"><div class="hd"><div><h2 style="margin:0">What changed? · ${esc(a.name)}</h2><div class="note">${c.changed||0} changed · ${c.increased||0} increased · ${c.decreased||0} decreased · ${c.added||0} new · ${c.removed||0} removed</div></div></div><div class="bd"><div class="tbl-wrap" style="max-height:480px"><table><thead><tr><th>Product</th><th>Change</th><th class="r">Old</th><th class="r">New</th></tr></thead><tbody>${(c.details||[]).map(x=>`<tr><td><b>${esc(x.code||'')}</b> · ${esc(x.name||'')}</td><td>${esc(x.type||'Changed')}</td><td class="r">${x.oldOnRequest?'On request':x.oldRate==null?'—':(p.currency||'₹')+Number(x.oldRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td><td class="r">${x.onRequest?'On request':x.newRate==null?'—':(p.currency||'₹')+Number(x.newRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No recorded changes.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn primary" data-x="close">Close</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{if(e.target.closest('[data-x="close"]')||e.target===m)m.remove()}}
-  
-  function show(p,off=false){
-    viewerCss();let e=document.getElementById('cloudViewer46');if(!e){e=document.createElement('div');e.id='cloudViewer46';e.style.cssText='position:fixed;inset:0;z-index:200000;overflow:auto';document.body.appendChild(e)}e.style.display='block';
-    const books=activeBooks230(p),sales=p.user?.role==='sales',role=sales?'Sales team':'Customer',audCount=a=>books.filter(b=>audience230(b)===a).length;
-    const modes=['retail','wholesale','custom'].filter(a=>audCount(a)>0),hasChoice=modes.length>1;
-    let initialMode=modes.includes(cloudSession?.rateMode272)?cloudSession.rateMode272:(modes.length===1?modes[0]:'');
-    const exp=p.offlineValidUntil?new Date(p.offlineValidUntil).toLocaleString('en-IN'):'',rn=p.notice||{},rd=noticeDate47(rn.effectiveDate),rtext=rn.text||('New rates implemented'+(rd?' from '+rd:'')),an=p.announcement||{};
-    const modeLabel=a=>a==='wholesale'?'Wholesale':a==='retail'?'Retail':'Custom';
-    const modeHint=a=>a==='wholesale'?'Trade pricing selected. Verify the buyer before quoting or sharing.':a==='retail'?'Retail pricing selected. Only retail price lists and retail search rates are visible.':'Custom pricing selected. Only custom price lists are visible.';
-    const modeButtons=modes.map(a=>`<button class="cv272-mode ${a===initialMode?'on':''}" data-mode272="${a}">${modeLabel(a)}<span class="cv272-mode-count">${audCount(a)}</span></button>`).join('');
-    e.innerHTML=`<div class="cv272-shell"><div class="cv272-topbar"><div class="cv272-topbar-in"><div class="cv272-mark"><img src="ca-logo.png" alt="CA"></div><div class="cv272-brand"><b>CA</b><span>${esc(p.firm||'Business')} · ${esc(p.user?.name||'')} · ${role}${off?' · Offline':''}</span></div><div class="cv272-session"><span class="cv272-role">${role}</span><button class="btn ghost sm cv272-logout" id="cv46out">Log out</button></div></div></div><div class="cv47-wrap">
-      <section class="cv272-hero"><div><h1>${sales?'Rate Desk':'Your Price Desk'}</h1><p>${sales?'Choose a rate type, then search across its assigned price lists.':'Search your assigned rates, open price lists and catalogs from one clean workspace.'}</p></div><div class="cv272-hero-stat"><div class="cv272-pill"><b>${books.length}</b><span>Price lists</span></div><div class="cv272-pill"><b>${(p.catalogs||[]).length}</b><span>Catalogs</span></div></div></section>
-      ${rn.enabled?`<div class="cv47-notice"><b>Rate update</b><div>${esc(rtext)}</div>${rd&&rn.text?`<div class="note" style="margin-top:3px">Effective from ${esc(rd)}</div>`:''}</div>`:''}${activeAnnouncement230(an)?`<div class="cv47-announce"><b>${esc(an.title||'Announcement')}</b><div>${esc(an.text)}</div></div>`:''}
-      <section class="cv272-mode-panel"><div class="cv272-mode-head"><div><b>Choose pricing mode</b><span>${hasChoice?'Rates and price lists will be filtered to the selected mode.':'Only one pricing mode is assigned to this login.'}</span></div>${off&&exp?`<span>Offline valid until ${esc(exp)}</span>`:''}</div><div class="cv272-segment">${modeButtons||'<span class="note">No rate mode assigned</span>'}</div><div id="cv272modeNote" class="cv272-mode-note ${initialMode||'required'}">${initialMode?esc(modeHint(initialMode)):'Select Retail / Wholesale / Custom before viewing rates.'}</div></section>
-      <div class="cv272-toolbar"><div class="cv272-field"><label>Price list context · optional</label><select id="cv47switchbook"><option value="">Choose pricing mode first</option></select></div><div class="cv272-field"><label>Catalog</label><select id="cv47switchcat"><option value="">All assigned catalogs</option>${(p.catalogs||[]).map(c=>`<option value="${c.id}">${esc(c.title||c.name||'Catalog')}</option>`).join('')}</select></div></div>
-      <div class="cv272-tabs"><button class="cv272-tab on" data-tab272="products">Products</button><button class="cv272-tab" data-tab272="lists">Price Lists <small id="cv272listCount"></small></button><button class="cv272-tab" data-tab272="catalogs">Catalogs <small>${(p.catalogs||[]).length}</small></button></div>
-      <div class="cv47-search"><div class="cv272-search-panel"><div class="cv47-searchbox"><div class="cv272-search-main"><input id="cv47q" aria-label="Search assigned products" type="search" autocomplete="off" enterkeyhint="search" placeholder="Smart search: product, गलत spelling, हिंदी, code..."></div><select id="cv47catfilter"><option value="">All categories</option></select></div><div class="cv276-smart-note"><span>✦ Smart Search</span> Wrong spelling + Hindi/Hinglish supported · e.g. <b>kapur / कपूर</b>, <b>rangoly / रंगोली</b></div><div class="cv272-tools"><button id="cv47fav">★ Favorites</button><button id="cv47recent">Recent products</button></div></div></div><section id="cv272products"><div id="cv47results" class="cv47-results"></div></section>
-      <section id="cv272lists" hidden><div class="cv272-section-title"><b>Price Lists</b><span id="cv272listSub">Choose a pricing mode</span></div><div id="cv272listGrid" class="cv272-listgrid"></div></section>
-      <section id="cv272catalogs" hidden><div class="cv272-section-title"><b>Product Catalogs</b><span>Assigned to this login</span></div><div class="cv47-catgrid">${(p.catalogs||[]).map(c=>`<div class="cv272-cat-card" data-cat-card="${c.id}"><span class="cv272-tag custom">${esc(c.category||'Catalog')}</span><h3>${esc(c.title||c.name||'Catalog')}</h3><div class="cv272-card-meta">PDF catalog · available offline after first online open</div><div class="cv272-actions"><button class="btn ghost sm" data-cat-view="${c.id}">View</button><button class="btn ghost sm" data-cat-share276="${c.id}">Share</button><button class="btn primary sm" data-cat-down="${c.id}">Download</button></div></div>`).join('')||'<div class="cv47-empty">No catalog assigned.</div>'}</div></section>
-    </div></div>`;
-    e.querySelector('#cv46out').onclick=window.cloudViewerLogout46;
-    let mode='search',rateMode=initialMode,selectedBook='';
-    const q=e.querySelector('#cv47q'),bookSel=e.querySelector('#cv47switchbook'),catFilter=e.querySelector('#cv47catfilter'),listGrid=e.querySelector('#cv272listGrid'),listCount=e.querySelector('#cv272listCount'),listSub=e.querySelector('#cv272listSub'),modeNote=e.querySelector('#cv272modeNote');
-    const modeBooks=()=>books.filter(b=>audience230(b)===rateMode);
-    const categories=()=>[...new Set(modeBooks().flatMap(b=>(b.items||[]).map(x=>x.category).filter(Boolean)))].sort();
-    const safeBookAction=(b,fn)=>{if(!b)return;if(sales&&audience230(b)==='wholesale'&&!window.confirm('Wholesale / Trade price list\n\nConfirm this is intended for a trade/wholesale buyer before continuing.'))return;fn(b)};
-    function paintLists(){
-      const bs=modeBooks();listCount.textContent=rateMode?String(bs.length):'';listSub.textContent=rateMode?`${modeLabel(rateMode)} mode · ${bs.length} assigned list${bs.length===1?'':'s'}`:'Choose a pricing mode';
-      listGrid.innerHTML=bs.length?bs.map(b=>`<div class="cv272-book-card" data-book-card="${b.id}"><span class="cv272-tag ${audience230(b)}">${esc(audienceLabel230(b))}</span><h3>${esc(b.name)}</h3><div class="ca281-meta"><span class="ca281-status published">Published</span>${b.scheduled&&!b.scheduledActivated?'<span class="ca281-status scheduled">Scheduled '+esc(noticeDate47(b.scheduled.effectiveDate))+'</span>':''}</div><div class="cv272-card-meta">${(b.items||[]).length} products${b.effectiveFrom?' · Effective '+esc(noticeDate47(b.effectiveFrom)):''}${b.updatedAt?' · Updated '+esc(new Date(b.updatedAt).toLocaleDateString('en-IN')):''}</div>${sales&&audience230(b)==='wholesale'?'<div class="cv272-warning">Wholesale / trade list — verify buyer before sharing.</div>':''}<div class="cv272-actions"><button class="btn ghost sm" data-searchbook282="${b.id}">Search products</button><button class="btn ghost sm" data-viewbook278="${b.id}">View</button><button class="btn ghost sm" data-share="${b.id}">Share</button><button class="btn primary sm" data-pdf="${b.id}">Download</button>${sales&&((b.changes?.details||[]).length)?`<button class="btn ghost sm" data-changes230="${b.id}">Changes</button>`:''}</div></div>`).join(''):'<div class="cv47-empty">No price list is assigned for this mode.</div>';
-      listGrid.querySelectorAll('[data-searchbook282]').forEach(x=>x.onclick=()=>{bookSel.value=x.dataset.searchbook282;bookSel.onchange();e.querySelector('[data-tab272="products"]')?.click();q.focus()});
-      listGrid.querySelectorAll('[data-viewbook278]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.viewbook278),bookView));
-      listGrid.querySelectorAll('[data-pdf]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.pdf),bookPdf));
-      listGrid.querySelectorAll('[data-share]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.share),bookShare));
-      listGrid.querySelectorAll('[data-changes230]').forEach(x=>x.onclick=()=>changesDialog230((p.priceBooks||[]).find(b=>b.id===x.dataset.changes230),p));
-    }
-    function paintBookSelect(prefer=''){
-      const bs=modeBooks();bookSel.innerHTML='';bookSel.disabled=!rateMode;
-      if(!rateMode){bookSel.innerHTML='<option value="">Choose pricing mode first</option>';selectedBook='';return}
-      bookSel.innerHTML=`<option value="">All ${esc(modeLabel(rateMode))} price lists</option>`+bs.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
-      selectedBook=(prefer&&bs.some(b=>b.id===prefer))?prefer:'';bookSel.value=selectedBook;
-    }
-    function paintCategories(){const old=catFilter.value;catFilter.innerHTML='<option value="">All categories</option>'+categories().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');if([...catFilter.options].some(o=>o.value===old))catFilter.value=old}
-    function renderSafeResults(){
-      e.dataset.rateMode282=rateMode;renderResults(e,p,mode)
-    }
-    const compat=document.createElement('select');compat.id='cv47book';compat.hidden=true;e.querySelector('#cv272products').prepend(compat);
-    const syncCompat=()=>{compat.innerHTML=bookSel.innerHTML;compat.value=bookSel.value||''};
-    function applyMode(next,ask=true){
-      if(!modes.includes(next))return false;
-      const nextBooks=books.filter(b=>audience230(b)===next),singleNext=nextBooks.length===1?nextBooks[0]:null;
-      if(sales&&next==='wholesale'&&ask){const ok=window.confirm('Switch to WHOLESALE mode?\n\nOnly wholesale/trade price lists and wholesale search rates will be shown. Verify the buyer before quoting.');if(!ok)return false}
-      if(window.guardOrderContext275 && !window.guardOrderContext275({rateMode:next,bookId:singleNext?.id||'',bookName:singleNext?.name||''}))return false;
-      rateMode=next;if(cloudSession)cloudSession.rateMode272=next;
-      e.querySelectorAll('[data-mode272]').forEach(b=>b.classList.toggle('on',b.dataset.mode272===next));
-      modeNote.className='cv272-mode-note '+next;modeNote.textContent=modeHint(next);
-      paintBookSelect(cloudSession?.rateContextBookId270||'');syncCompat();if(cloudSession)cloudSession.rateContextBookId270=bookSel.value||'';
-      paintCategories();paintLists();mode='search';renderSafeResults();return true
-    }
-    e.querySelectorAll('[data-mode272]').forEach(b=>b.onclick=()=>applyMode(b.dataset.mode272,true));
-    bookSel.onchange=()=>{const next=bookSel.value,b=books.find(x=>x.id===next);if(next&&window.guardOrderContext275&&!window.guardOrderContext275({rateMode:audience230(b),bookId:next,bookName:b?.name||''})){bookSel.value=selectedBook||'';return}selectedBook=next;if(cloudSession)cloudSession.rateContextBookId270=selectedBook||'';syncCompat();mode='search';renderSafeResults()};
-    let searchTimer282;const revealProducts282=()=>e.querySelector('[data-tab272="products"]')?.click();
-    q.oninput=()=>{mode='search';revealProducts282();clearTimeout(searchTimer282);searchTimer282=setTimeout(()=>{if(e.isConnected)renderSafeResults()},120)};catFilter.onchange=()=>{revealProducts282();renderSafeResults()};
-    e.querySelector('#cv47fav').onclick=()=>{mode='favorites';q.value='';revealProducts282();renderSafeResults()};e.querySelector('#cv47recent').onclick=()=>{mode='recent';q.value='';revealProducts282();renderSafeResults()};
-    e.querySelectorAll('[data-tab272]').forEach(b=>b.onclick=()=>{e.querySelectorAll('[data-tab272]').forEach(x=>x.classList.toggle('on',x===b));['products','lists','catalogs'].forEach(k=>{const sec=e.querySelector('#cv272'+k);if(sec)sec.hidden=b.dataset.tab272!==k})});
-    const sc=e.querySelector('#cv47switchcat');sc.onchange=()=>{const id=sc.value;e.querySelectorAll('[data-cat-card]').forEach(c=>c.style.display=!id||c.dataset.catCard===id?'':'none');if(id)e.querySelector('[data-tab272="catalogs"]')?.click()};
-    e.querySelectorAll('[data-cat-view]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Loading…';try{await viewCatalog(p.catalogs.find(c=>c.id===x.dataset.catView))}finally{x.disabled=false;x.textContent=orig}});
-    e.querySelectorAll('[data-cat-down]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Downloading…';try{await downloadCatalog(p.catalogs.find(c=>c.id===x.dataset.catDown))}finally{x.disabled=false;x.textContent=orig}});
-    e.querySelectorAll('[data-cat-share276]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Sharing…';try{await shareCatalog276(p.catalogs.find(c=>c.id===x.dataset.catShare276))}finally{x.disabled=false;x.textContent=orig}});
-    paintBookSelect();syncCompat();paintCategories();paintLists();
-    if(rateMode)applyMode(rateMode,false);else renderSafeResults()
-  }
-
-  const authoritative=e=>!!(e&&e.__authoritative);
-  async function clearViewerDeviceData268(cs){
-    const names=[cs?.loginName,cs?.payload?.user?.name].filter(Boolean).map(norm),uniq=[...new Set(names)];
-    try{
-      for(const n of uniq){
-        localStorage.removeItem(CACHE_PREFIX+n);
-        localStorage.removeItem('pm-viewer-prefs-v230:'+n);
-        localStorage.removeItem('pm-order-cart-233:'+n);
-        localStorage.removeItem('pm-order-cart-233:name_'+n.replace(/[^a-z0-9._-]/g,'_'));
-      }
-      if(cs?.uid&&cs.uid!=='offline')localStorage.removeItem('pm-order-cart-233:uid_'+String(cs.uid).replace(/[^a-zA-Z0-9_-]/g,'_'));
-      localStorage.removeItem('pm-order-cart-233:guest');
-      localStorage.removeItem('pm-order-cart-233:anonymous');
-    }catch(e){}
-    try{await caches.delete('pm-viewer-catalogs-v228')}catch(e){}
-  }
-  async function closeViewerSession46({reason='',clearCache=false}={}){const cs=cloudSession;cloudSession=null;window.__restrictedFirebaseSession46=false;clearTimeout(viewerSessionTimer271);viewerSessionTimer271=null;clearViewerSessionMarker271();try{if(cs?.unsubProfile)cs.unsubProfile()}catch(e){}try{if(cs?.auth)await cs.auth.signOut()}catch(e){}try{if(cs?.app)await cs.app.delete()}catch(e){}if(clearCache)await clearViewerDeviceData268(cs);const el=document.getElementById('cloudViewer46');if(el)el.remove();if(reason)toast(reason)}
-  window.cloudViewerLogout46=()=>{const login=cloudSession?.loginName||'';if(!login)return closeViewerSession46();const m=document.createElement('div');m.className='modal';m.style.zIndex='200020';m.innerHTML=`<div class="box" style="max-width:430px"><div class="hd"><h2 style="margin:0">Log out</h2></div><div class="bd"><div class="note">Choose whether this device should retain the encrypted/verifier-protected offline price cache.</div></div><div class="ft"><button class="btn ghost" data-x="cancel">Cancel</button><button class="btn ghost" data-x="keep">Log out</button><button class="btn danger" data-x="clear">Log out & clear offline data</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='cancel')return m.remove();const clear=b.dataset.x==='clear';m.remove();await closeViewerSession46({clearCache:clear})}};
-  function profileExpired230(d){try{return d?.expiresAt&&typeof d.expiresAt.toMillis==='function'&&d.expiresAt.toMillis()<=Date.now()}catch(e){return false}}
-  async function logActivity230(sec,uid,profile){try{const ua=safe(navigator.userAgent).slice(0,300),device=/Mobi|Android/i.test(ua)?'Mobile':'Desktop';await sec.db.collection('loginActivity').doc(uid).set({ownerUid:profile.ownerUid||'',username:profile.username||'',role:profile.role||'',lastLoginAt:firebase.firestore.FieldValue.serverTimestamp(),loginCount:firebase.firestore.FieldValue.increment(1),device,userAgent:ua,lastAccessVersion:profile.accessVersion||''},{merge:true})}catch(e){}}
-  function watchProfile46(cs){if(!cs||cs.uid==='offline'||!cs.db)return;try{cs.unsubProfile=cs.db.collection('accessProfiles').doc(cs.uid).onSnapshot(async snap=>{if(cloudSession!==cs)return;const d=snap.exists?snap.data():null;if(!d||d.active!==true||profileExpired230(d)){await closeViewerSession46({reason:profileExpired230(d)?'This login has expired.':'This login was disabled or removed.',clearCache:true});return}try{const pe=d.expiresAt&&typeof d.expiresAt.toMillis==='function'?d.expiresAt.toMillis():0;if(pe&&(!cs.sessionExpiresAt271||pe<cs.sessionExpiresAt271)){cs.sessionExpiresAt271=pe;const mk=readViewerSession271();if(mk&&mk.uid===cs.uid){mk.expiresAt=pe;localStorage.setItem(VIEWER_SESSION_KEY,JSON.stringify(mk))}scheduleViewerSessionExpiry271(cs)}}catch(e){}if(d.accessVersion&&d.accessVersion!==cs.payload.accessVersion){try{const np=await readPayload(cs.db,cs.uid);if(!np||!np.accessVersion||np.accessVersion!==d.accessVersion)return;np.__offlineVerifier=cs.payload.__offlineVerifier;cs.payload=np;if(np.__offlineVerifier)cache(cs.loginName,np);show(np,false)}catch(e){}}},()=>{})}catch(e){}}
-
   // --- TIMEOUT-PROTECTED SECURE LOGIN ---
   window.secureViewerLogin46=async(name,pin)=>{
     let sec=null,cfg=null;
@@ -780,5 +579,13 @@
     await window.clearRestrictedOfflineCaches265();
     if(errors.length)throw Error('Some cloud records could not be removed: '+errors.slice(0,5).join(' | '));return true;
   };
-  setTimeout(()=>render(),0);setTimeout(()=>{if(!window.__entryGate238RestoreChecked)restoreViewerSession271()},180);setTimeout(()=>schedulePublish(500),900);window.payloadFor46=payloadFor;window.showViewerPreview46=(p)=>show(p,false);window.getCloudSession233=()=>cloudSession;window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 deep-regression-fixes'};
+  setTimeout(()=>render(),0);setTimeout(()=>{if(!window.__entryGate238RestoreChecked)restoreViewerSession271()},180);setTimeout(()=>schedulePublish(500),900);
+
+  // Expose both camelCase and lowercase variants to prevent "not a function" errors
+  window.payloadFor46=payloadFor;
+  window.payloadfor46=payloadFor;
+  window.showViewerPreview46=(p)=>show(p,false);
+  window.showviewerpreview46=(p)=>show(p,false);
+  window.getCloudSession233=()=>cloudSession;
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 deep-regression-fixes'};
 })();
