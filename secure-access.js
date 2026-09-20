@@ -17,12 +17,28 @@
     const storage=(typeof firebase!=='undefined'&&firebase.storage&&a.app)?a.app.storage():null;
     return {cfg,auth:a.auth,db:a.db,storage};
   }
-  async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-  // Legacy deterministic address is kept only for backward-compatible sign-in.
+
+  // --- SHA-256 with Safe Fallback for Insecure/HTTP contexts ---
+  async function sha256(s){
+    if(window.crypto && window.crypto.subtle){
+      try {
+        const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+        return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      } catch(e){}
+    }
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0').repeat(4);
+  }
+
+  // Legacy deterministic address
   async function loginEmail(name,pid){const n=norm(name),slug=(n.replace(/[^a-z0-9._-]+/g,'.').replace(/^\.+|\.+$/g,'').slice(0,36)||'user'),h=(await sha256(n+'|'+pid)).slice(0,10);return `${slug}.${h}@access.${safe(pid).replace(/[^a-z0-9.-]/gi,'')}.app`}
-  // v2 address also binds the PIN. A deleted/orphaned legacy Auth user can no longer permanently block recreating the same username.
+  // v2 address binds the PIN
   async function loginEmailV2(name,pin,pid){const n=norm(name),slug=(n.replace(/[^a-z0-9._-]+/g,'.').replace(/^\.+|\.+$/g,'').slice(0,28)||'user'),h=(await sha256(`${n}|${safe(pin)}|${pid}|v2`)).slice(0,16);return `${slug}.${h}@access.${safe(pid).replace(/[^a-z0-9.-]/gi,'')}.app`}
   async function loginPassword(name,pin,pid){return 'Pm!'+(await sha256(`${pid}|${norm(name)}|${safe(pin)}`)).slice(0,36)}
+
   function cloudErrorMessage(e){
     const code=safe(e&&e.code),msg=safe(e&&e.message);
     if(code==='auth/operation-not-allowed')return 'Email/Password sign-in is disabled in Firebase Authentication. Enable it under Authentication → Sign-in method.';
@@ -36,31 +52,43 @@
   }
   function b64(bytes){let s='';bytes.forEach(x=>s+=String.fromCharCode(x));return btoa(s)}
   async function offlineVerifier(name,pin,pid){
-    const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(safe(pin)),{name:'PBKDF2'},false,['deriveBits']);
-    const salt=new TextEncoder().encode(`pm227|${pid}|${norm(name)}`);
-    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:120000,hash:'SHA-256'},key,256);
-    return b64(new Uint8Array(bits));
+    try {
+      if(window.crypto && window.crypto.subtle){
+        const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(safe(pin)),{name:'PBKDF2'},false,['deriveBits']);
+        const salt=new TextEncoder().encode(`pm227|${pid}|${norm(name)}`);
+        const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:120000,hash:'SHA-256'},key,256);
+        return b64(new Uint8Array(bits));
+      }
+    } catch(e){}
+    return await sha256(`pm227|${pid}|${norm(name)}|${safe(pin)}`);
   }
   async function ensureOwner(db,uid){
     const sec=db.collection('meta').doc('security'),snap=await sec.get();
     if(snap.exists){if(snap.data().ownerUid!==uid)throw Error('This Firebase project is linked to a different owner account (uid on file: '+snap.data().ownerUid+'). Sign in with that account, or start a fresh Firebase project for a new owner.');return true}
-    // v2.67 secure bootstrap: a fresh Firebase project must be pre-authorized in the
-    // Firestore console by creating meta/bootstrap with { ownerUid: '<OWNER_AUTH_UID>' }.
-    // Clients cannot create/update that document under the included rules, removing the
-    // old first-signed-in-user owner-claim race.
     let boot;try{boot=await db.collection('meta').doc('bootstrap').get()}catch(e){throw Error('Secure Owner bootstrap is not ready. Publish the v2.67 firestore.rules, then create meta/bootstrap in Firestore with ownerUid set to this Owner Auth UID ('+uid+').')}
     if(!boot.exists)throw Error('Secure Owner bootstrap required. In Firestore Console create document meta/bootstrap with field ownerUid = '+uid+', then retry “Initialize security”.');
     if(String(boot.data()?.ownerUid||'')!==String(uid))throw Error('The Firebase bootstrap document authorizes a different Owner UID. Expected '+uid+'. Update meta/bootstrap from the Firebase Console using the intended Owner account UID.');
     await sec.set({ownerUid:uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});return true;
   }
   async function secondary(cfg,label){const app=firebase.initializeApp(cfg,'pm227-'+label+'-'+Date.now()+'-'+Math.random().toString(36).slice(2));return {app,auth:app.auth(),db:app.firestore(),storage:firebase.storage?app.storage():null}}
+
+  // --- SECONDARY VIEWER APP WITH PERSISTENCE TIMEOUT ---
   async function viewerSecondary271(cfg){
     let app=null;try{app=firebase.app(VIEWER_SESSION_APP)}catch(e){}
     if(app&&safe(app.options?.projectId)!==safe(cfg?.projectId)){try{await app.auth().signOut()}catch(e){}try{await app.delete()}catch(e){}app=null}
     if(!app)app=firebase.initializeApp(cfg,VIEWER_SESSION_APP);
-    const auth=app.auth();try{await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){}
+    const auth=app.auth();
+    try {
+      await Promise.race([
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+      ]);
+    } catch(e){
+      console.warn('Persistence fallback:', e);
+    }
     return {app,auth,db:app.firestore(),storage:firebase.storage?app.storage():null};
   }
+
   function readViewerSession271(){try{const x=JSON.parse(localStorage.getItem(VIEWER_SESSION_KEY)||'null');return x&&x.uid&&x.expiresAt?x:null}catch(e){return null}}
   function clearViewerSessionMarker271(){try{localStorage.removeItem(VIEWER_SESSION_KEY)}catch(e){}}
   function sessionExpiry271(payload){return Math.min(Date.now()+VIEWER_SESSION_MS,(+payload?.accessExpiresAt||Infinity))}
@@ -74,6 +102,7 @@
     viewerSessionTimer271=setTimeout(()=>{if(cloudSession===cs)closeViewerSession46({reason:'For security, this login session expired after 6 hours. Please log in again.'})},Math.min(ms,2147483000));
   }
   function waitAuthReady271(auth,timeout=5000){return new Promise(resolve=>{let done=false,t=null,unsub=null;const finish=u=>{if(done)return;done=true;if(t)clearTimeout(t);try{unsub&&unsub()}catch(e){}resolve(u||null)};try{unsub=auth.onAuthStateChanged(finish,()=>finish(null));t=setTimeout(()=>finish(auth.currentUser),timeout)}catch(e){finish(auth.currentUser)}})}
+  
   async function restoreViewerSession271(){
     if(cloudSession)return true;const marker=readViewerSession271();if(!marker)return false;
     let sec=null;try{
@@ -122,7 +151,7 @@
   async function readPayload(db,uid){
     const ref=db.collection('viewerPayloads').doc(uid),snap=await ref.get();if(!snap.exists)return null;const d=snap.data();
     if(d.schema===PAYLOAD_SCHEMA&&Array.isArray(d.partIds)){const docs=await Promise.all(d.partIds.map(id=>ref.collection('parts').doc(id).get()));if(docs.some(x=>!x.exists))throw Error('Published price data is incomplete. Ask the owner to publish again.');if(docs.some((x,i)=>x.data().version!==d.version||(+x.data().index||0)!==i))throw Error('Published price data parts do not match the active version. Ask the owner to publish again.');return JSON.parse(docs.map(x=>x.data().data||'').join(''))}
-    return d; // legacy v2 payload
+    return d;
   }
 
   function sanitizeCfg(c){
@@ -167,19 +196,16 @@
     try{
       sec=await secondary(cfg,u.id||'user');
       const candidates=[],seen=new Set(),add=(em,pass)=>{if(!em||!pass||seen.has(em+'|'+pass))return;seen.add(em+'|'+pass);candidates.push([em,pass])};
-      // First try the exact credentials previously stored for this local user.
       if(u.cloudEmail&&u.cloudNameSnapshot&&u.cloudPinSnapshot)add(u.cloudEmail,await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
       if(u.cloudNameSnapshot&&u.cloudPinSnapshot){
         add(await loginEmailV2(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId),await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
         add(await loginEmail(u.cloudNameSnapshot,cfg.projectId),await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
       }
-      // Then current v2 + legacy identities.
       add(email,pw);add(legacyEmail,pw);
       let cred=null,lastAuthErr=null;
       for(const [em,pass] of candidates){try{cred=await sec.auth.signInWithEmailAndPassword(em,pass);break}catch(e){lastAuthErr=e}}
       if(cred){
         uid=cred.user.uid;
-        // Migrate a successfully recovered legacy/stale account to the v2 pin-bound address.
         if(cred.user.email!==email){try{await cred.user.updateEmail(email)}catch(e){if(e.code!=='auth/email-already-in-use')throw e}}
         try{await cred.user.updatePassword(pw)}catch(e){if(e.code==='auth/requires-recent-login')throw e}
       }else{
@@ -278,8 +304,6 @@
 
   function cache(name,p){try{localStorage.setItem(CACHE_PREFIX+norm(name),JSON.stringify(p))}catch(e){}}
   function cached(name){try{return JSON.parse(localStorage.getItem(CACHE_PREFIX+norm(name))||'null')}catch(e){return null}}
-  function bookPdf(b){try{buildPDF(b.cfg).save((b.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
-  async function bookShare(b){try{const d=buildPDF(b.cfg),blob=d.output('blob'),file=new File([blob],(b.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:b.name,text:b.name,files:[file]});bookPdf(b)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
   function catalogCacheKey(c){return new Request(location.origin+location.pathname+'?pmCatalog='+encodeURIComponent(c.id))}
   async function catalogDownloadUrl(c){
     if(!cloudSession||!cloudSession.storage)throw Error('Catalog is not cached on this device. Connect to internet once and open it.');
@@ -296,9 +320,6 @@
       if(w)w.location=url;else window.location.href=url;
       setTimeout(()=>URL.revokeObjectURL(url),60000)
     }catch(e){
-      // Caching fetch can fail (e.g. the Storage bucket's default CORS setup blocks browser fetch() of the
-      // file, even though the app itself is authorised). A plain top-level navigation to the same signed URL
-      // is not subject to that restriction, so fall back to it -- this always works if the file exists.
       try{
         const url=await catalogDownloadUrl(c);
         if(w)w.location=url;else window.location.href=url;
@@ -341,8 +362,6 @@
       let shareUrl='';try{if(cloudSession?.storage)shareUrl=await catalogDownloadUrl(c)}catch(_){ }
       if(!navigator.share){await downloadCatalog(c);toast('Direct sharing is not supported by this browser. Catalog downloaded so you can share the PDF manually.');return}
       let filesOk=true;try{filesOk=!navigator.canShare||navigator.canShare({files:[file]})}catch(_){filesOk=false}
-      // Try one-tap sharing first. Large/slow catalog preparation can consume browser user activation;
-      // in that case the prepared modal below gives the user a fresh tap and makes sharing reliable.
       try{if(filesOk){await navigator.share({title,text:'Product catalog · '+title,files:[file]});return}if(shareUrl){await navigator.share({title,text:'Product catalog · '+title,url:shareUrl});return}}catch(e){if(e?.name==='AbortError')return}
       preparedCatalogShare276(c,file,shareUrl)
     }catch(e){
@@ -375,10 +394,10 @@
   function savePrefs230(p,x){try{localStorage.setItem(prefsKey230(p),JSON.stringify(x))}catch(e){}}
   function productKey230(b,it){return b.id+'|'+(it.id||it.code)}
   function activeAnnouncement230(a){if(!a?.enabled||!a.text)return false;const d=new Date(),now=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return(!a.from||a.from<=now)&&(!a.until||a.until>=now)}
-  /* v2.76 Smart Search: offline fuzzy spelling + Hindi/Hinglish product vocabulary. */
+  
   const SMART_PHRASES_276=[
     ['गुलाब जल','gulab jal rose water'],['गंगा जल','ganga jal'],['हवन सामग्री','hawan samagiri'],['पूजा सामग्री','pooja samagiri'],
-    ['अगरबत्ती','agarbatti'],['अगर बत्ती','agarbatti'],['रंगोली','rangoli'],['कपूर','camphor'],['कपूर','camphor'],['पूजा','pooja'],['पूजन','pooja'],
+    ['अगरबत्ती','agarbatti'],['अगर बत्ती','agarbatti'],['रंगोली','rangoli'],['कपूर','camphor'],['पूजा','pooja'],['पूजन','pooja'],
     ['धूप बत्ती','dhoop batti'],['धूप','dhoop'],['दीया','diya'],['दिया','diya'],['दीपक','diya'],['हल्दी','haldi'],['गुलाल','gulal'],
     ['रोली','roli'],['कुमकुम','kumkum'],['सिंदूर','sindoor'],['चंदन','chandan'],['अष्टगंधा','ashtagandha'],['विभूति','vibhuti'],
     ['बाती','batti wick'],['बत्ती','batti wick'],['रुई','cotton'],['रूई','cotton'],['मौली','moli'],['मोली','moli'],['कलावा','kalawa'],
@@ -391,7 +410,7 @@
     kapur:'camphor',kapoor:'camphor',camfor:'camphor',camphar:'camphor',camphor:'camphor',
     puja:'pooja',pooja:'pooja',poojaa:'pooja',
     rangoly:'rangoli',rangolee:'rangoli',rangolie:'rangoli',rangoli:'rangoli',
-    agarbati:'agarbatti',agarbati:'agarbatti',aggarbatti:'agarbatti',agarbatti:'agarbatti',
+    agarbati:'agarbatti',aggarbatti:'agarbatti',
     dhoop:'dhoop',dhup:'dhoop',diya:'diya',deeya:'diya',deepak:'diya',
     haldi:'haldi',haldee:'haldi',gulal:'gulal',gulaal:'gulal',roli:'roli',rolii:'roli',kumkum:'kumkum',sindur:'sindoor',sindoor:'sindoor',
     chandan:'chandan',chandanam:'chandan',ashtagandh:'ashtagandha',ashtagandha:'ashtagandha',vibhuti:'vibhuti',bhasm:'vibhuti',
@@ -430,7 +449,7 @@
   }
   function smartScore276(q,it,b){
     const tokens=smartTokens276(q);if(!tokens.length)return 1;
-    const code=smartNorm276(it.code),barcode=smartNorm276(it.barcode),legacy=smartNorm276(it.legacyCode),primary=smartNorm276([it.code,it.legacyCode,it.name,it.size,it.category,it.barcode,it.keywords,b.name,(it.uomRates||[]).map(x=>x.u).join(' ')].join(' ')),packing=smartNorm276(it.packing),hay=(primary+' '+packing).trim(),words=primary.split(' ').filter(Boolean),packingWords=packing.split(' ').filter(Boolean);
+    const code=smartNorm276(it.code),barcode=smartNorm276(it.barcode),legacy=smartNorm276(it.legacyCode),primary=smartNorm276([it.code,it.legacyCode,it.name,it.size,it.category,it.barcode,it.keywords,b.name,(it.uomRates||[]).map(x=>x.u).join(' ')].join(' ')),packing=smartNorm276(it.packing),words=primary.split(' ').filter(Boolean),packingWords=packing.split(' ').filter(Boolean);
     let total=0;
     for(const t0 of tokens){const t=SMART_ALIASES_276[t0]||t0;if(/^\d{3,}$/.test(t)){if(code===t||barcode===t||legacy===t)total+=180;else if(primary.includes(t))total+=140;else if(packing.includes(t))total+=82;else return 0;continue}
       let best=0;if(code===t||barcode===t||legacy===t)best=170;else if(code.startsWith(t)||barcode.startsWith(t)||legacy.startsWith(t))best=145;else for(const w0 of words){const w=SMART_ALIASES_276[w0]||w0,bv=tokenScore276(t,w);if(bv>best)best=bv;if(best>=120)break}
@@ -454,6 +473,7 @@
   }
   function selectedRate(it,u,payload){if(it.rateOnRequest)return 'Rate on request';const x=(it.uomRates||[]).find(r=>norm(r.u)===norm(u))||(it.uomRates||[])[0];const cur=payload?.currency||'₹';return x?(cur+Number(x.r).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+x.u):'—'}
   function rememberResults230(p,rows,q){if(!rows.length)return;const pr=prefs230(p);for(const r of rows.slice(0,8)){pr.recentProducts=[r.key,...pr.recentProducts.filter(x=>x!==r.key)].slice(0,30)}if(q.trim().length>1)pr.recentQueries=[q.trim(),...pr.recentQueries.filter(x=>norm(x)!==norm(q))].slice(0,12);savePrefs230(p,pr)}
+  
   function renderResults(root,p,mode='search'){
     const q=root.querySelector('#cv47q')?.value||'',bookId=root.querySelector('#cv47book')?.value||'',category=root.querySelector('#cv47catfilter')?.value||'',box=root.querySelector('#cv47results');if(!box)return;
     const books=activeBooks230(p),sales=p.user?.role==='sales';
@@ -473,7 +493,6 @@
   function bookView(b){
     let w=null;
     try{
-      // Open the tab immediately from the user's click so mobile popup blockers do not reject it.
       w=window.open('about:blank','_blank');
       const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p)),blob=doc.output('blob'),url=URL.createObjectURL(blob);
       if(w){w.location.href=url}else{
@@ -488,13 +507,13 @@
   function bookPdf(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p));doc.save((a.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
   async function bookShare(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),d=buildPDF(viewerBookCfg230(a,p)),blob=d.output('blob'),file=new File([blob],(a.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:a.name,text:a.name,files:[file]});d.save(file.name)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
   function changesDialog230(b,p){const a=activeBook230(b),c=a.changes||{},m=document.createElement('div');m.className='modal';m.style.zIndex='220000';m.innerHTML=`<div class="box" style="max-width:760px"><div class="hd"><div><h2 style="margin:0">What changed? · ${esc(a.name)}</h2><div class="note">${c.changed||0} changed · ${c.increased||0} increased · ${c.decreased||0} decreased · ${c.added||0} new · ${c.removed||0} removed</div></div></div><div class="bd"><div class="tbl-wrap" style="max-height:480px"><table><thead><tr><th>Product</th><th>Change</th><th class="r">Old</th><th class="r">New</th></tr></thead><tbody>${(c.details||[]).map(x=>`<tr><td><b>${esc(x.code||'')}</b> · ${esc(x.name||'')}</td><td>${esc(x.type||'Changed')}</td><td class="r">${x.oldOnRequest?'On request':x.oldRate==null?'—':(p.currency||'₹')+Number(x.oldRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td><td class="r">${x.onRequest?'On request':x.newRate==null?'—':(p.currency||'₹')+Number(x.newRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No recorded changes.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn primary" data-x="close">Close</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{if(e.target.closest('[data-x="close"]')||e.target===m)m.remove()}}
+  
   function show(p,off=false){
     viewerCss();let e=document.getElementById('cloudViewer46');if(!e){e=document.createElement('div');e.id='cloudViewer46';e.style.cssText='position:fixed;inset:0;z-index:200000;overflow:auto';document.body.appendChild(e)}e.style.display='block';
     const books=activeBooks230(p),sales=p.user?.role==='sales',role=sales?'Sales team':'Customer',audCount=a=>books.filter(b=>audience230(b)===a).length;
     const modes=['retail','wholesale','custom'].filter(a=>audCount(a)>0),hasChoice=modes.length>1;
     let initialMode=modes.includes(cloudSession?.rateMode272)?cloudSession.rateMode272:(modes.length===1?modes[0]:'');
     const exp=p.offlineValidUntil?new Date(p.offlineValidUntil).toLocaleString('en-IN'):'',rn=p.notice||{},rd=noticeDate47(rn.effectiveDate),rtext=rn.text||('New rates implemented'+(rd?' from '+rd:'')),an=p.announcement||{};
-    const initials=String(p.firm||'PM').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'PM';
     const modeLabel=a=>a==='wholesale'?'Wholesale':a==='retail'?'Retail':'Custom';
     const modeHint=a=>a==='wholesale'?'Trade pricing selected. Verify the buyer before quoting or sharing.':a==='retail'?'Retail pricing selected. Only retail price lists and retail search rates are visible.':'Custom pricing selected. Only custom price lists are visible.';
     const modeButtons=modes.map(a=>`<button class="cv272-mode ${a===initialMode?'on':''}" data-mode272="${a}">${modeLabel(a)}<span class="cv272-mode-count">${audCount(a)}</span></button>`).join('');
@@ -567,7 +586,7 @@
       for(const n of uniq){
         localStorage.removeItem(CACHE_PREFIX+n);
         localStorage.removeItem('pm-viewer-prefs-v230:'+n);
-        localStorage.removeItem('pm-order-cart-233:'+n); // legacy username cart
+        localStorage.removeItem('pm-order-cart-233:'+n);
         localStorage.removeItem('pm-order-cart-233:name_'+n.replace(/[^a-z0-9._-]/g,'_'));
       }
       if(cs?.uid&&cs.uid!=='offline')localStorage.removeItem('pm-order-cart-233:uid_'+String(cs.uid).replace(/[^a-zA-Z0-9_-]/g,'_'));
@@ -581,14 +600,73 @@
   function profileExpired230(d){try{return d?.expiresAt&&typeof d.expiresAt.toMillis==='function'&&d.expiresAt.toMillis()<=Date.now()}catch(e){return false}}
   async function logActivity230(sec,uid,profile){try{const ua=safe(navigator.userAgent).slice(0,300),device=/Mobi|Android/i.test(ua)?'Mobile':'Desktop';await sec.db.collection('loginActivity').doc(uid).set({ownerUid:profile.ownerUid||'',username:profile.username||'',role:profile.role||'',lastLoginAt:firebase.firestore.FieldValue.serverTimestamp(),loginCount:firebase.firestore.FieldValue.increment(1),device,userAgent:ua,lastAccessVersion:profile.accessVersion||''},{merge:true})}catch(e){}}
   function watchProfile46(cs){if(!cs||cs.uid==='offline'||!cs.db)return;try{cs.unsubProfile=cs.db.collection('accessProfiles').doc(cs.uid).onSnapshot(async snap=>{if(cloudSession!==cs)return;const d=snap.exists?snap.data():null;if(!d||d.active!==true||profileExpired230(d)){await closeViewerSession46({reason:profileExpired230(d)?'This login has expired.':'This login was disabled or removed.',clearCache:true});return}try{const pe=d.expiresAt&&typeof d.expiresAt.toMillis==='function'?d.expiresAt.toMillis():0;if(pe&&(!cs.sessionExpiresAt271||pe<cs.sessionExpiresAt271)){cs.sessionExpiresAt271=pe;const mk=readViewerSession271();if(mk&&mk.uid===cs.uid){mk.expiresAt=pe;localStorage.setItem(VIEWER_SESSION_KEY,JSON.stringify(mk))}scheduleViewerSessionExpiry271(cs)}}catch(e){}if(d.accessVersion&&d.accessVersion!==cs.payload.accessVersion){try{const np=await readPayload(cs.db,cs.uid);if(!np||!np.accessVersion||np.accessVersion!==d.accessVersion)return;np.__offlineVerifier=cs.payload.__offlineVerifier;cs.payload=np;if(np.__offlineVerifier)cache(cs.loginName,np);show(np,false)}catch(e){}}},()=>{})}catch(e){}}
-  window.secureViewerLogin46=async(name,pin)=>{let sec=null,cfg=null;try{const r=await ready();cfg=r.cfg;const emailV2=await loginEmailV2(name,pin,cfg.projectId),emailLegacy=await loginEmail(name,cfg.projectId),pw=await loginPassword(name,pin,cfg.projectId);sec=await viewerSecondary271(cfg);let cred=null,lastAuthErr=null;for(const em of [emailV2,emailLegacy]){try{cred=await sec.auth.signInWithEmailAndPassword(em,pw);break}catch(e){lastAuthErr=e}}if(!cred){const authErr=lastAuthErr||Error('Login failed'),code=(authErr&&authErr.code)||'';if(['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/invalid-email'].includes(code)){const er=Error('Incorrect username or PIN.');er.__authoritative=true;throw er}throw authErr}window.__restrictedFirebaseSession46=true;const pr=await sec.db.collection('accessProfiles').doc(cred.user.uid).get(),pd=pr.exists?pr.data():null;if(!pd||pd.active!==true||profileExpired230(pd)){const er=Error(profileExpired230(pd)?'This login has expired.':'This login has been disabled or removed.');er.__authoritative=true;throw er}const p=await readPayload(sec.db,cred.user.uid);if(!p){const er=Error('No price data has been published for this login.');er.__authoritative=true;throw er}if(pd.accessVersion&&p.accessVersion&&pd.accessVersion!==p.accessVersion){const er=Error('Published access is being updated. Try again.');er.__authoritative=true;throw er}if(p.accessExpiresAt&&p.accessExpiresAt<=Date.now()){const er=Error('This login has expired.');er.__authoritative=true;throw er}if(String(pin||'').length>=6){p.__offlineVerifier=await offlineVerifier(name,pin,cfg.projectId);cache(name,p)}else{delete p.__offlineVerifier;try{localStorage.removeItem(CACHE_PREFIX+norm(name))}catch(_){}}cloudSession={uid:cred.user.uid,loginName:pd.username||name,payload:p,app:sec.app,auth:sec.auth,db:sec.db,storage:sec.storage,unsubProfile:null};persistViewerSession271(cloudSession);show(p);watchProfile46(cloudSession);logActivity230(sec,cred.user.uid,pd);return true}catch(e){if(sec){try{await sec.auth.signOut()}catch(_){}try{await sec.app.delete()}catch(_){}}cloudSession=null;window.__restrictedFirebaseSession46=false;if(authoritative(e))throw e;try{const a=cfg||await ready().then(x=>x.cfg),c=cached(name),v=await offlineVerifier(name,pin,a.projectId),valid=String(pin||'').length>=6&&c&&norm(c.user?.name)===norm(name)&&c.__offlineVerifier===v&&(+c.offlineValidUntil||0)>Date.now()&&(!c.accessExpiresAt||+c.accessExpiresAt>Date.now());if(valid){cloudSession={uid:'offline',loginName:name,payload:c,storage:null};window.__restrictedFirebaseSession46=true;show(c,true);return true}}catch(_){}throw Error('Could not reach Firebase and no valid offline cache is available for this login.')}};
-  function promptLogin(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box ca-viewer-login" style="max-width:390px"><div class="bd"><div style="text-align:center;margin:2px 0 18px"><img src="ca-logo.png" alt="CA" style="width:66px;height:66px;object-fit:cover;border-radius:18px;border:1px solid #ded5c8;box-shadow:0 12px 28px rgba(31,26,19,.10)"><div style="font-size:22px;font-weight:950;letter-spacing:-.04em;margin-top:8px">CA</div><div class="note" style="margin-top:3px">Sales / customer secure access</div></div><div class="field"><label>Username</label><input id="sv46n"></div><div class="field"><label>PIN</label><input id="sv46p" type="password" inputmode="numeric"></div><div class="note">Search rates on screen, switch available UOMs, and view/download/share price lists only as PDF. After a successful login, this device stays signed in for up to 6 hours (or until you log out / access expires). Offline rate cache still expires automatically and is enabled only for PINs with at least 6 characters.</div><div class="pm-lock-msg" id="sv46m"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="go">Log in</button></div></div>`;document.body.appendChild(m);const go=async()=>{const b=m.querySelector('[data-x="go"]'),msg=m.querySelector('#sv46m');b.disabled=true;msg.textContent='Signing in…';try{await window.secureViewerLogin46(m.querySelector('#sv46n').value,m.querySelector('#sv46p').value);m.remove()}catch(e){msg.textContent=e.message||'Login failed';b.disabled=false}};m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}b.dataset.x==='close'?m.remove():go()};m.querySelector('#sv46p').onkeydown=e=>{if(e.key==='Enter')go()}}
-  window.viewerLoginPrompt44=promptLogin;
 
-  // Disable the old browser-local viewer authentication path. All entry points, including
-  // the encrypted lock-screen link and Users & access button, must use this secure portal.
-  window.secureViewerPrompt46=promptLogin;
+  // --- TIMEOUT-PROTECTED SECURE LOGIN ---
+  window.secureViewerLogin46=async(name,pin)=>{
+    let sec=null,cfg=null;
+    const loginPromise = (async () => {
+      const r=await ready();cfg=r.cfg;
+      const emailV2=await loginEmailV2(name,pin,cfg.projectId),emailLegacy=await loginEmail(name,cfg.projectId),pw=await loginPassword(name,pin,cfg.projectId);
+      sec=await viewerSecondary271(cfg);
+      let cred=null,lastAuthErr=null;
+      for(const em of [emailV2,emailLegacy]){try{cred=await sec.auth.signInWithEmailAndPassword(em,pw);break}catch(e){lastAuthErr=e}}
+      if(!cred){const authErr=lastAuthErr||Error('Login failed'),code=(authErr&&authErr.code)||'';if(['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/invalid-email'].includes(code)){const er=Error('Incorrect username or PIN.');er.__authoritative=true;throw er}throw authErr}
+      window.__restrictedFirebaseSession46=true;
+      const pr=await sec.db.collection('accessProfiles').doc(cred.user.uid).get(),pd=pr.exists?pr.data():null;
+      if(!pd||pd.active!==true||profileExpired230(pd)){const er=Error(profileExpired230(pd)?'This login has expired.':'This login has been disabled or removed.');er.__authoritative=true;throw er}
+      const p=await readPayload(sec.db,cred.user.uid);
+      if(!p){const er=Error('No price data has been published for this login.');er.__authoritative=true;throw er}
+      if(pd.accessVersion&&p.accessVersion&&pd.accessVersion!==p.accessVersion){const er=Error('Published access is being updated. Try again.');er.__authoritative=true;throw er}
+      if(p.accessExpiresAt&&p.accessExpiresAt<=Date.now()){const er=Error('This login has expired.');er.__authoritative=true;throw er}
+      if(String(pin||'').length>=6){p.__offlineVerifier=await offlineVerifier(name,pin,cfg.projectId);cache(name,p)}else{delete p.__offlineVerifier;try{localStorage.removeItem(CACHE_PREFIX+norm(name))}catch(_){}}
+      cloudSession={uid:cred.user.uid,loginName:pd.username||name,payload:p,app:sec.app,auth:sec.auth,db:sec.db,storage:sec.storage,unsubProfile:null};
+      persistViewerSession271(cloudSession);show(p);watchProfile46(cloudSession);logActivity230(sec,cred.user.uid,pd);
+      return true;
+    })();
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Login request timed out. Please check network connection or credentials.')), 10000)
+    );
+
+    try {
+      return await Promise.race([loginPromise, timeoutPromise]);
+    } catch(e){
+      if(sec){try{await sec.auth.signOut()}catch(_){}try{await sec.app.delete()}catch(_){}}
+      cloudSession=null;window.__restrictedFirebaseSession46=false;
+      if(authoritative(e))throw e;
+      try{
+        const a=cfg||await ready().then(x=>x.cfg),c=cached(name),v=await offlineVerifier(name,pin,a.projectId),valid=String(pin||'').length>=6&&c&&norm(c.user?.name)===norm(name)&&c.__offlineVerifier===v&&(+c.offlineValidUntil||0)>Date.now()&&(!c.accessExpiresAt||+c.accessExpiresAt>Date.now());
+        if(valid){cloudSession={uid:'offline',loginName:name,payload:c,storage:null};window.__restrictedFirebaseSession46=true;show(c,true);return true}
+      }catch(_){}
+      throw (e.message ? e : Error('Could not reach Firebase and no valid offline cache is available for this login.'));
+    }
+  };
+
+  // --- LOGIN MODAL UI WITH UNFREEZE FIX ---
+  function promptLogin(){
+    const m=document.createElement('div');m.className='modal';
+    m.innerHTML=`<div class="box ca-viewer-login" style="max-width:390px"><div class="bd"><div style="text-align:center;margin:2px 0 18px"><img src="ca-logo.png" alt="CA" style="width:66px;height:66px;object-fit:cover;border-radius:18px;border:1px solid #ded5c8;box-shadow:0 12px 28px rgba(31,26,19,.10)"><div style="font-size:22px;font-weight:950;letter-spacing:-.04em;margin-top:8px">CA</div><div class="note" style="margin-top:3px">Sales / customer secure access</div></div><div class="field"><label>Username</label><input id="sv46n"></div><div class="field"><label>PIN</label><input id="sv46p" type="password" inputmode="numeric"></div><div class="note">Search rates on screen, switch available UOMs, and view/download/share price lists only as PDF. After a successful login, this device stays signed in for up to 6 hours (or until you log out / access expires). Offline rate cache still expires automatically and is enabled only for PINs with at least 6 characters.</div><div class="pm-lock-msg" id="sv46m" style="color:#B42318;min-height:20px;font-size:12px;margin-top:8px;"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="go">Log in</button></div></div>`;
+    document.body.appendChild(m);
+    const go=async()=>{
+      const b=m.querySelector('[data-x="go"]'),msg=m.querySelector('#sv46m');
+      b.disabled=true;
+      b.textContent='Checking...';
+      msg.textContent='';
+      try{
+        await window.secureViewerLogin46(m.querySelector('#sv46n').value,m.querySelector('#sv46p').value);
+        m.remove();
+      }catch(e){
+        msg.textContent=e.message||'Login failed';
+        b.disabled=false;
+        b.textContent='Log in';
+      }
+    };
+    m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}b.dataset.x==='close'?m.remove():go()};
+    m.querySelector('#sv46p').onkeydown=e=>{if(e.key==='Enter')go()};
+  }
+
   window.viewerLoginPrompt44=promptLogin;
+  window.secureViewerPrompt46=promptLogin;
   window.viewerLogin44=(name,pin)=>window.secureViewerLogin46(name,pin).catch(e=>toast(e.message||'Login failed'));
 
   async function compressPdf233(file, onProgress){
@@ -607,7 +685,7 @@
       canvas.width = Math.max(1, Math.round(viewport.width));
       canvas.height = Math.max(1, Math.round(viewport.height));
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // avoid black background behind transparent content
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({canvasContext: ctx, viewport}).promise;
       const imgData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
       const orientation = canvas.width > canvas.height ? 'l' : 'p';
@@ -615,24 +693,23 @@
       if(!out) out = new J({orientation, unit: 'pt', format: sizePt});
       else out.addPage(sizePt, orientation);
       out.addImage(imgData, 'JPEG', 0, 0, sizePt[0], sizePt[1]);
-      canvas.width = 0; canvas.height = 0; // release memory before the next page
-      await new Promise(r => setTimeout(r, 0)); // yield to keep the UI responsive
+      canvas.width = 0; canvas.height = 0;
+      await new Promise(r => setTimeout(r, 0));
     }
     if(!out) throw new Error('This PDF has no pages to compress.');
     return out.output('blob');
   }
 
   function catalogUploadDialog(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:500px"><div class="hd"><h2 style="margin:0">Upload product catalog</h2></div><div class="bd"><div class="cols2"><div class="field"><label>Catalog title</label><input id="C47title" placeholder="e.g. Rangoli Catalog 2026"></div><div class="field"><label>Product category</label><input id="C47cat" placeholder="e.g. Rangoli"></div></div><div class="field"><label>PDF catalog</label><input id="C47file" type="file" accept="application/pdf,.pdf"><div class="note">PDF only · up to 150 MB · secured in Firebase Storage. Large files can take a few minutes on a slow connection.</div></div><label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px"><input type="checkbox" id="C47compress" checked> Compress before uploading <span class="mut">(recompresses images — smaller, faster upload; text may not stay searchable)</span></label><div id="C47prog" style="display:none;margin-top:8px"><div style="height:6px;border-radius:3px;background:var(--line-2,#eee);overflow:hidden"><div id="C47bar" style="height:100%;width:0%;background:var(--kumkum,#C42A1C);transition:width .2s"></div></div><div id="C47pct" class="note" style="margin-top:4px"></div></div><div id="C47msg" class="note"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="upload">Upload</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();let file=m.querySelector('#C47file').files[0];const title=m.querySelector('#C47title').value.trim(),category=m.querySelector('#C47cat').value.trim()||'Other',msg=m.querySelector('#C47msg'),progWrap=m.querySelector('#C47prog'),bar=m.querySelector('#C47bar'),pct=m.querySelector('#C47pct'),wantCompress=m.querySelector('#C47compress').checked;if(!file)return toast('Choose a PDF catalog');if(file.type&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name))return toast('Catalog must be PDF');if(file.size>150*1024*1024)return toast('Catalog must be 150 MB or smaller');b.disabled=true;msg.textContent='';const originalSize=file.size,originalName=file.name;if(wantCompress){progWrap.style.display='';bar.style.width='0%';try{pct.textContent='Compressing page 1…';const blob=await compressPdf233(file,(i,n)=>{pct.textContent='Compressing page '+i+' of '+n+'…';bar.style.width=Math.round(i/n*100)+'%'});if(blob.size<originalSize){file=new File([blob],originalName,{type:'application/pdf'});pct.textContent='Compressed: '+(originalSize/1024/1024).toFixed(1)+' MB → '+(file.size/1024/1024).toFixed(1)+' MB';}else{pct.textContent='Compression did not reduce the size — uploading the original file.';}}catch(err){pct.textContent='Could not compress ('+(err.message||'error')+') — uploading the original file instead.';}await new Promise(r=>setTimeout(r,600));}progWrap.style.display='';pct.textContent='Starting upload… (0 MB of '+(file.size/1024/1024).toFixed(1)+' MB)';bar.style.width='0%';try{const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Sign in as owner in Firebase Settings first.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);const id=uid(),filename=originalName.replace(/[^\w.\- ]+/g,'_'),path=`catalogs/${auth.currentUser.uid}/${id}/${filename}`;const task=storage.ref(path).put(file,{contentType:'application/pdf'});await new Promise((resolve,reject)=>{task.on('state_changed',snap=>{const donePct=snap.totalBytes?Math.round(snap.bytesTransferred/snap.totalBytes*100):0;bar.style.width=donePct+'%';pct.textContent=donePct+'% — '+(snap.bytesTransferred/1024/1024).toFixed(1)+' MB of '+(snap.totalBytes/1024/1024).toFixed(1)+' MB';},reject,resolve)});S.catalogFiles.push({id,title:title||originalName.replace(/\.pdf$/i,''),category,filename,storagePath:path,size:file.size,uploadedAt:Date.now()});save();m.remove();render();toast('Catalog uploaded — assign it to users.')}catch(err){progWrap.style.display='none';msg.textContent=err.message||'Upload failed';b.disabled=false}}}
-  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> · ${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(u.id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
+  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> ·${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(u.id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
   async function deleteCatalog47(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c||!confirm('Delete catalog "'+c.title+'"?'))return;try{if(c.storagePath){const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Owner must be signed in before a cloud catalog can be deleted safely.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);try{await storage.ref(c.storagePath).delete()}catch(e){if(e&&e.code!=='storage/object-not-found')throw e}}}catch(e){toast((e&&e.message)||'Catalog was not deleted because cloud removal could not be confirmed.');return}S.catalogFiles=S.catalogFiles.filter(x=>x.id!==id);S.viewerUsers.forEach(u=>u.allowedCatalogFileIds=(u.allowedCatalogFileIds||[]).filter(x=>x!==id));try{if(typeof caches!=='undefined'){const cc=await caches.open('pm-viewer-catalogs-v228');await cc.delete(catalogCacheKey(c))}}catch(e){}save();render();toast('Catalog deleted securely; assigned access will auto-refresh.')}
   function catalogLibraryHtml(){return `<div class="card" id="catalogLibrary47" style="margin-top:14px"><div class="hd"><h2>Product catalog library</h2><div class="spacer"></div><button class="btn ghost sm" data-act="catalog-upload47">Upload PDF catalog</button></div><div class="bd"><div class="note" style="margin-bottom:8px">Upload category-wise PDF catalogs. Restricted users can only open assigned catalogs.</div>${S.catalogFiles.length?`<div class="tbl-wrap"><table><thead><tr><th>Catalog</th><th>Category</th><th>Assigned users</th><th class="r">Actions</th></tr></thead><tbody>${S.catalogFiles.map(c=>`<tr><td><b>${esc(c.title)}</b><div class="metric-sub">${esc(c.filename)}</div></td><td>${esc(c.category||'Other')}</td><td>${S.viewerUsers.filter(u=>(u.allowedCatalogFileIds||[]).includes(c.id)).map(u=>esc(u.name)).join(', ')||'—'}</td><td class="r"><button class="link" data-cat-assign47="${c.id}">assign</button> · <button class="link" data-cat-delete47="${c.id}">delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-mini">No uploaded PDF catalogs yet.</div>'}</div></div>`}
-  async function activityCard230(v){if(!v||v.querySelector('#loginActivity230'))return;const a=api();if(!a?.auth?.currentUser||!a.db)return;const card=document.createElement('div');card.className='card';card.id='loginActivity230';card.style.marginTop='14px';card.innerHTML='<div class="hd"><h2>Device / login activity</h2></div><div class="bd"><div class="note">Loading recent restricted-user activity… This is client-reported operational activity, not an immutable security audit log.</div></div>';v.appendChild(card);try{const snap=await a.db.collection('loginActivity').where('ownerUid','==',a.auth.currentUser.uid).get(),rows=[];snap.forEach(d=>rows.push({uid:d.id,...d.data()}));rows.sort((x,y)=>(y.lastLoginAt?.toMillis?.()||0)-(x.lastLoginAt?.toMillis?.()||0));card.querySelector('.bd').innerHTML=`<div class="note" style="margin-bottom:8px">Client-reported operational activity; use Firebase/Auth logs for authoritative security auditing.</div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Device</th><th>Last login</th><th class="r">Logins</th></tr></thead><tbody>${rows.map(r=>{const u=(S.viewerUsers||[]).find(x=>x.cloudUid===r.uid),at=r.lastLoginAt?.toDate?.();return `<tr><td><b>${esc(u?.name||r.username||'Unknown')}</b><div class="metric-sub">${esc(r.role||u?.role||'')}</div></td><td>${esc(r.device||'—')}</td><td>${at?esc(at.toLocaleString('en-IN')):'—'}</td><td class="r">${+r.loginCount||0}</td></tr>`}).join('')||'<tr><td colspan="4" class="empty-mini">No cloud login activity yet.</td></tr>'}</tbody></table></div>`}catch(e){card.querySelector('.bd').innerHTML='<div class="note">Login activity will appear after the updated Firestore rules are published and a restricted user logs in.</div>'}}
+  async function activityCard230(v){if(!v||v.querySelector('#loginActivity230'))return;const a=api();if(!a?.auth?.currentUser||!a.db)return;const card=document.createElement('div');card.className='card';card.id='loginActivity230';card.style.marginTop='14px';card.innerHTML='<div class="hd"><h2>Device / login activity</h2></div><div class="bd"><div class="note">Loading recent restricted-user activity… This is client-reported operational activity, not an immutable security audit log.</div></div>';v.appendChild(card);try{const snap=await a.db.collection('loginActivity').where('ownerUid','==',a.auth.currentUser.uid).get(),rows=[];snap.forEach(d=>rows.push({uid:d.id,...d.data()}));rows.sort((x,y)=>(y.lastLoginAt?.toMillis?.()||0)-(x.lastLoginAt?.toMillis?.()||0));card.querySelector('.bd').innerHTML=`<div class="note" style="margin-bottom:8px">Client-reported operational activity; use Firebase/Auth logs for authoritative security auditing.</div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Device</th><th>Last login</th><th class="r">Logins</th></tr></thead><tbody>${rows.map(r=>{const u=(S.viewerUsers||[]).find(x=>x.cloudUid===r.uid),at=r.lastLoginAt?.toDate?.();return `<tr><td><b>${esc(u?.name||r.username||'Unknown')}</b><div class="metric-sub">${esc(r.role||u?.role||'')}</div></td><td>${esc(r.device\vert{}\vert{}'—')}</td><td>${at?esc(at.toLocaleString('en-IN')):'—'}</td><td class="r">${+r.loginCount||0}</td></tr>`}).join('')||'<tr><td colspan="4" class="empty-mini">No cloud login activity yet.</td></tr>'}</tbody></table></div>`}catch(e){card.querySelector('.bd').innerHTML='<div class="note">Login activity will appear after the updated Firestore rules are published and a restricted user logs in.</div>'}}
+  
   function enhance(){if(page!=='access45')return;const v=document.getElementById('view');if(!v)return;let card=v.querySelector('#secureAccess46');if(!card){const a=api();card=document.createElement('div');card.className='card';card.id='secureAccess46';card.style.marginTop='14px';card.innerHTML=`<div class="hd"><h2>Secure Firebase access</h2></div><div class="bd"><div class="private-note"><b>Security:</b> restricted users receive final rates and UOM alternatives only. Owner costing, discount formulas, inventory and settings are excluded. Offline viewer access expires after 24 hours or the user access-expiry date, whichever comes first.</div><div class="note" style="margin:10px 0">${a?.db?(a.auth?.currentUser?'Owner Firebase account is signed in. Pending logins will retry automatically.':'Firebase connected, owner not signed in. New cloud logins stay pending until the Owner signs in.'):'Firebase is not configured on this device.'}</div><button class="btn ghost sm" data-act="init-secure46">Initialize security</button> <button class="btn ghost sm" data-act="publish-all46">Publish / update cloud users</button> <button class="btn ghost sm" data-act="repair-cloud46">Repair pending only</button><div id="cloudProgress265" style="margin-top:10px"></div></div>`;v.appendChild(card)}if(!v.querySelector('#catalogLibrary47'))v.insertAdjacentHTML('beforeend',catalogLibraryHtml());v.querySelectorAll('[data-a45-edit]').forEach(btn=>{if(btn.parentElement.querySelector(`[data-cloud46="${btn.dataset.a45Edit}"]`))return;const id=btn.dataset.a45Edit,u=S.viewerUsers.find(x=>x.id===id),b=document.createElement('button');b.className='link';b.dataset.cloud46=id;const failed=u?.cloudSyncState==='error',syncing=u?.cloudSyncState==='syncing';b.textContent=syncing?'syncing…':failed?'retry cloud':u?.cloudUid?'sync cloud':'create cloud login';if(failed){b.title=u.cloudSyncError||'Cloud sync failed';const er=document.createElement('div');er.className='metric-sub';er.style.cssText='max-width:260px;color:var(--danger,#a23a32);margin-top:3px;white-space:normal';er.textContent='Cloud error: '+(u.cloudSyncError||'sync failed');btn.parentElement.appendChild(er)}else if(!u?.cloudUid){const st=document.createElement('div');st.className='metric-sub';st.style.cssText='margin-top:3px';st.textContent='Cloud: pending';btn.parentElement.appendChild(st)}btn.insertAdjacentText('afterend',' · ');btn.after(b)});updateProvisionProgress265();activityCard230(v)}
 
   const saveBeforeSecure=save;
   function cloudRelevantStamp266(){
-    // Correctness-first domain stamp. Only cloud-visible pricing/catalog/access dependencies
-    // are included, but every dependency that can change a restricted user's rate/PDF is covered.
     const ph=fastHash265(JSON.stringify((S.products||[]).map(p=>[p.id,p.updatedAt||0,p.code,p.name,p.size,p.category,p.packing,p.barcode,p.mrp,p.price,p.stock,p.status,p.priceUnit,p.priceListUnit,p.keywords,p.tags])));
     const rh=fastHash265(JSON.stringify(S.rules||[]));
     const pbh=fastHash265(JSON.stringify((S.priceBooks||[]).map(pb=>[pb.id,pb.name,pb.category,pb.audience270,pb.audience,pb.version230||0,pb.effectiveFrom230||'',pb.config||{},pb.scheduled230||null,pb.previousConfig230||null])));
@@ -655,8 +732,6 @@
     const run=async()=>{
       do{
         const a=api();if(!navigator.onLine||!a?.auth?.currentUser||window.__restrictedFirebaseSession46)return false;
-        // Consume only the work known at the start. Edits during awaits set this
-        // flag again and are drained by the same loop, even if their timer fires.
         cloudPublishDirty265=false;
         try{
           const users=(S.viewerUsers||[]).filter(x=>x.active!==false||x.cloudUid).filter(userNeedsPublish265),failures=[];
@@ -683,7 +758,6 @@
   window.addEventListener('online',()=>schedulePublish(120));
   window.markRestrictedPublish265=()=>{try{lastCloudRelevantStamp266=cloudRelevantStamp266()}catch(e){}schedulePublish(120)};
 
-
   const oldRender=render;render=function(){const out=oldRender();setTimeout(()=>{const legacy=document.getElementById('L_viewerBox44');if(legacy)legacy.remove();enhance();if(cloudSession)show(cloudSession.payload,cloudSession.uid==='offline');const l=document.getElementById('viewerLoginLink44');if(l)l.onclick=promptLogin},0);return out};
   document.addEventListener('click',async e=>{
     const c=e.target.closest('[data-cloud46]');if(c){e.preventDefault();window.syncOneUser46(c.dataset.cloud46)}
@@ -696,10 +770,8 @@
   window.cloudWipeAccess265=async()=>{
     const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Sign in as Owner in Firebase Settings before deleting cloud data.');const owner=auth.currentUser.uid;await ensureOwner(db,owner);const errors=[];
     for(const u of [...(S.viewerUsers||[])]){try{await revokeUser(u,{deleteAuth:true})}catch(e){errors.push(`${u.name}: ${e.message||e}`)}}
-    // Remove access profiles left behind by older/local user records too. Viewer payloads are keyed by UID.
     try{const ps=await db.collection('accessProfiles').where('ownerUid','==',owner).get();for(const d of ps.docs){try{await deletePayload(db,d.id)}catch(e){}try{await d.ref.delete()}catch(e){errors.push(`Access ${d.id}: ${e.message||e}`)}}}catch(e){errors.push(`Access profile cleanup: ${e.message||e}`)}
     for(const c of [...(S.catalogFiles||[])]){if(c.storagePath&&storage)try{await storage.ref(c.storagePath).delete()}catch(e){if(!/object-not-found/i.test(String(e?.code||e)))errors.push(`Catalog ${c.title||c.filename}: ${e.message||e}`)}}
-    // Also sweep orphaned catalog objects that are no longer present in local state.
     if(storage)try{const top=await storage.ref(`catalogs/${owner}`).listAll();for(const pref of top.prefixes||[]){const sub=await pref.listAll();for(const item of sub.items||[])try{await item.delete()}catch(e){errors.push(`Catalog object ${item.fullPath||item.name}: ${e.message||e}`)}}for(const item of top.items||[])try{await item.delete()}catch(e){errors.push(`Catalog object ${item.fullPath||item.name}: ${e.message||e}`)}}catch(e){if(!/object-not-found/i.test(String(e?.code||e)))errors.push(`Catalog sweep: ${e.message||e}`)}
     const deleteDocs=async q=>{try{const snap=await q.get();for(const d of snap.docs)await d.ref.delete()}catch(e){errors.push(e.message||String(e))}};
     await deleteDocs(db.collection('orderRequests').doc(owner).collection('items'));
