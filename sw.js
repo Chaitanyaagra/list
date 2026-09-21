@@ -1,6 +1,6 @@
-const CACHE='tota-price-manager-v284';
+const CACHE='tota-price-manager-v285';
 const CATALOG_CACHE='pm-viewer-catalogs-v228';
-const LOCAL=['./','./index.html','./firebase-config.js?v=284','./secure-access.js?v=284','./ca-theme.css?v=284','./ca-workspace.js?v=284','./manifest.json','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./ca-logo.png'];
+const LOCAL=['./','./index.html','./firebase-config.js?v=285','./secure-access.js?v=285','./ca-theme.css?v=285','./ca-workspace.js?v=285','./manifest.json','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./ca-logo.png'];
 const VENDOR=[
  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',

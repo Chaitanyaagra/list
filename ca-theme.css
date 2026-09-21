@@ -483,22 +483,46 @@ button:focus-visible, .nav button:focus-visible, a:focus-visible{
 #view > .core45-grid, #view > .private-note, #view > .core45-flow{ max-width:1080px; }
 
 /* ---------- Home screen workflow steps: give the numbers real visual weight ---------- */
-.core45-flow{ counter-reset: pmstep; }
-.core45-step{
-  position:relative; padding-top:34px; counter-increment: pmstep;
+.core45-flow{
+  counter-reset:pmstep;
+  width:100%;
+  max-width:100%;
+  overflow:visible;
+}
+.core45-flow .core45-step{
+  position:relative;
+  min-width:0;
+  min-height:142px;
+  padding:46px 16px 16px;
+  counter-increment:pmstep;
+  overflow-wrap:anywhere;
   transition: box-shadow .18s ease, transform .18s ease;
 }
 .core45-step:hover{ box-shadow:var(--shadow-sm); transform:translateY(-1px); }
-.core45-step::before{
+.core45-flow .core45-step::before{
   content: counter(pmstep);
-  position:absolute; top:11px; left:11px;
-  width:20px; height:20px; border-radius:50%;
+  position:absolute; top:14px; left:16px;
+  width:24px; height:24px; border-radius:50%;
   background:linear-gradient(180deg, var(--kumkum-l,#E8523C), var(--kumkum));
   color:#fff; font-size:11px; font-weight:800;
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 2px 6px rgba(196,42,28,.35);
 }
-.core45-step b{ display:block; font-size:12.5px; }
+.core45-flow .core45-step b{
+  display:block;
+  margin:0 0 7px;
+  font-size:14px;
+  line-height:1.3;
+  overflow-wrap:anywhere;
+}
+
+@media(max-width:900px){
+  .core45-flow .core45-step{min-height:128px;}
+}
+
+@media(max-width:560px){
+  .core45-flow .core45-step{min-height:0;padding:44px 16px 16px;}
+}
 
 /* ---------- hub / home cards: consistent with the premium card language ---------- */
 .core45-card{ transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
