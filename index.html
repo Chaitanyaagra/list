@@ -13,7 +13,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CA">
+<style id="pm-auth-first-paint-286">
+html.pm-auth-pending body{min-height:100vh;background:#F7F5F0}
+html.pm-auth-pending .app{visibility:hidden!important}
+html.pm-auth-pending body::before{
+  content:'CA  ·  Opening secure login…';
+  position:fixed;inset:0;z-index:9000;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;background:#F7F5F0;color:#34383D;
+  font:700 14px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  letter-spacing:.01em;
+}
+</style>
 <script>
+document.documentElement.classList.add('pm-auth-pending');
+window.__pmRevealWorkspace286=function(){document.documentElement.classList.remove('pm-auth-pending');};
 window.__pmStateReady284=false;
 // Shared by early state migrations as well as later modules.
 window.localISODate30=function(ts){const d=ts==null?new Date():new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
@@ -27,7 +41,7 @@ if('serviceWorker' in navigator){
 </script>
 
 
-<link rel="stylesheet" href="ca-theme.css?v=285">
+<link rel="stylesheet" href="ca-theme.css?v=286">
 </head>
 <body>
 <div class="app">
@@ -63,7 +77,7 @@ if('serviceWorker' in navigator){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=285"></script>
+<script src="firebase-config.js?v=286"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
@@ -472,6 +486,7 @@ function renderNav(){
     `<button data-nav="${p.id}" class="${page===p.id?'on':''}">${esc(p.label)}${counts[p.id]?`<span class="pill">${counts[p.id]}</span>`:''}</button>`).join('');
 }
 function render(){
+  if(window.__entryGate238Resolved && !document.getElementById('cloudViewer46') && !document.getElementById('entryGate238') && !document.querySelector('.pm-lock:not([hidden])')) window.__pmRevealWorkspace286?.();
   renderNav();
   $('#brandName').textContent='CA';
   const v = $('#view'); const t=$('#pgTitle'), sub=$('#pgSub'), act=$('#topActions');
@@ -5861,7 +5876,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_227};
 })();
 </script>
-<script src="secure-access.js?v=285"></script>
+<script src="secure-access.js?v=286"></script>
 <script id="pm-v230-commercial-suite">
 (()=>{
   const V='2.30 Commercial price-list workflow';
@@ -7087,6 +7102,7 @@ Amit, 5566,"></textarea>
         if(ownerConfigured238() && u.toLowerCase() === String(S.settings.ownerUsername||'').toLowerCase().trim() && await verifyOwnerPin238(p)){
           clearAttempts238();
           window.__entryGate238Resolved = true;
+          window.__pmRevealWorkspace286?.();
           el.remove();
           render();
           return;
@@ -7094,7 +7110,7 @@ Amit, 5566,"></textarea>
           if(u.includes('@')){
             let owner=false;
             try{owner=await loginOwnerEmail282(u,p)}catch(error){if(!isNetworkError238(error))throw error}
-            if(owner){clearAttempts238();window.__entryGate238Resolved=true;el.remove();render();return}
+            if(owner){clearAttempts238();window.__entryGate238Resolved=true;window.__pmRevealWorkspace286?.();el.remove();render();return}
           }
           if(typeof window.secureViewerLogin46!=='function') throw new Error('Login module is not ready. Reload the app and try again.');
           await window.secureViewerLogin46(u, p);
@@ -7204,6 +7220,7 @@ Amit, 5566,"></textarea>
         const newCode = await setNewOwnerPin238(p1);
         clearAttempts238();
         window.__entryGate238Resolved = true;
+        window.__pmRevealWorkspace286?.();
         el.remove();
         showNewRecoveryCodeModal238(newCode);
       };
@@ -8402,8 +8419,8 @@ Amit, 5566,"></textarea>
 <script id="pm-v279-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 Deep Regression Fixes'};</script>
 
 
-<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.85 CA Workspace"};</script>
-<script src="ca-workspace.js?v=285"></script>
+<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.86 CA Workspace"};</script>
+<script src="ca-workspace.js?v=286"></script>
 
 </body>
 </html>
