@@ -30,7 +30,7 @@
       if(action==='share'){const file=new File([doc.output('blob')],name,{type:'application/pdf'});if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({title:cfg.title||'Price list',files:[file]});return}toast('File sharing is unavailable here. Downloading the PDF.')}doc.save(name);
     }catch(e){if(e?.name!=='AbortError')toast(e?.message||'Could not prepare price list')}
   }
-  function actions(pb){return `<div class="ca281-actions"><button class="btn ghost" data-ca-export="view" data-book="${esc(pb.id)}">View</button><button class="btn ghost" data-ca-export="share" data-book="${esc(pb.id)}">Share</button><button class="btn primary" data-ca-export="download" data-book="${esc(pb.id)}">Download</button></div>`}
+  function actions(pb){return `<div class="ca281-actions"><button class="btn primary" data-ca-export="view" data-book="${esc(pb.id)}">View</button><button class="btn ghost" data-ca-export="share" data-book="${esc(pb.id)}">Share</button><button class="btn ghost" data-ca-export="download" data-book="${esc(pb.id)}">Download</button></div>`}
   const filters={q:'',party:'',mode:''};
   const initialList=JSON.parse(JSON.stringify(ui.list||{}));
   function drawBooks(target){
@@ -60,8 +60,8 @@
     for(const id of ['L_party','L_catalog']){const el=v.querySelector('#'+id),field=el?.closest('.field');if(field){const label=field.querySelector('label');if(label){label.htmlFor=id;if(id==='L_party')label.textContent='Customer'}bar.append(field)}}
     const context=document.createElement('div');context.innerHTML=`<label>Rate type</label><b>${esc(modeLabel(audience(pb)))}</b><div class="note">Effective ${esc(date(pb?.effectiveFrom230||ui.list.effectiveDate230))}</div>`;bar.append(context);
     const state=document.createElement('div');state.className='ca281-meta';state.innerHTML=`<span class="ca281-status">Draft workspace</span>${pb?badges(pb):''}<span class="note">${pb?'Saved list: '+esc(pb.name)+' · Updated '+esc(date(pb.updatedAt||pb.createdAt)):'Save as Price Book to retain and assign this list.'}</span>`;bar.append(state);v.prepend(bar);
-    const exports=document.createElement('div');exports.className='ca281-actions';exports.style.marginTop='0';exports.innerHTML='<button class="btn ghost" data-ca-export="view">View</button><button class="btn ghost" data-ca-export="share">Share</button>';
-    const pdf=act.querySelector('[data-act="make-pdf"]');if(pdf){pdf.textContent='Download';exports.append(pdf)}act.prepend(exports);
+    const exports=document.createElement('div');exports.className='ca281-actions';exports.style.marginTop='0';exports.innerHTML='<button class="btn primary" data-ca-export="view">View</button><button class="btn ghost" data-ca-export="share">Share</button>';
+    const pdf=act.querySelector('[data-act="make-pdf"]');if(pdf){pdf.textContent='Download';pdf.className='btn ghost';exports.append(pdf)}act.prepend(exports);
     const more=document.createElement('details');more.className='ca281-more';const summary=document.createElement('summary');summary.textContent='More tools';const menu=document.createElement('div');menu.className='ca281-menu';more.append(summary,menu);
     for(const b of [...act.children])if(b.tagName==='BUTTON'&&!['save-pricebook-44','schedule-book-230'].includes(b.dataset.act))menu.append(b);
     if(menu.children.length)act.append(more);
@@ -87,7 +87,7 @@
     const lifecycle=new AbortController();
     const tool={name:'filter_price_lists',title:'Filter price lists',description:'Filter the owner price-list workspace by name and rate type.',inputSchema:{type:'object',properties:{query:{type:'string'},rateType:{type:'string',enum:['','retail','wholesale','custom']}},additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:true},execute(input){
       if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['query','rateType'].includes(k))||(input.query!==undefined&&(typeof input.query!=='string'||input.query.length>200))||(input.rateType!==undefined&&!['','retail','wholesale','custom'].includes(input.rateType)))throw Error('Invalid price-list filter');
-      if(window.__restrictedFirebaseSession46||(typeof SEC!=='undefined'&&SEC.role!=='owner')||document.getElementById('entryGate238')||document.querySelector('.pm-lock')||!window.__entryGate238Resolved)throw Error('Unlock the owner workspace first');
+      if(window.__restrictedFirebaseSession46||(window.__pmPrivacyStatus284?.().role!=='owner')||document.getElementById('entryGate238')||document.querySelector('.pm-lock:not([hidden])')||!window.__entryGate238Resolved)throw Error('Unlock the owner workspace first');
       filters.q=input.query||'';filters.mode=input.rateType||'';filters.party='';go('pricing230');return {query:filters.q,rateType:filters.mode};
     }};
     try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{})}catch(_){}

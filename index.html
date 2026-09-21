@@ -14,13 +14,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CA">
 <script>
+window.__pmStateReady284=false;
+// Shared by early state migrations as well as later modules.
+window.localISODate30=function(ts){const d=ts==null?new Date():new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+window.requireSecureCrypto284=function(){
+  if(!window.crypto?.subtle)throw Object.assign(new Error('Secure sign-in requires HTTPS or localhost. Open the secure app link, then try again.'),{code:'app/insecure-context',__notCredential:true});
+  return window.crypto.subtle;
+};
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').then(reg => { window.__swRegistration233 = reg; }).catch(e => { window.__swRegistrationError233 = e; console.warn('Service Worker registration failed -- the app will still work, but offline caching will not be available:', e); }); });
 }
 </script>
 
 
-<link rel="stylesheet" href="ca-theme.css">
+<link rel="stylesheet" href="ca-theme.css?v=284">
 </head>
 <body>
 <div class="app">
@@ -56,7 +63,7 @@ if('serviceWorker' in navigator){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js"></script>
+<script src="firebase-config.js?v=284"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
@@ -101,22 +108,26 @@ async function loadState(){
 }
 let __flushInFlight230 = null;
 async function flushSaveNow230(){
-  if(!dirty) return;
-  if(S?.settings?.privacyEnabled && typeof window.__pmSecureSaveNow265==='function') return window.__pmSecureSaveNow265();
+  if(!dirty || !window.__pmStateReady284) return;
+  if(window.__PM_VAULT_PENDING || S?.settings?.privacyEnabled) return window.__pmSecureSaveNow265?.();
   clearTimeout(saveTimer);
-  if(__flushInFlight230) return __flushInFlight230; // avoid overlapping writes if triggered twice in quick succession
-  __flushInFlight230 = (async () => {
-    try{ await window.storage.set('tpm:data', JSON.stringify(S)); setSaveState('saved just now'); dirty=false; }
-    catch(e){ mem = JSON.stringify(S); setSaveState('saved in this session only'); }
-    finally{ __flushInFlight230 = null; }
-  })();
+  if(__flushInFlight230) return __flushInFlight230;
+  __flushInFlight230=(async()=>{
+    do{
+      const payload=JSON.stringify(S);dirty=false;let primaryOk=false,mirrorOk=false;
+      try{await window.storage.set('tpm:data',payload);primaryOk=true}catch(e){}
+      try{localStorage.setItem('tpm:data:local',payload);mirrorOk=true}catch(e){}
+      if(!primaryOk&&!mirrorOk){mem=payload;dirty=true;setSaveState('saved in this session only');break}
+      if(!dirty)setSaveState(primaryOk?'saved just now':'saved locally');
+    }while(dirty);
+  })().finally(()=>{__flushInFlight230=null});
   return __flushInFlight230;
 }
-function save(){
-  dirty=true; setSaveState('saving…');
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>{ flushSaveNow230(); }, 400);
+function scheduleLocalSave284(){
+  dirty=true;setSaveState('saving…');clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{flushSaveNow230()},300);
 }
+function save(){return scheduleLocalSave284()}
 // Force-flush any pending save the instant the tab is backgrounded/closed -- covers the app being
 // switched away from on mobile (which can suspend or kill the page before a debounced save fires),
 // closing the tab, or navigating away. visibilitychange fires earliest and most reliably on mobile;
@@ -1632,6 +1643,11 @@ function bulkRun(){
 /* ============================ start ============================ */
 (async function init(){
   const had = await loadState();
+  // Later script blocks provide screens and wrap render/save. Do not call them
+  // while the parser is still loading the rest of the application.
+  if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
+  window.__pmStateReady284=true;
+  if(window.__PM_VAULT_PENDING)window.__pmActivateVault284?.();
   S.history = S.history || [];
   if(S.settings.firm==='Tota Trading Co.') S.settings.firm='My Trading Company';
   if(!had && SEED.length){
@@ -1640,6 +1656,8 @@ function bulkRun(){
     save();
   }
   render();
+  if(dirty&&!window.__PM_VAULT_PENDING)save();
+  window.dispatchEvent(new Event('pm-state-ready284'));
   document.addEventListener('keydown', e=>{
     if(e.key==='/' && !/input|textarea|select/i.test(e.target.tagName)){ e.preventDefault(); if(page!=='inv') go('inv'); const q=$('#q'); if(q) q.focus(); }
   });
@@ -2026,17 +2044,9 @@ function accountsAct(a, el){
 
   function audit(type,text,meta){ S.audit=S.audit||[]; S.audit.unshift({id:uid(),at:Date.now(),type,text,meta:meta||{}}); S.audit=S.audit.slice(0,500); }
 
+  window.pmAudit284=audit;
   /* More durable local fallback: window.storage when present + localStorage mirror. */
-  save=function(){
-    dirty=true; setSaveState('saving…'); clearTimeout(saveTimer);
-    saveTimer=setTimeout(async()=>{
-      const payload=JSON.stringify(S); let cloudOk=false, localOk=false;
-      try{ if(window.storage&&window.storage.set){ await window.storage.set('tpm:data',payload); cloudOk=true; } }catch(e){}
-      try{ localStorage.setItem('tpm:data:local',payload); localOk=true; }catch(e){}
-      if(cloudOk) setSaveState('saved just now'); else if(localOk) setSaveState('saved locally'); else {mem=payload;setSaveState('saved in this session only');}
-      dirty=false;
-    },300);
-  };
+  save=scheduleLocalSave284;
   try{
     if(!(window.storage&&window.storage.get)){
       const local=localStorage.getItem('tpm:data:local');
@@ -2660,12 +2670,29 @@ function accountsAct(a, el){
   function ensure24(){S.purchaseCosts=S.purchaseCosts||{};S.audit=S.audit||[];S.settings={privacyEnabled:false,autoLockMinutes:10,minMarginPct:10,belowMinPolicy:'owner',purchaseCashDiscount:0,purchaseOtherPerUnit:0,...S.settings};ui.quote=ui.quote||{party:'',items:[]};}
   ensure24();
 
-  let secureSaveTimer=null;
-  async function secureSaveNow(){if(!SEC.dek||!SEC.envelope)return false;ensure24();const payload=await encryptState(SEC.dek,S);SEC.envelope={...SEC.envelope,__pmVault:1,v:2,updatedAt:Date.now(),payload};const raw=JSON.stringify(SEC.envelope);const ok=await writeRaw(raw);setSaveState(ok?'encrypted · saved':'encrypted · session only');dirty=false;return ok}
+  let secureSaveTimer=null,secureSaveFlight284=null,secureEdit284=0;
+  async function secureSaveNow(){
+    if(!SEC.dek||!SEC.envelope||window.__pmStateReady284===false)return false;
+    clearTimeout(secureSaveTimer);
+    if(secureSaveFlight284)return secureSaveFlight284;
+    secureSaveFlight284=(async()=>{
+      let ok=false;
+      do{
+        const version=secureEdit284;ensure24();
+        const payload=await encryptState(SEC.dek,JSON.parse(JSON.stringify(S)));
+        SEC.envelope={...SEC.envelope,__pmVault:1,v:2,updatedAt:Date.now(),payload};
+        ok=await writeRaw(JSON.stringify(SEC.envelope));
+        dirty=!ok||version!==secureEdit284;
+        if(!ok){setSaveState('encrypted · session only');break}
+      }while(dirty);
+      if(ok&&!dirty)setSaveState('encrypted · saved');return ok;
+    })().finally(()=>{secureSaveFlight284=null});
+    return secureSaveFlight284;
+  }
   window.__pmSecureSaveNow265=secureSaveNow;
   window.__pmGetEncryptedEnvelope265=()=>SEC.envelope?JSON.stringify(SEC.envelope):null;
   window.__pmRestoreEncryptedEnvelope265=async raw=>{const d=JSON.parse(raw);if(!d||d.__pmVault!==1)throw Error('Invalid encrypted recovery point');await writeRaw(raw);SEC.envelope=d;SEC.dek=null;SEC.role=null;window.__PM_VAULT_PENDING=d;S=baseState({settings:{...DEF_SETTINGS,privacyEnabled:true}});showLock();return true};
-  save=function(){ensure24();if(S.settings.privacyEnabled&&SEC.dek&&SEC.envelope){dirty=true;setSaveState('encrypting…');clearTimeout(secureSaveTimer);secureSaveTimer=setTimeout(()=>secureSaveNow().catch(e=>{console.error(e);setSaveState('secure save failed')}),350);return}return prevSave()};
+  save=function(){ensure24();if(S.settings.privacyEnabled&&SEC.dek&&SEC.envelope){secureEdit284++;dirty=true;setSaveState('encrypting…');clearTimeout(secureSaveTimer);secureSaveTimer=setTimeout(()=>secureSaveNow().catch(e=>{console.error(e);setSaveState('secure save failed')}),350);return}return prevSave()};
 
   function restrictedPage(p){return SEC.role==='staff'&&['cost','rate','disc','hist','set'].includes(p)}
   function roleChip(){return SEC.role==='staff'?'<span class="staff-chip">STAFF MODE</span>':SEC.role==='owner'?'<span class="owner-chip">OWNER MODE</span>':''}
@@ -2692,7 +2719,7 @@ function accountsAct(a, el){
 
   viewDash=function(v,t,sub,act){prevViewDash(v,t,sub,act);if(SEC.role!=='owner')return;const costVal=S.products.reduce((a,p)=>a+(calcCost24(p).final||0)*(+p.stock||0),0),sellVal=S.products.reduce((a,p)=>a+(priceOf(p,profileFor('')).net||0)*(+p.stock||0),0),gp=sellVal-costVal,bad=(S.products||[]).filter(p=>{const c=calcCost24(p),sell=priceOf(p,profileFor('')).net;return c.minSell!=null&&sell!=null&&sell<c.minSell}).length;const box=document.createElement('div');box.innerHTML=`<div class="section-title">Owner dashboard</div><div class="owner-kpis"><div class="owner-kpi"><b>${CUR()}${money(costVal)}</b><span>stock at landed cost</span></div><div class="owner-kpi"><b>${CUR()}${money(sellVal)}</b><span>stock at selling rate</span></div><div class="owner-kpi"><b class="${gp<0?'bad':'good'}">${CUR()}${money(gp)}</b><span>potential gross spread</span></div><div class="owner-kpi"><b class="${bad?'bad':''}">${bad}</b><span>products below minimum sell</span></div></div>`;v.appendChild(box)};
 
-  function showLock(){let l=document.getElementById('pmLock');if(!l){l=document.createElement('div');l.id='pmLock';l.className='pm-lock';document.body.appendChild(l)}const env=SEC.envelope||window.__PM_VAULT_PENDING,hasStaff=!!(env?.roles?.staff),hasRecovery=!!(env?.roles?.recovery),recoveryMode=!!SEC.useRecovery;l.hidden=false;l.innerHTML=`<div class="pm-lock-card"><div class="pm-lock-brand"><img src="ca-logo.png" class="ca-lock-logo" alt="CA"><span>CA</span></div><div class="pm-lock-sub">Private business data is locked and encrypted.</div><div class="pm-lock-tabs"><button class="btn ${SEC.roleTab!=='staff'?'primary':'ghost'}" data-role="owner">Owner</button>${hasStaff?`<button class="btn ${SEC.roleTab==='staff'?'primary':'ghost'}" data-role="staff">Staff</button>`:''}</div><label class="note">${recoveryMode?'Recovery code':(SEC.roleTab==='staff'?'Staff':'Owner')+' PIN'}</label><input id="pm_pin" type="password" inputmode="${recoveryMode?'text':'numeric'}" autocomplete="off" minlength="4" placeholder="${recoveryMode?'XXXX-XXXX-XXXX-XXXX-XXXX':''}"><button class="btn primary" style="width:100%;padding:10px" data-unlock>Unlock</button>${SEC.roleTab!=='staff'&&hasRecovery?`<button class="link" style="display:block;margin-top:10px;text-align:center;width:100%" data-recovery-toggle>${recoveryMode?'Use PIN instead':'Forgot PIN? Use recovery code'}</button>`:''}<div class="pm-lock-msg" id="pm_lock_msg"></div><div class="note" style="margin-top:12px">Ctrl + Shift + L locks instantly.</div></div>`;const pin=l.querySelector('#pm_pin');pin.focus();l.onclick=async e=>{const rb=e.target.closest('[data-role]');if(rb){SEC.roleTab=rb.dataset.role;SEC.useRecovery=false;showLock();return}const rc=e.target.closest('[data-recovery-toggle]');if(rc){SEC.useRecovery=!SEC.useRecovery;showLock();return}if(!e.target.closest('[data-unlock]'))return;const now=Date.now(),msg=l.querySelector('#pm_lock_msg');if(now<SEC.blockedUntil){msg.textContent='Too many attempts. Try again in '+Math.ceil((SEC.blockedUntil-now)/1000)+' seconds.';return}const val=pin.value;try{if(recoveryMode){if(!env.roles.recovery)throw new Error('no-recovery');const raw=await unwrapDek(val.trim(),env.roles.recovery),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role='owner';SEC.attempts=0;SEC.useRecovery=false;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast('Unlocked with recovery code');promptNewOwnerPin(raw)}else{const role=SEC.roleTab==='staff'&&hasStaff?'staff':'owner',raw=await unwrapDek(val,env.roles[role]),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role=role;SEC.attempts=0;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast(role==='owner'?'Owner mode unlocked':'Staff mode unlocked')}}catch(err){SEC.attempts++;if(SEC.attempts>=5){SEC.blockedUntil=Date.now()+30000;SEC.attempts=0;msg.textContent='Locked for 30 seconds after repeated incorrect PINs.'}else msg.textContent=recoveryMode?'Recovery code not recognised.':'Incorrect PIN.';pin.select()}};pin.onkeydown=e=>{if(e.key==='Enter')l.querySelector('[data-unlock]').click()}}
+  function showLock(){let l=document.getElementById('pmLock');if(!l){l=document.createElement('div');l.id='pmLock';l.className='pm-lock';document.body.appendChild(l)}const env=SEC.envelope||window.__PM_VAULT_PENDING,hasStaff=!!(env?.roles?.staff),hasRecovery=!!(env?.roles?.recovery),recoveryMode=!!SEC.useRecovery;l.hidden=false;l.innerHTML=`<div class="pm-lock-card"><div class="pm-lock-brand"><img src="ca-logo.png" class="ca-lock-logo" alt="CA"><span>CA</span></div><div class="pm-lock-sub">Private business data is locked and encrypted.</div><div class="pm-lock-tabs"><button class="btn ${SEC.roleTab!=='staff'?'primary':'ghost'}" data-role="owner">Owner</button>${hasStaff?`<button class="btn ${SEC.roleTab==='staff'?'primary':'ghost'}" data-role="staff">Staff</button>`:''}</div><label class="note">${recoveryMode?'Recovery code':(SEC.roleTab==='staff'?'Staff':'Owner')+' PIN'}</label><input id="pm_pin" type="password" inputmode="${recoveryMode?'text':'numeric'}" autocomplete="off" minlength="4" placeholder="${recoveryMode?'XXXX-XXXX-XXXX-XXXX-XXXX':''}"><button class="btn primary" style="width:100%;padding:10px" data-unlock>Unlock</button>${SEC.roleTab!=='staff'&&hasRecovery?`<button class="link" style="display:block;margin-top:10px;text-align:center;width:100%" data-recovery-toggle>${recoveryMode?'Use PIN instead':'Forgot PIN? Use recovery code'}</button>`:''}<div class="pm-lock-msg" id="pm_lock_msg"></div><div class="note" style="margin-top:12px">Ctrl + Shift + L locks instantly.</div></div>`;const pin=l.querySelector('#pm_pin');pin.focus();l.onclick=async e=>{const rb=e.target.closest('[data-role]');if(rb){SEC.roleTab=rb.dataset.role;SEC.useRecovery=false;showLock();return}const rc=e.target.closest('[data-recovery-toggle]');if(rc){SEC.useRecovery=!SEC.useRecovery;showLock();return}if(!e.target.closest('[data-unlock]'))return;const now=Date.now(),msg=l.querySelector('#pm_lock_msg');if(now<SEC.blockedUntil){msg.textContent='Too many attempts. Try again in '+Math.ceil((SEC.blockedUntil-now)/1000)+' seconds.';return}const val=pin.value;try{window.requireSecureCrypto284();if(recoveryMode){if(!env.roles.recovery)throw new Error('no-recovery');const raw=await unwrapDek(val.trim(),env.roles.recovery),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role='owner';SEC.attempts=0;SEC.useRecovery=false;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;window.__entryGate238Resolved=true;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast('Unlocked with recovery code');promptNewOwnerPin(raw)}else{const role=SEC.roleTab==='staff'&&hasStaff?'staff':'owner',raw=await unwrapDek(val,env.roles[role]),dek=await importDek(raw),data=await decryptState(dek,env.payload);SEC.dek=dek;SEC.envelope=env;SEC.role=role;SEC.attempts=0;S=baseState(data);ensure24();window.__PM_VAULT_PENDING=null;window.__entryGate238Resolved=true;l.hidden=true;SEC.lastActivity=Date.now();resetAutoLock();render();toast(role==='owner'?'Owner mode unlocked':'Staff mode unlocked')}}catch(err){if(err?.__notCredential){msg.textContent=err.message;return}SEC.attempts++;if(SEC.attempts>=5){SEC.blockedUntil=Date.now()+30000;SEC.attempts=0;msg.textContent='Locked for 30 seconds after repeated incorrect PINs.'}else msg.textContent=recoveryMode?'Recovery code not recognised.':'Incorrect PIN.';pin.select()}};pin.onkeydown=e=>{if(e.key==='Enter')l.querySelector('[data-unlock]').click()}}
   async function lockNow(){if(!S.settings.privacyEnabled)return;if(SEC.dek)try{await secureSaveNow()}catch(e){}SEC.dek=null;SEC.role=null;S=baseState({settings:{...DEF_SETTINGS,privacyEnabled:true}});showLock()}
   function resetAutoLock(){clearTimeout(SEC.timer);if(!S.settings.privacyEnabled||!SEC.role)return;const min=+S.settings.autoLockMinutes||0;if(min>0)SEC.timer=setTimeout(lockNow,min*60000)}
   ['pointerdown','keydown','mousemove','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(SEC.role){SEC.lastActivity=Date.now();resetAutoLock()}},{passive:true}));
@@ -2730,6 +2757,10 @@ function accountsAct(a, el){
   const render24=render;render=function(){ensure24();if(page==='cost'){if(SEC.role==='staff'){page='dash';return render24()}renderNav();$('#brandName').textContent='CA';const v=$('#view'),t=$('#pgTitle'),sub=$('#pgSub'),act=$('#topActions');act.innerHTML='';sub.textContent='';viewPurchaseCost24(v,t,sub,act);setTimeout(()=>{if(S.settings.privacyEnabled&&!act.querySelector('[data-act="privacy-lock"]'))act.insertAdjacentHTML('afterbegin',`${roleChip()} <button class="btn ghost sm" data-act="privacy-mask">${SEC.sensitiveVisible?'Hide values':'Show values'}</button> <button class="btn ghost sm" data-act="privacy-lock">Lock</button>`)},0);return}return render24()};
 
   document.title='CA';const b=document.getElementById('brandName');if(b)b.textContent='CA';
+  window.__pmActivateVault284=()=>{SEC.envelope=window.__PM_VAULT_PENDING;SEC.dek=null;SEC.role=null;S=baseState({settings:{...DEF_SETTINGS,privacyEnabled:true}});document.getElementById('entryGate238')?.remove();showLock()};
+  window.__pmBaseState284=baseState;
+  window.__pmPrivacyStatus284=()=>({locked:!!((SEC.envelope||window.__PM_VAULT_PENDING)&&!SEC.dek),role:SEC.role});
+  window.__pmChangeStaffPin284=async(ownerPin,newPin)=>{if(SEC.role!=='owner'||!SEC.dek||!SEC.envelope)throw Error('Unlock Owner mode first');const raw=await unwrapDek(ownerPin,SEC.envelope.roles.owner);if(newPin)SEC.envelope.roles.staff=await wrapDek(newPin,raw);else delete SEC.envelope.roles.staff;await secureSaveNow()};
   SEC.envelope=window.__PM_VAULT_PENDING||null;SEC.roleTab='owner';
   if(SEC.envelope){setTimeout(showLock,0)}else{SEC.role='owner';ensure24();setTimeout(()=>{try{render()}catch(e){console.error('v2.4 render',e)}},60)}
 })();
@@ -3022,7 +3053,7 @@ function accountsAct(a, el){
   function controlRows26(){ensure26();const partyId=ui.pc26Party||'',qty=+ui.pricingQty26||1,q=(ui.pc26Q||'').trim().toLowerCase();let rows=S.products.map(p=>{const c=cost26(p)||{},pr=pricing26(p,partyId,qty,0),prior=prior26(p,partyId),profit=c.final!=null&&pr.final!=null?pr.final-c.final:null,margin=profit!=null&&pr.final?profit/pr.final*100:null,below=c.minSell!=null&&pr.final!=null&&pr.final<c.minSell-.009,lastMaster=(window.PriceManagerAPI&&window.PriceManagerAPI.masterPeriods?window.PriceManagerAPI.masterPeriods(p):[]).slice(-1)[0];return {p,c,pr,prior,profit,margin,below,lastMaster}});rows=rows.filter(r=>(!ui.pc26Catalog||r.p.catalog===ui.pc26Catalog)&&(!ui.pc26Cat||r.p.category===ui.pc26Cat)&&(!q||(r.p.code+' '+r.p.name+' '+r.p.category+' '+r.p.catalog).toLowerCase().includes(q)));if(ui.pc26Alert==='below')rows=rows.filter(r=>r.below);if(ui.pc26Alert==='locked')rows=rows.filter(r=>r.pr.lock);if(ui.pc26Alert==='slab')rows=rows.filter(r=>r.pr.slab);if(ui.pc26Alert==='changed')rows=rows.filter(r=>r.prior.list&&!eq26(r.prior.list.rate,r.pr.final));return rows}
   function viewControl26(v,t,sub,act){ensure26();applyScheduled26();const party=S.parties.find(x=>x.id===ui.pc26Party&&!x.archived),all=controlRows26(),shown=all.slice(0,ui.pc26Limit),below=all.filter(x=>x.below).length,locks=all.filter(x=>x.pr.lock).length,slabs=all.filter(x=>x.pr.slab).length,changed=all.filter(x=>x.prior.list&&!eq26(x.prior.list.rate,x.pr.final)).length,pending=(S.scheduledRates||[]).filter(x=>x.status==='scheduled').length;t.textContent='Pricing control room';sub.textContent='Cost ↔ sell ↔ customer history ↔ contracts ↔ quantity pricing';act.innerHTML=`<span class="owner-chip">OWNER PRICING</span>${S.settings.privacyEnabled?'<button class="btn ghost sm" data-act="privacy-mask">Hide / show values</button><button class="btn ghost sm" data-act="privacy-lock">Lock</button>':''}<button class="btn ghost sm" data-act="p26-export">Export CSV</button><button class="btn primary sm" data-act="p26-impact">Price-change impact</button>`;v.innerHTML=`<div class="pc26-grid"><div class="pc26-kpi"><b class="${below?'bad':''}">${below}</b><span>below minimum selling</span></div><div class="pc26-kpi"><b>${locks}</b><span>active rate locks</span></div><div class="pc26-kpi"><b>${slabs}</b><span>quantity slab prices active</span></div><div class="pc26-kpi"><b>${changed}</b><span>different from last price list</span></div><div class="pc26-kpi"><b>${pending}</b><span>scheduled future rates</span></div></div><div class="private-note"><b>Pricing Control Room:</b> select a customer and quantity to see the actual rate that would be used now. Last sold, quoted and price-list rates are shown beside it. “Why?” explains the complete pricing waterfall.</div><div class="filters"><select id="PC26_party" style="min-width:220px"><option value="">General selling rate</option>${S.parties.filter(x=>!x.archived).map(x=>`<option value="${x.id}" ${ui.pc26Party===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><input id="PC26_qty" type="number" min="1" step="1" value="${+ui.pricingQty26||1}" style="width:110px" title="Pricing quantity"><input type="search" id="PC26_q" value="${esc(ui.pc26Q)}" placeholder="Search product/code"><select id="PC26_catalog"><option value="">All price lists</option>${catalogs().map(c=>`<option ${ui.pc26Catalog===c?'selected':''}>${esc(c)}</option>`).join('')}</select><select id="PC26_cat"><option value="">All categories</option>${categories(ui.pc26Catalog).map(c=>`<option ${ui.pc26Cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select><select id="PC26_alert"><option value="">All pricing</option><option value="below" ${ui.pc26Alert==='below'?'selected':''}>Below minimum</option><option value="locked" ${ui.pc26Alert==='locked'?'selected':''}>Rate locked</option><option value="slab" ${ui.pc26Alert==='slab'?'selected':''}>Quantity slab</option><option value="changed" ${ui.pc26Alert==='changed'?'selected':''}>Changed vs last list</option></select></div><div class="card"><div class="hd"><h2>${party?esc(party.name):'General'} · Qty ${+ui.pricingQty26||1}</h2><div class="spacer"></div><span class="note">${all.length} product(s)</span></div><div class="tbl-wrap pc26-table-wrap"><table class="pc26-table"><thead><tr><th>Product</th><th class="r">Purchase cost</th><th class="r">Master</th><th class="r">Effective</th><th>Last sold</th><th>Last quoted</th><th>Last list</th><th class="r">Margin</th><th>Source</th><th></th></tr></thead><tbody>${shown.map(r=>`<tr class="${r.prior.list&&!eq26(r.prior.list.rate,r.pr.final)?'pc26-changed':''}"><td><b>${esc(r.p.code)}</b> · ${esc(r.p.name)}<div class="metric-sub">${esc(r.p.size||'')} · ${esc(r.p.category||'')}</div><div class="pc26-row-note">${sourceBadge26(r.pr)}${r.below?'<span class="pc26-pill bad">BELOW MIN</span>':''}</div></td><td class="r num owner-sensitive">${m26(r.c.final)}</td><td class="r num">${m26(r.p.price)}</td><td class="r num"><b>${m26(r.pr.final)}</b></td><td>${r.prior.invoice?`<b>${m26(r.prior.invoice.rate)}</b><div class="pc26-mini">${esc(r.prior.invoice.no)} · ${fmt26(r.prior.invoice.at)}</div>`:'—'}</td><td>${r.prior.quote?`<b>${m26(r.prior.quote.rate)}</b><div class="pc26-mini">${esc(r.prior.quote.no)} · ${fmt26(r.prior.quote.at)}</div>`:'—'}</td><td>${r.prior.list?`<b>${m26(r.prior.list.rate)}</b><div class="pc26-mini">${fmt26(r.prior.list.at)}</div>`:'—'}</td><td class="r num owner-sensitive ${r.below?'bad':'good'}">${r.margin==null?'—':r.margin.toFixed(1)+'%'}</td><td>${esc(r.pr.source)}</td><td class="r"><button class="link" data-act="p26-why" data-id="${r.p.id}">why?</button> · <button class="link" data-act="p26-timeline" data-id="${r.p.id}">timeline</button> · <button class="link" data-act="p26-slabs" data-id="${r.p.id}">slabs</button>${party?' · <button class="link" data-act="p26-lock" data-id="'+r.p.id+'">lock</button>':''} · <button class="link" data-act="p26-impact" data-id="${r.p.id}">impact</button></td></tr>`).join('')||'<tr><td colspan="10" class="empty">Nothing matches these filters.</td></tr>'}</tbody></table></div>${all.length>shown.length?`<div style="text-align:center;padding:10px"><button class="btn ghost sm" data-act="p26-more">Show more</button></div>`:''}</div>`;let tm;$('#PC26_q').oninput=e=>{ui.pc26Q=e.target.value;clearTimeout(tm);tm=setTimeout(()=>{ui.pc26Limit=160;render()},220)};$('#PC26_party').onchange=e=>{ui.pc26Party=e.target.value;ui.intelParty=e.target.value;render()};$('#PC26_qty').onchange=e=>{ui.pricingQty26=Math.max(1,nz(e.target.value)||1);render()};$('#PC26_catalog').onchange=e=>{ui.pc26Catalog=e.target.value;ui.pc26Cat='';render()};$('#PC26_cat').onchange=e=>{ui.pc26Cat=e.target.value;render()};$('#PC26_alert').onchange=e=>{ui.pc26Alert=e.target.value;render()}}
 
-  function safeStaffPin26(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:430px"><div class="hd"><h2 style="margin:0">Set / change Staff PIN</h2></div><div class="bd"><div class="field"><label>New Staff PIN</label><input id="SP26_new" type="password" inputmode="numeric" minlength="4"></div><div class="field"><label>Owner PIN authorization</label><input id="SP26_owner" type="password" inputmode="numeric" autocomplete="current-password"></div><div class="note">Leave new Staff PIN blank to remove Staff access. Cancel is handled safely without changing anything.</div><div id="SP26_msg" class="bad" style="font-size:11px;margin-top:7px"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const newPin=m.querySelector('#SP26_new').value,ownerPin=m.querySelector('#SP26_owner').value,msg=m.querySelector('#SP26_msg');if(newPin&&newPin.length<4){msg.textContent='Staff PIN must have at least 4 characters.';return}if(!ownerPin){msg.textContent='Enter Owner PIN to authorize the change.';return}try{if(typeof unwrapDek!=='function'||typeof wrapDek!=='function'||typeof SEC==='undefined')throw new Error('Security module unavailable');const rawDek=await unwrapDek(ownerPin,SEC.envelope.roles.owner);if(newPin)SEC.envelope.roles.staff=await wrapDek(newPin,rawDek);else delete SEC.envelope.roles.staff;if(typeof secureSaveNow==='function')await secureSaveNow();m.remove();toast(newPin?'Staff PIN updated':'Staff access removed')}catch(err){msg.textContent='Owner PIN verification failed.'}}}
+  function safeStaffPin26(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:430px"><div class="hd"><h2 style="margin:0">Set / change Staff PIN</h2></div><div class="bd"><div class="field"><label>New Staff PIN</label><input id="SP26_new" type="password" inputmode="numeric" minlength="4"></div><div class="field"><label>Owner PIN authorization</label><input id="SP26_owner" type="password" inputmode="numeric" autocomplete="current-password"></div><div class="note">Leave new Staff PIN blank to remove Staff access. Cancel is handled safely without changing anything.</div><div id="SP26_msg" class="bad" style="font-size:11px;margin-top:7px"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const newPin=m.querySelector('#SP26_new').value,ownerPin=m.querySelector('#SP26_owner').value,msg=m.querySelector('#SP26_msg');if(newPin&&newPin.length<4){msg.textContent='Staff PIN must have at least 4 characters.';return}if(!ownerPin){msg.textContent='Enter Owner PIN to authorize the change.';return}try{await window.__pmChangeStaffPin284(ownerPin,newPin);m.remove();toast(newPin?'Staff PIN updated':'Staff access removed')}catch(err){msg.textContent='Owner PIN verification failed.'}}}
 
   renderNav=function(){prevRenderNav26();const b=document.querySelector('#nav [data-nav="intel"]');if(b)b.innerHTML='<span>Pricing control room</span>'};
 
@@ -3157,7 +3188,7 @@ function accountsAct(a, el){
   /* quicker numeric keypad on touch screens */
   document.addEventListener('focusin',e=>{const i=e.target;if(i&&i.matches?.('input[type="number"],input.rate,input.qty,.cost-input,.cost-wide')&&!i.getAttribute('inputmode'))i.setAttribute('inputmode','decimal')},true);
 
-  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V27,purchaseRows:mappedPurchase27,gstRows:gstRows27,upiLink:upi27};
+  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:V27,importTools27:{workbookRows27,guess27,mapOptions27,num27},purchaseRows:mappedPurchase27,gstRows:gstRows27,upiLink:upi27};
   document.title='CA';
   setTimeout(()=>{try{ensure27();render()}catch(e){console.error('v2.7 init',e)}},140);
 })();
@@ -4042,10 +4073,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
 (()=>{
   const PM_VERSION_33 = '2.13 UOM master, share register, exact price-list decimals';
 
-  window.localISODate30 = function(ts){
-    const d = ts ? new Date(ts) : new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  };
+  // localISODate30 is initialized before the early state migrations in <head>.
 
   /* ================= exact 2-decimal price-list rates ================= */
   /* Discounts naturally land on odd paise (e.g. 8% off 115 = 105.80). The
@@ -4198,7 +4226,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
     if(targetUnit==='Pc'){
       const f = uomFactor30(p.id, p.priceUnit);
       if(f) return f; // e.g. base is "Box", convert Box-rate to per-piece using master
-      if(typeof perPieceFactor30==='function'){ const h = perPieceFactor30(p); if(h) return 1/h; } // heuristic returns rate multiplier, invert to pcs-per-unit shape
+      if(typeof window.PriceManagerAPI?.perPieceFactor==='function'){ const h = window.PriceManagerAPI.perPieceFactor(p); if(h) return 1/h; } // heuristic returns rate multiplier, invert to pcs-per-unit shape
       return null;
     }
     return uomFactor30(p.id, targetUnit);
@@ -4825,10 +4853,16 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   const CONFIG_KEY='firebaseConfig', CONFIG_KEY_LOCAL='pm-firebaseConfig-local', SCHEMA=2, CHUNK_CHARS=180000;
   let app=null,authRef=null,dbRef=null,saveDebounce=null,cloudQueue=Promise.resolve(),suppressAuto=false,ownerEditVersion283=0;
 
+  const syncStatus284={state:'disconnected',error:'',updatedAt:0};
+  function setSyncStatus284(state,error=''){
+    Object.assign(syncStatus284,{state,error,updatedAt:Date.now()});
+    const el=document.getElementById('cloudStatus284');
+    if(el){el.textContent=error||({saved:'Saved to cloud',syncing:'Saving to cloud…',pending:'Changes waiting to sync',signedOut:'Sign in to Firebase to sync',connected:'Cloud connection ready',disconnected:'Cloud not connected'}[state]||state);el.classList.toggle('bad',state==='error')}
+  }
   async function getSavedConfig(){
     try{
       const r=await window.storage.get(CONFIG_KEY);
-      if(r && r.value) return r.value;
+      if(r && r.value) return typeof r.value==='string'?JSON.parse(r.value):r.value;
     }catch(e){}
     try{
       const raw=localStorage.getItem(CONFIG_KEY_LOCAL);
@@ -4894,7 +4928,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   }
   function enqueue(fn){const run=()=>fn();cloudQueue=cloudQueue.then(run,run);return cloudQueue}
   async function pushSnapshot({manual=false,force=false}={}){
-    if(window.__restrictedFirebaseSession46)return;
+    if(window.__restrictedFirebaseSession46||window.__pmStateReady284===false)return;
     const user=authRef&&authRef.currentUser;if(!user)throw new Error('Sign in first');
     if(S.settings.privacyEnabled)throw new Error('Turn off Privacy Mode first — cloud sync sends the owner state to Firebase.');
     const json=JSON.stringify(S),snapshotEditVersion283=ownerEditVersion283;
@@ -4903,21 +4937,24 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
       if(m.exists){const d=m.data(),cloudRev=+d.revision||0,knownRev=+S.settings.lastKnownCloudRevision||0,cloud=+d.updatedAt||0,known=+S.settings.lastKnownCloudUpdatedAt||0,conflict=cloudRev>0?(cloudRev!==knownRev):(cloud>known);if(conflict){if(!confirm('The cloud copy is newer or was changed by another device. Overwrite it with THIS device anyway?'))return false;force=true}}
     }
     suppressAuto=true;
-    try{await writeCloud(user.uid,json,{checkConflict:!force});return true}
+    setSyncStatus284('syncing');
+    try{await writeCloud(user.uid,json,{checkConflict:!force});setSyncStatus284('saved');return true}
+    catch(e){setSyncStatus284('error',e.message||'Cloud save failed. Retry in Settings.');throw e}
     finally{suppressAuto=false;if(ownerEditVersion283!==snapshotEditVersion283)scheduleAuto()}
   }
   function scheduleAuto(){
-    if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
-    clearTimeout(saveDebounce);saveDebounce=setTimeout(()=>flushAutoSyncNow230(),1200);
+    if(suppressAuto||window.__pmStateReady284===false||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
+    setSyncStatus284('pending');clearTimeout(saveDebounce);saveDebounce=setTimeout(()=>flushAutoSyncNow230(),1200);
   }
   function flushAutoSyncNow230(){
-    if(suppressAuto||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
+    if(suppressAuto||window.__pmStateReady284===false||window.__restrictedFirebaseSession46||!dbRef||!authRef||!authRef.currentUser||S.settings.privacyEnabled)return;
     clearTimeout(saveDebounce);
     return enqueue(async()=>{try{await pushSnapshot({manual:false})}catch(e){if(e.code==='cloud-conflict'){if(!window.__cloudConflictWarned41){window.__cloudConflictWarned41=true;toast('Another device has newer cloud data — automatic sync paused until you resolve it in Settings.')}}}});
   }
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') flushAutoSyncNow230(); });
   window.addEventListener('pagehide', () => { flushAutoSyncNow230(); });
-  window.PMFirebase41={get auth(){return authRef},get db(){return dbRef},get app(){return app},getSavedConfig,ensureFirebase,isConnected:()=>!!dbRef,readCloudState:readCloud,queueCloudSave:()=>enqueue(()=>pushSnapshot({manual:false}))};
+  window.addEventListener('online',scheduleAuto);
+  window.PMFirebase41={get status(){return {...syncStatus284}},get auth(){return authRef},get db(){return dbRef},get app(){return app},getSavedConfig,ensureFirebase,isConnected:()=>!!dbRef,readCloudState:readCloud,queueCloudSave:()=>enqueue(()=>pushSnapshot({manual:false}))};
   function refreshIfOnSettings(){if(typeof page!=='undefined'&&page==='set'&&document.getElementById('view'))render()}
 
   window.firebaseConnect30=async cfg=>{try{ensureFirebase(cfg);await saveConfigLocal(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings());toast('Connected to Firebase project "'+(cfg.projectId||'')+'"');refreshIfOnSettings()}catch(e){toast('Could not connect: '+e.message)}};
@@ -4950,10 +4987,10 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   const prevSave41=save;
   save=function(){ownerEditVersion283++;const out=prevSave41();scheduleAuto();return out};
 
-  (async()=>{const cfg=await getSavedConfig();if(!cfg)return;try{ensureFirebase(cfg);authRef.onAuthStateChanged(()=>refreshIfOnSettings())}catch(e){}})();
+  (async()=>{const cfg=await getSavedConfig();if(!cfg)return;try{ensureFirebase(cfg);authRef.onAuthStateChanged(user=>{setSyncStatus284(user?'connected':'signedOut');refreshIfOnSettings()})}catch(e){setSyncStatus284('error',e.message)}})();
 
   const prevViewSet41=typeof viewSet==='function'?viewSet:null;
-  if(prevViewSet41){viewSet=function(v,t,sub,act){prevViewSet41(v,t,sub,act);if(v.querySelector('#L_cloudBox41'))return;const connected=!!dbRef,signedIn=authRef&&authRef.currentUser,box=document.createElement('div');box.className='card';box.id='L_cloudBox41';box.style.marginTop='14px';box.innerHTML=`<div class="hd"><h2>Cloud sync (Firebase)</h2></div><div class="bd">
+  if(prevViewSet41){viewSet=function(v,t,sub,act){prevViewSet41(v,t,sub,act);if(v.querySelector('#L_cloudBox41'))return;const connected=!!dbRef,signedIn=authRef&&authRef.currentUser,box=document.createElement('div');box.className='card';box.id='L_cloudBox41';box.style.marginTop='14px';box.innerHTML=`<div class="hd"><h2>Cloud sync (Firebase)</h2></div><div class="bd"><p id="cloudStatus284" class="note ${syncStatus284.state==='error'?'bad':''}" role="status">${esc(syncStatus284.error||(syncStatus284.state==='saved'?'Saved to cloud':syncStatus284.state==='syncing'?'Saving to cloud…':syncStatus284.state==='pending'?'Changes waiting to sync':''))}</p>
     ${!connected?`<div class="note" style="margin-bottom:8px">Paste your Firebase web config. The owner state is saved as versioned chunks, so it can grow beyond one Firestore document and rapid saves cannot overwrite newer local saves out of order.</div><textarea id="CF_config" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}' style="width:100%;font-family:monospace;font-size:12px;border-radius:8px;border:1px solid var(--line);padding:8px"></textarea><button class="btn primary sm" style="margin-top:8px" data-act="cloud-connect-41">Connect</button>`:!signedIn?`<div class="note" style="margin-bottom:8px">Connected. Sign in with the existing authorized Owner account to start syncing. New Owner registration is disabled.</div><div class="cols2"><div class="field"><label>Owner email</label><input id="CF_email"></div><div class="field"><label>Password</label><input id="CF_pw" type="password"></div></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="cloud-signin-41">Sign in as Owner</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`:`<div class="note" style="margin-bottom:8px">Signed in as <b>${esc(signedIn.email)}</b>. Saves are debounced and serialized; cloud state uses multiple versioned documents.${S.settings.lastCloudSyncAt?' Last synced '+new Date(S.settings.lastCloudSyncAt).toLocaleString('en-IN'):''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="cloud-push-41">Save to cloud now</button><button class="btn ghost sm" data-act="cloud-pull-41">Load from cloud</button><button class="btn ghost sm" data-act="cloud-signout-41">Sign out</button><button class="btn ghost sm" data-act="cloud-forget-41">Disconnect project</button></div>`}
     </div>`;const anchor=v.querySelector('.card');if(anchor)anchor.after(box);else v.appendChild(box)}}
   document.addEventListener('click',e=>{const box=e.target.closest('.card');if(e.target.closest('[data-act="cloud-connect-41"]')){const raw=(box.querySelector('#CF_config')||{}).value?.trim();try{window.firebaseConnect30(JSON.parse(raw))}catch(err){toast('Could not read that config — paste the exact {...} object from Firebase')}}if(e.target.closest('[data-act="cloud-signin-41"]'))window.firebaseSignIn30(box.querySelector('#CF_email').value.trim(),box.querySelector('#CF_pw').value);if(e.target.closest('[data-act="cloud-signout-41"]'))window.firebaseSignOut30();if(e.target.closest('[data-act="cloud-forget-41"]'))window.firebaseForget30();if(e.target.closest('[data-act="cloud-push-41"]'))window.firebasePushNow30();if(e.target.closest('[data-act="cloud-pull-41"]'))window.firebasePullNow30()},true);
@@ -5824,7 +5861,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_227};
 })();
 </script>
-<script src="secure-access.js"></script>
+<script src="secure-access.js?v=284"></script>
 <script id="pm-v230-commercial-suite">
 (()=>{
   const V='2.30 Commercial price-list workflow';
@@ -5936,7 +5973,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
         banner.textContent = 'PREVIEW — showing exactly what "'+u.name+'" would see. Nothing is published or logged in. Click "Log out" above to return.';
         el.insertBefore(banner, el.firstChild);
       }, 30);
-    }catch(e){ toast('Could not build preview: ' + e.message); }
+    }catch(e){ window.__pmPreviewActive231=false;document.getElementById('cloudViewer46')?.remove();console.error('User preview failed',e);toast('Could not build preview: ' + e.message); }
   }
   window.previewAsUser231 = previewAsUser231;
 
@@ -6910,6 +6947,7 @@ Amit, 5566,"></textarea>
     return {v:1,it,salt:b64_238(salt),hash:b64_238(new Uint8Array(bits))};
   }
   async function verifyOwnerPin238(pin){
+    window.requireSecureCrypto284();
     const v=S.settings.ownerPinVerifier265;
     if(v&&v.salt&&v.hash){
       const salt=ub64_238(v.salt),it=Math.max(100000,+v.it||180000);
@@ -6970,13 +7008,14 @@ Amit, 5566,"></textarea>
   }
 
   function privacyLockPending238(){
-    return !!(window.__PM_VAULT_PENDING || (typeof S !== 'undefined' && S.settings && S.settings.privacyEnabled && typeof SEC !== 'undefined' && !SEC.dek));
+    return !!(window.__PM_VAULT_PENDING || (typeof S !== 'undefined' && S.settings && S.settings.privacyEnabled && window.__pmPrivacyStatus284?.().locked));
   }
   function ownerConfigured238(){
     return !!(S?.settings?.ownerUsername && (S?.settings?.ownerPinVerifier265 || S?.settings?.ownerPin));
   }
 
   function showEntryGate238(){
+    if(!window.__pmStateReady284)return;
     if(window.__entryGate238Resolved) return;
     if(window.__entryGate238RestorePending) return;
     if(document.getElementById('entryGate238')) return;
@@ -7049,6 +7088,7 @@ Amit, 5566,"></textarea>
           clearAttempts238();
           window.__entryGate238Resolved = true;
           el.remove();
+          render();
           return;
         }
           if(u.includes('@')){
@@ -7068,6 +7108,7 @@ Amit, 5566,"></textarea>
             msgEl.textContent = 'No internet connection right now — check your network and try again. (This attempt was not counted.)';
             return;
           }
+          if(e?.__notCredential || (e?.code && !['auth/invalid-credential','auth/invalid-login-credentials','auth/user-not-found','auth/wrong-password','auth/invalid-email'].includes(e.code))){goBtn.disabled=false;msgEl.textContent=e.message||'Sign-in could not complete. Please retry.';return;}
           const st = recordFailedAttempt238();
           if(st.blockedUntil && st.blockedUntil > Date.now()){ renderNormal(); return; }
           goBtn.disabled = false;
@@ -7183,6 +7224,7 @@ Amit, 5566,"></textarea>
     m.onclick = e => { if(e.target.closest('[data-x="close"]') || e.target === m) m.remove(); };
   };
 
+  window.addEventListener('pm-state-ready284',showEntryGate238);
   showEntryGate238();
   setTimeout(showEntryGate238, 50);
   setTimeout(showEntryGate238, 300);
@@ -7289,7 +7331,7 @@ Amit, 5566,"></textarea>
       if(already && already.apiKey) return; // already connected via the normal path -- nothing to do
       a.ensureFirebase(window.PM_FIREBASE_CONFIG);
       try{ if(window.saveConfigLocal41) await window.saveConfigLocal41(window.PM_FIREBASE_CONFIG); }catch(e){}
-      if(typeof refreshIfOnSettings === 'function') refreshIfOnSettings();
+      if(typeof page!=='undefined'&&page==='set') render();
     }catch(e){ /* silent -- this is a convenience step, not a required one */ }
   }, 500);
 })();
@@ -7689,20 +7731,20 @@ Amit, 5566,"></textarea>
       for(const b of row.batches){if(left<=1e-9)break;const use=Math.min(left,+b.qty||0);if(use>0){b.qty=(+b.qty||0)-use;left-=use;fresh.push({batchId:b.id,batchNo:b.batchNo,mrp:b.mrp,qty:use,cost:b.cost})}}
       row.i.batchAllocations=fresh;
     }
-    if(typeof audit==='function')audit('bill-restore',inv.no,{invoiceId:inv.id}); save(); render(); toast('Bill restored · stock and batches reconciled');
+    window.pmAudit284?.('bill-restore',inv.no,{invoiceId:inv.id}); save(); render(); toast('Bill restored · stock and batches reconciled');
   }
   function cancelBill263(inv){
     const reason=prompt('Reason for cancelling '+inv.no+'?','Order cancelled');if(reason==null)return;
     inv.cancelled=true;inv.cancelReason=String(reason).trim();
     for(const i of inv.items||[]){const p=S.products.find(x=>x.id===i.id);if(p)p.stock=(+p.stock||0)+(+i.qty||0);for(const a of i.batchAllocations||[]){let b=S.batches.find(x=>x.id===a.batchId);if(!b&&(+a.qty||0)>0){b={id:a.batchId||uid(),purchaseId:'',productId:i.id,code:p?.code||'',batchNo:a.batchNo||('RESTORE-'+inv.no),mrp:a.mrp??p?.mrp??null,qty:0,initialQty:0,cost:a.cost??null,supplier:'',date:inv.date||Date.now(),status:'active',recoveredFromInvoice:inv.id};S.batches.push(b)}if(b){b.status='active';b.qty=(+b.qty||0)+(+a.qty||0)}}}
-    if(typeof audit==='function')audit('bill-cancel',`${inv.no} · ${inv.cancelReason}`,{invoiceId:inv.id}); save(); render(); toast('Bill cancelled · stock returned');
+    window.pmAudit284?.('bill-cancel',`${inv.no} · ${inv.cancelReason}`,{invoiceId:inv.id}); save(); render(); toast('Bill cancelled · stock returned');
   }
   handleAct=function(a,el){
     if(a==='v28-quality-save'){
       const p=S.products.find(x=>x.id===el.dataset.id);if(!p)return;
       const code=pmNormCode(document.querySelector(`[data-q28-code="${p.id}"]`)?.value||'');
       const bar=pmNormBarcode(document.querySelector(`[data-q28-bar="${p.id}"]`)?.value||'');
-      const raw=document.querySelector(`[data-q28-price="${p.id}"]`)?.value||'', price=n28(raw);
+      const raw=document.querySelector(`[data-q28-price="${p.id}"]`)?.value||'', price=nz(raw);
       if(!code)return toast('Product code cannot be blank in Data Quality');
       const cc=S.products.find(x=>x.id!==p.id&&pmNormCode(x.code)===code);if(cc)return toast('Code '+code+' is already used by '+cc.name);
       const bc=bar&&S.products.find(x=>x.id!==p.id&&pmNormBarcode(x.barcode)===bar);if(bc)return toast('Barcode '+bar+' is already used by '+bc.name);
@@ -7801,7 +7843,8 @@ Amit, 5566,"></textarea>
   document.addEventListener('click',e=>{if(e.target.closest('[data-act="bulk-import-231"]')){e.preventDefault();e.stopImmediatePropagation();bulkUsers263()}},true);
 
   // Safe CSV/Excel mapped product import: centralized uniqueness + numeric validation.
-  productMapper27=function(file){
+  const {workbookRows27,guess27,mapOptions27,num27}=window.PriceManagerAPI.importTools27;
+  window.productMapper27=function(file){
     workbookRows27(file).then(arr=>{
       if(arr.length<2)return toast('No product rows found');
       const headers=(arr[0]||[]).map(String),rows=arr.slice(1).filter(r=>r.some(x=>String(x||'').trim())),map={code:guess27(headers,['item code','product code','sku','code']),name:guess27(headers,['item description','product name','item name','description','name']),price:guess27(headers,['selling rate','sale rate','basic rate','rate','price']),mrp:guess27(headers,['mrp']),barcode:guess27(headers,['barcode','ean']),category:guess27(headers,['category','group']),size:guess27(headers,['size','weight']),packing:guess27(headers,['packing'])},m=document.createElement('div');
@@ -7858,7 +7901,7 @@ Amit, 5566,"></textarea>
     const r=await window.storage.get(meta.key);if(!r?.value)return toast('Recovery point is no longer available');
     if(!confirm(`Restore “${meta.label}” from ${new Date(meta.at).toLocaleString('en-IN')}? Current local state will be replaced.`))return;
     if(meta.encrypted){if(!window.__pmRestoreEncryptedEnvelope265)return toast('Encrypted restore is not available');await window.__pmRestoreEncryptedEnvelope265(r.value);location.reload();return}
-    const d=JSON.parse(r.value);S=typeof baseState==='function'?baseState(d):{products:[],rules:[],parties:[],quotes:[],invoices:[],payments:[],settings:{...DEF_SETTINGS},imports:[],history:[],...d,settings:{...DEF_SETTINGS,...(d.settings||{}),cols:{...DEF_SETTINGS.cols,...((d.settings||{}).cols||{})}}};save();render();toast('Recovery point restored');
+    const d=JSON.parse(r.value);S=window.__pmBaseState284?window.__pmBaseState284(d):{products:[],rules:[],parties:[],quotes:[],invoices:[],payments:[],settings:{...DEF_SETTINGS},imports:[],history:[],...d,settings:{...DEF_SETTINGS,...(d.settings||{}),cols:{...DEF_SETTINGS.cols,...((d.settings||{}).cols||{})}}};save();render();toast('Recovery point restored');
   }
   window.openRecoveryPoints265=function(){
     const idx=recIndex265(),m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:650px"><div class="hd"><h2 style="margin:0">Recovery points</h2></div><div class="bd"><div class="note">Automatic safety snapshots are created before high-risk bulk/import/reset operations. Privacy Mode snapshots remain encrypted.</div><div style="margin-top:10px">${idx.map(x=>`<div class="rec265-row"><div><b>${esc(x.label)}</b><div class="metric-sub">${new Date(x.at).toLocaleString('en-IN')} · ${(x.size/1024).toFixed(0)} KB${x.encrypted?' · encrypted':''}</div></div><div><button class="btn ghost sm" data-rec-restore="${x.id}">Restore</button> <button class="link bad" data-rec-del="${x.id}">delete</button></div></div>`).join('')||'<div class="empty-mini">No recovery points yet.</div>'}</div></div><div class="ft"><button class="btn ghost" data-x="close">Close</button><button class="btn primary" data-rec-new="1">Create now</button></div></div>`;document.body.appendChild(m);
@@ -8078,7 +8121,7 @@ Amit, 5566,"></textarea>
   const PM_VERSION_268='2.68 Refinement · Batch Integrity · Device Privacy · UI Polish';
 
   /* ---------- stock/batch single source of truth for manual adjustments ---------- */
-  function adjustmentCost268(p){try{if(typeof avgState28==='function'){const a=avgState28(p);if(a?.avgCost!=null)return +a.avgCost;if(a?.replacementCost!=null)return +a.replacementCost}}catch(e){}const pc=S.purchaseCosts?.[p.id]||{};const n=pc.override??pc.base;return Number.isFinite(+n)?+n:null}
+  function adjustmentCost268(p){try{if(typeof window.PriceManagerAPI?.weightedCost==='function'){const a=window.PriceManagerAPI.weightedCost(p);if(a?.avgCost!=null)return +a.avgCost;if(a?.replacementCost!=null)return +a.replacementCost}}catch(e){}const pc=S.purchaseCosts?.[p.id]||{};const n=pc.override??pc.base;return Number.isFinite(+n)?+n:null}
   window.adjustStock268=function(p,target,{beforeStock=null,type='Stock adjustment',ref='Manual adjustment',at=Date.now()}={}){
     if(!p)return false;target=Number(target);if(!Number.isFinite(target)||target<0)return false;target=Math.round(target*1000000)/1000000;
     S.batches=S.batches||[];S.stockMoves=S.stockMoves||[];
@@ -8359,8 +8402,8 @@ Amit, 5566,"></textarea>
 <script id="pm-v279-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 Deep Regression Fixes'};</script>
 
 
-<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.83 CA Workspace"};</script>
-<script src="ca-workspace.js"></script>
+<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.84 CA Workspace"};</script>
+<script src="ca-workspace.js?v=284"></script>
 
 </body>
 </html>

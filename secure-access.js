@@ -1,12 +1,6 @@
 (()=>{
-  // Safe initialization agar S pehle se declared na ho
-  if(typeof window.S === 'undefined'){
-    window.S = { products:[], rules:[], parties:[], quotes:[], invoices:[], payments:[], settings:{}, imports:[], history:[] };
-  }
-  window.S.catalogFiles = window.S.catalogFiles || [];
-
   const CACHE_PREFIX='pm-restricted-payload-v228:';
-  const PAYLOAD_SCHEMA=3, PUBLISH_REV='v283-r1', PART_CHARS=150000, OFFLINE_TTL=24*60*60*1000;
+  const PAYLOAD_SCHEMA=3, PUBLISH_REV='v284-r1', PART_CHARS=150000, OFFLINE_TTL=24*60*60*1000;
   const VIEWER_SESSION_KEY='pm-viewer-session-v271', VIEWER_SESSION_APP='pm-viewer-session-v271', VIEWER_SESSION_MS=6*60*60*1000;
   let cloudSession=null, publishTimer=null, publishSuppress=false, restrictedSyncQueue=Promise.resolve(), cloudPublishDirty265=true, viewerSessionTimer271=null;
   let publishInFlight283=null;
@@ -14,6 +8,7 @@
   const round2=x=>Math.round((+x||0)*100)/100;
   const fmtRate=x=>x==null||isNaN(x)?'—':((S.settings&&S.settings.currency)||'₹')+Number(x).toLocaleString('en-IN',{minimumFractionDigits:Number(x)%1?2:0,maximumFractionDigits:2});
   const api=()=>window.PMFirebase41||null;
+  S.catalogFiles=S.catalogFiles||[];
 
   async function ready(){
     const a=api();if(!a)throw Error('Firebase module is not ready');
@@ -22,28 +17,12 @@
     const storage=(typeof firebase!=='undefined'&&firebase.storage&&a.app)?a.app.storage():null;
     return {cfg,auth:a.auth,db:a.db,storage};
   }
-
-  // --- SHA-256 with Safe Fallback for Insecure/HTTP contexts ---
-  async function sha256(s){
-    if(window.crypto && window.crypto.subtle){
-      try {
-        const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-        return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-      } catch(e){}
-    }
-    let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++) {
-      h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
-    }
-    return (h >>> 0).toString(16).padStart(8, '0').repeat(4);
-  }
-
-  // Legacy deterministic address
+  async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+  // Legacy deterministic address is kept only for backward-compatible sign-in.
   async function loginEmail(name,pid){const n=norm(name),slug=(n.replace(/[^a-z0-9._-]+/g,'.').replace(/^\.+|\.+$/g,'').slice(0,36)||'user'),h=(await sha256(n+'|'+pid)).slice(0,10);return `${slug}.${h}@access.${safe(pid).replace(/[^a-z0-9.-]/gi,'')}.app`}
-  // v2 address binds the PIN
+  // v2 address also binds the PIN. A deleted/orphaned legacy Auth user can no longer permanently block recreating the same username.
   async function loginEmailV2(name,pin,pid){const n=norm(name),slug=(n.replace(/[^a-z0-9._-]+/g,'.').replace(/^\.+|\.+$/g,'').slice(0,28)||'user'),h=(await sha256(`${n}|${safe(pin)}|${pid}|v2`)).slice(0,16);return `${slug}.${h}@access.${safe(pid).replace(/[^a-z0-9.-]/gi,'')}.app`}
   async function loginPassword(name,pin,pid){return 'Pm!'+(await sha256(`${pid}|${norm(name)}|${safe(pin)}`)).slice(0,36)}
-
   function cloudErrorMessage(e){
     const code=safe(e&&e.code),msg=safe(e&&e.message);
     if(code==='auth/operation-not-allowed')return 'Email/Password sign-in is disabled in Firebase Authentication. Enable it under Authentication → Sign-in method.';
@@ -57,43 +36,26 @@
   }
   function b64(bytes){let s='';bytes.forEach(x=>s+=String.fromCharCode(x));return btoa(s)}
   async function offlineVerifier(name,pin,pid){
-    try {
-      if(window.crypto && window.crypto.subtle){
-        const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(safe(pin)),{name:'PBKDF2'},false,['deriveBits']);
-        const salt=new TextEncoder().encode(`pm227|${pid}|${norm(name)}`);
-        const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:120000,hash:'SHA-256'},key,256);
-        return b64(new Uint8Array(bits));
-      }
-    } catch(e){}
-    return await sha256(`pm227|${pid}|${norm(name)}|${safe(pin)}`);
+    const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(safe(pin)),{name:'PBKDF2'},false,['deriveBits']);
+    const salt=new TextEncoder().encode(`pm227|${pid}|${norm(name)}`);
+    const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:120000,hash:'SHA-256'},key,256);
+    return b64(new Uint8Array(bits));
   }
   async function ensureOwner(db,uid){
     const sec=db.collection('meta').doc('security'),snap=await sec.get();
     if(snap.exists){if(snap.data().ownerUid!==uid)throw Error('This Firebase project is linked to a different owner account (uid on file: '+snap.data().ownerUid+'). Sign in with that account, or start a fresh Firebase project for a new owner.');return true}
-    let boot;try{boot=await db.collection('meta').doc('bootstrap').get()}catch(e){throw Error('Secure Owner bootstrap is not ready. Publish the v2.67 firestore.rules, then create meta/bootstrap in Firestore with ownerUid set to this Owner Auth UID ('+uid+').')}
-    if(!boot.exists)throw Error('Secure Owner bootstrap required. In Firestore Console create document meta/bootstrap with field ownerUid = '+uid+', then retry “Initialize security”.');
-    if(String(boot.data()?.ownerUid||'')!==String(uid))throw Error('The Firebase bootstrap document authorizes a different Owner UID. Expected '+uid+'. Update meta/bootstrap from the Firebase Console using the intended Owner account UID.');
-    await sec.set({ownerUid:uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});return true;
+    // Owner identity is provisioned administratively; the shipped rules intentionally
+    // forbid all client writes here. Do not offer a bootstrap that cannot succeed.
+    throw Object.assign(Error('Owner security record is missing. Ask the Firebase project administrator to restore meta/security with the existing Owner Auth UID, then retry.'),{code:'app/owner-not-configured',__notCredential:true});
   }
   async function secondary(cfg,label){const app=firebase.initializeApp(cfg,'pm227-'+label+'-'+Date.now()+'-'+Math.random().toString(36).slice(2));return {app,auth:app.auth(),db:app.firestore(),storage:firebase.storage?app.storage():null}}
-
-  // --- SECONDARY VIEWER APP WITH PERSISTENCE TIMEOUT ---
   async function viewerSecondary271(cfg){
     let app=null;try{app=firebase.app(VIEWER_SESSION_APP)}catch(e){}
     if(app&&safe(app.options?.projectId)!==safe(cfg?.projectId)){try{await app.auth().signOut()}catch(e){}try{await app.delete()}catch(e){}app=null}
     if(!app)app=firebase.initializeApp(cfg,VIEWER_SESSION_APP);
-    const auth=app.auth();
-    try {
-      await Promise.race([
-        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-      ]);
-    } catch(e){
-      console.warn('Persistence fallback:', e);
-    }
+    const auth=app.auth();try{await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch(e){}
     return {app,auth,db:app.firestore(),storage:firebase.storage?app.storage():null};
   }
-
   function readViewerSession271(){try{const x=JSON.parse(localStorage.getItem(VIEWER_SESSION_KEY)||'null');return x&&x.uid&&x.expiresAt?x:null}catch(e){return null}}
   function clearViewerSessionMarker271(){try{localStorage.removeItem(VIEWER_SESSION_KEY)}catch(e){}}
   function sessionExpiry271(payload){return Math.min(Date.now()+VIEWER_SESSION_MS,(+payload?.accessExpiresAt||Infinity))}
@@ -107,7 +69,6 @@
     viewerSessionTimer271=setTimeout(()=>{if(cloudSession===cs)closeViewerSession46({reason:'For security, this login session expired after 6 hours. Please log in again.'})},Math.min(ms,2147483000));
   }
   function waitAuthReady271(auth,timeout=5000){return new Promise(resolve=>{let done=false,t=null,unsub=null;const finish=u=>{if(done)return;done=true;if(t)clearTimeout(t);try{unsub&&unsub()}catch(e){}resolve(u||null)};try{unsub=auth.onAuthStateChanged(finish,()=>finish(null));t=setTimeout(()=>finish(auth.currentUser),timeout)}catch(e){finish(auth.currentUser)}})}
-  
   async function restoreViewerSession271(){
     if(cloudSession)return true;const marker=readViewerSession271();if(!marker)return false;
     let sec=null;try{
@@ -130,6 +91,7 @@
       cloudSession={uid:user.uid,loginName:(pd?.username||marker.loginName||p.user?.name||''),payload:p,app:sec.app,auth:sec.auth,db:sec.db,storage:sec.storage,unsubProfile:null,sessionExpiresAt271:+marker.expiresAt};
       window.__restrictedFirebaseSession46=true;show(p,offline);if(!offline)watchProfile46(cloudSession);else watchProfile46(cloudSession);scheduleViewerSessionExpiry271(cloudSession);return true;
     }catch(e){
+      console.error('Viewer session restore failed',e);document.getElementById('cloudViewer46')?.remove();
       clearViewerSessionMarker271();try{if(sec?.auth)await sec.auth.signOut()}catch(_){}try{if(sec?.app)await sec.app.delete()}catch(_){}
       cloudSession=null;window.__restrictedFirebaseSession46=false;if(authoritative(e))toast(e.message||'This login is no longer available.');return false;
     }
@@ -137,7 +99,6 @@
   window.restoreViewerSession271=restoreViewerSession271;
   function splitText(s){const a=[];for(let i=0;i<s.length;i+=PART_CHARS)a.push(s.slice(i,i+PART_CHARS));return a}
 
-  // --- ROBUST PAYLOAD CLEANUP & WRITING (Chunk Count Fix) ---
   async function deletePayload(db,uid,{bestEffort=false}={}){
     if(!uid)return true;
     try{
@@ -147,77 +108,17 @@
       return true;
     }catch(e){if(bestEffort)return false;throw e}
   }
-
   async function writePayload(db,uid,payload){
-    if(!db||!uid||!payload)throw Error('Invalid payload write parameters');
-    const ref=db.collection('viewerPayloads').doc(uid);
-    let oldIds=[];
-    try{
-      const old=await ref.get();
-      if(old.exists&&Array.isArray(old.data()?.partIds)){
-        oldIds=old.data().partIds;
-      }
-    }catch(_){}
-
-    const raw=JSON.stringify(payload);
-    const parts=splitText(raw);
-    const chunkCount=parts.length;
-    const version=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
-    const ids=parts.map((_,i)=>`p_${version}_${String(i).padStart(4,'0')}`);
-    const written=[];
-
-    try{
-      for(let i=0;i<chunkCount;i++){
-        await ref.collection('parts').doc(ids[i]).set({
-          schema:PAYLOAD_SCHEMA,
-          version,
-          index:i,
-          chunkCount:chunkCount,
-          totalChunks:chunkCount,
-          data:parts[i]
-        });
-        written.push(ids[i]);
-      }
-      await ref.set({
-        schema:PAYLOAD_SCHEMA,
-        version,
-        partIds:ids,
-        partCount:chunkCount,
-        chunkCount:chunkCount,
-        totalChunks:chunkCount,
-        updatedAt:payload.updatedAt||Date.now(),
-        offlineValidUntil:payload.offlineValidUntil||(Date.now()+OFFLINE_TTL),
-        accessVersion:payload.accessVersion||''
-      });
-    }catch(e){
-      for(const id of written){
-        ref.collection('parts').doc(id).delete().catch(()=>{});
-      }
-      throw e;
-    }
-
-    for(const id of oldIds){
-      if(!ids.includes(id)){
-        ref.collection('parts').doc(id).delete().catch(()=>{});
-      }
-    }
+    const ref=db.collection('viewerPayloads').doc(uid),old=await ref.get(),oldIds=old.exists&&Array.isArray(old.data().partIds)?old.data().partIds:[];
+    const raw=JSON.stringify(payload),parts=splitText(raw),version=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),ids=parts.map((_,i)=>`p_${version}_${String(i).padStart(4,'0')}`),written=[];
+    try{for(let i=0;i<parts.length;i++){await ref.collection('parts').doc(ids[i]).set({schema:PAYLOAD_SCHEMA,version,index:i,data:parts[i]});written.push(ids[i])}await ref.set({schema:PAYLOAD_SCHEMA,version,partIds:ids,partCount:ids.length,updatedAt:payload.updatedAt,offlineValidUntil:payload.offlineValidUntil,accessVersion:payload.accessVersion})}
+    catch(e){for(const id of written)ref.collection('parts').doc(id).delete().catch(()=>{});throw e}
+    for(const id of oldIds)if(!ids.includes(id))ref.collection('parts').doc(id).delete().catch(()=>{});
   }
-
   async function readPayload(db,uid){
-    if(!db||!uid)return null;
-    const ref=db.collection('viewerPayloads').doc(uid);
-    const snap=await ref.get();
-    if(!snap.exists)return null;
-    const d=snap.data()||{};
-
-    if(d.schema===PAYLOAD_SCHEMA&&Array.isArray(d.partIds)){
-      const docs=await Promise.all(d.partIds.map(id=>ref.collection('parts').doc(id).get()));
-      if(docs.some(x=>!x||!x.exists)){
-        throw Error('Published price data is incomplete. Ask the owner to publish again.');
-      }
-      return JSON.parse(docs.map(x=>(x.data()&&x.data().data)||'').join(''));
-    }
-    return d;
+    const ref=db.collection('viewerPayloads').doc(uid),snap=await ref.get();if(!snap.exists)return null;const d=snap.data();
+    if(d.schema===PAYLOAD_SCHEMA&&Array.isArray(d.partIds)){const docs=await Promise.all(d.partIds.map(id=>ref.collection('parts').doc(id).get()));if(docs.some(x=>!x.exists))throw Error('Published price data is incomplete. Ask the owner to publish again.');if(docs.some((x,i)=>x.data().version!==d.version||(+x.data().index||0)!==i))throw Error('Published price data parts do not match the active version. Ask the owner to publish again.');return JSON.parse(docs.map(x=>x.data().data||'').join(''))}
+    return d; // legacy v2 payload
   }
 
   function sanitizeCfg(c){
@@ -228,6 +129,7 @@
   }
   function withBookConfig(cfg,fn){
     const keys=['catalog','cats','party','excluded','customerCols','exactDecimal30','hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','title','targetUnit30','extraPct','overrides','qtyBasis26','changedOnly26','productUoms227','rateOnRequest230','brandingTemplateId230'];
+    for(const key of Object.keys(cfg||{}))if(!keys.includes(key))keys.push(key);
     const saved={};keys.forEach(k=>saved[k]=clone(ui.list[k]));
     keys.forEach(k=>{if(k==='cats'||k==='excluded')ui.list[k]=[];else if(k==='customerCols')ui.list[k]={code:true,size:true,packing:true,mrp:true,barcode:false,netWt:false};else if(['overrides','productUoms227','rateOnRequest230'].includes(k))ui.list[k]={};else if(['hideNoPrice','onlyStock','includeOnDemand','includeComingSoon','landscape','changedOnly26'].includes(k))ui.list[k]=false;else ui.list[k]=''});
     Object.keys(cfg||{}).forEach(k=>ui.list[k]=clone(cfg[k]));
@@ -262,16 +164,19 @@
     try{
       sec=await secondary(cfg,u.id||'user');
       const candidates=[],seen=new Set(),add=(em,pass)=>{if(!em||!pass||seen.has(em+'|'+pass))return;seen.add(em+'|'+pass);candidates.push([em,pass])};
+      // First try the exact credentials previously stored for this local user.
       if(u.cloudEmail&&u.cloudNameSnapshot&&u.cloudPinSnapshot)add(u.cloudEmail,await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
       if(u.cloudNameSnapshot&&u.cloudPinSnapshot){
         add(await loginEmailV2(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId),await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
         add(await loginEmail(u.cloudNameSnapshot,cfg.projectId),await loginPassword(u.cloudNameSnapshot,u.cloudPinSnapshot,cfg.projectId));
       }
+      // Then current v2 + legacy identities.
       add(email,pw);add(legacyEmail,pw);
       let cred=null,lastAuthErr=null;
       for(const [em,pass] of candidates){try{cred=await sec.auth.signInWithEmailAndPassword(em,pass);break}catch(e){lastAuthErr=e}}
       if(cred){
         uid=cred.user.uid;
+        // Migrate a successfully recovered legacy/stale account to the v2 pin-bound address.
         if(cred.user.email!==email){try{await cred.user.updateEmail(email)}catch(e){if(e.code!=='auth/email-already-in-use')throw e}}
         try{await cred.user.updatePassword(pw)}catch(e){if(e.code==='auth/requires-recent-login')throw e}
       }else{
@@ -370,6 +275,8 @@
 
   function cache(name,p){try{localStorage.setItem(CACHE_PREFIX+norm(name),JSON.stringify(p))}catch(e){}}
   function cached(name){try{return JSON.parse(localStorage.getItem(CACHE_PREFIX+norm(name))||'null')}catch(e){return null}}
+  function bookPdf(b){try{buildPDF(b.cfg).save((b.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
+  async function bookShare(b){try{const d=buildPDF(b.cfg),blob=d.output('blob'),file=new File([blob],(b.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:b.name,text:b.name,files:[file]});bookPdf(b)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
   function catalogCacheKey(c){return new Request(location.origin+location.pathname+'?pmCatalog='+encodeURIComponent(c.id))}
   async function catalogDownloadUrl(c){
     if(!cloudSession||!cloudSession.storage)throw Error('Catalog is not cached on this device. Connect to internet once and open it.');
@@ -386,6 +293,9 @@
       if(w)w.location=url;else window.location.href=url;
       setTimeout(()=>URL.revokeObjectURL(url),60000)
     }catch(e){
+      // Caching fetch can fail (e.g. the Storage bucket's default CORS setup blocks browser fetch() of the
+      // file, even though the app itself is authorised). A plain top-level navigation to the same signed URL
+      // is not subject to that restriction, so fall back to it -- this always works if the file exists.
       try{
         const url=await catalogDownloadUrl(c);
         if(w)w.location=url;else window.location.href=url;
@@ -428,6 +338,8 @@
       let shareUrl='';try{if(cloudSession?.storage)shareUrl=await catalogDownloadUrl(c)}catch(_){ }
       if(!navigator.share){await downloadCatalog(c);toast('Direct sharing is not supported by this browser. Catalog downloaded so you can share the PDF manually.');return}
       let filesOk=true;try{filesOk=!navigator.canShare||navigator.canShare({files:[file]})}catch(_){filesOk=false}
+      // Try one-tap sharing first. Large/slow catalog preparation can consume browser user activation;
+      // in that case the prepared modal below gives the user a fresh tap and makes sharing reliable.
       try{if(filesOk){await navigator.share({title,text:'Product catalog · '+title,files:[file]});return}if(shareUrl){await navigator.share({title,text:'Product catalog · '+title,url:shareUrl});return}}catch(e){if(e?.name==='AbortError')return}
       preparedCatalogShare276(c,file,shareUrl)
     }catch(e){
@@ -460,73 +372,280 @@
   function savePrefs230(p,x){try{localStorage.setItem(prefsKey230(p),JSON.stringify(x))}catch(e){}}
   function productKey230(b,it){return b.id+'|'+(it.id||it.code)}
   function activeAnnouncement230(a){if(!a?.enabled||!a.text)return false;const d=new Date(),now=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;return(!a.from||a.from<=now)&&(!a.until||a.until>=now)}
-
-  // --- TIMEOUT-PROTECTED SECURE LOGIN ---
-  window.secureViewerLogin46=async(name,pin)=>{
-    let sec=null,cfg=null;
-    const loginPromise = (async () => {
-      const r=await ready();cfg=r.cfg;
-      const emailV2=await loginEmailV2(name,pin,cfg.projectId),emailLegacy=await loginEmail(name,cfg.projectId),pw=await loginPassword(name,pin,cfg.projectId);
-      sec=await viewerSecondary271(cfg);
-      let cred=null,lastAuthErr=null;
-      for(const em of [emailV2,emailLegacy]){try{cred=await sec.auth.signInWithEmailAndPassword(em,pw);break}catch(e){lastAuthErr=e}}
-      if(!cred){const authErr=lastAuthErr||Error('Login failed'),code=(authErr&&authErr.code)||'';if(['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/invalid-email'].includes(code)){const er=Error('Incorrect username or PIN.');er.__authoritative=true;throw er}throw authErr}
-      window.__restrictedFirebaseSession46=true;
-      const pr=await sec.db.collection('accessProfiles').doc(cred.user.uid).get(),pd=pr.exists?pr.data():null;
-      if(!pd||pd.active!==true||profileExpired230(pd)){const er=Error(profileExpired230(pd)?'This login has expired.':'This login has been disabled or removed.');er.__authoritative=true;throw er}
-      const p=await readPayload(sec.db,cred.user.uid);
-      if(!p){const er=Error('No price data has been published for this login.');er.__authoritative=true;throw er}
-      if(pd.accessVersion&&p.accessVersion&&pd.accessVersion!==p.accessVersion){const er=Error('Published access is being updated. Try again.');er.__authoritative=true;throw er}
-      if(p.accessExpiresAt&&p.accessExpiresAt<=Date.now()){const er=Error('This login has expired.');er.__authoritative=true;throw er}
-      if(String(pin||'').length>=6){p.__offlineVerifier=await offlineVerifier(name,pin,cfg.projectId);cache(name,p)}else{delete p.__offlineVerifier;try{localStorage.removeItem(CACHE_PREFIX+norm(name))}catch(_){}}
-      cloudSession={uid:cred.user.uid,loginName:pd.username||name,payload:p,app:sec.app,auth:sec.auth,db:sec.db,storage:sec.storage,unsubProfile:null};
-      persistViewerSession271(cloudSession);show(p);watchProfile46(cloudSession);logActivity230(sec,cred.user.uid,pd);
-      return true;
-    })();
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Login request timed out. Please check network connection or credentials.')), 10000)
-    );
-
-    try {
-      return await Promise.race([loginPromise, timeoutPromise]);
-    } catch(e){
-      if(sec){try{await sec.auth.signOut()}catch(_){}try{await sec.app.delete()}catch(_){}}
-      cloudSession=null;window.__restrictedFirebaseSession46=false;
-      if(authoritative(e))throw e;
-      try{
-        const a=cfg||await ready().then(x=>x.cfg),c=cached(name),v=await offlineVerifier(name,pin,a.projectId),valid=String(pin||'').length>=6&&c&&norm(c.user?.name)===norm(name)&&c.__offlineVerifier===v&&(+c.offlineValidUntil||0)>Date.now()&&(!c.accessExpiresAt||+c.accessExpiresAt>Date.now());
-        if(valid){cloudSession={uid:'offline',loginName:name,payload:c,storage:null};window.__restrictedFirebaseSession46=true;show(c,true);return true}
-      }catch(_){}
-      throw (e.message ? e : Error('Could not reach Firebase and no valid offline cache is available for this login.'));
-    }
+  /* v2.76 Smart Search: offline fuzzy spelling + Hindi/Hinglish product vocabulary. */
+  const SMART_PHRASES_276=[
+    ['गुलाब जल','gulab jal rose water'],['गंगा जल','ganga jal'],['हवन सामग्री','hawan samagiri'],['पूजा सामग्री','pooja samagiri'],
+    ['अगरबत्ती','agarbatti'],['अगर बत्ती','agarbatti'],['रंगोली','rangoli'],['कपूर','camphor'],['कपूर','camphor'],['पूजा','pooja'],['पूजन','pooja'],
+    ['धूप बत्ती','dhoop batti'],['धूप','dhoop'],['दीया','diya'],['दिया','diya'],['दीपक','diya'],['हल्दी','haldi'],['गुलाल','gulal'],
+    ['रोली','roli'],['कुमकुम','kumkum'],['सिंदूर','sindoor'],['चंदन','chandan'],['अष्टगंधा','ashtagandha'],['विभूति','vibhuti'],
+    ['बाती','batti wick'],['बत्ती','batti wick'],['रुई','cotton'],['रूई','cotton'],['मौली','moli'],['मोली','moli'],['कलावा','kalawa'],
+    ['गुग्गल','guggal'],['गुग्गुल','guggal'],['लोबान','loban'],['साम्ब्रानी','sambrani'],['संभरानी','sambrani'],['स्टेंसिल','stencil'],['स्टैंसिल','stencil'],
+    ['अबीर','abir'],['गुलाब','gulab rose'],['थाल','thaal'],['थाली','thaal'],['बांके बिहारी','bankey bihari'],['बांकेबिहारी','bankey bihari'],
+    ['भगवान','bhagwan'],['यमुना','yamuna'],['भीमसेनी','bheemseni'],['तोटा','tota'],['सतरंगा','satranga'],['बोतल','bottle'],['पाउच','pouch'],['जार','jar'],
+    ['डिब्बी','dibbi'],['पैकेट','packet'],['पैक','pack'],['बॉक्स','box'],['ट्रे','tray'],['किट','kit'],['पाउडर','powder'],['स्प्रे','spray'],['किलोग्राम','kg'],['किलो','kg'],['ग्राम','gm'],['मिलीलीटर','ml'],['लीटर','ltr'],['पीस','pcs']
+  ];
+  const SMART_ALIASES_276={
+    kapur:'camphor',kapoor:'camphor',camfor:'camphor',camphar:'camphor',camphor:'camphor',
+    puja:'pooja',pooja:'pooja',poojaa:'pooja',
+    rangoly:'rangoli',rangolee:'rangoli',rangolie:'rangoli',rangoli:'rangoli',
+    agarbati:'agarbatti',agarbati:'agarbatti',aggarbatti:'agarbatti',agarbatti:'agarbatti',
+    dhoop:'dhoop',dhup:'dhoop',diya:'diya',deeya:'diya',deepak:'diya',
+    haldi:'haldi',haldee:'haldi',gulal:'gulal',gulaal:'gulal',roli:'roli',rolii:'roli',kumkum:'kumkum',sindur:'sindoor',sindoor:'sindoor',
+    chandan:'chandan',chandanam:'chandan',ashtagandh:'ashtagandha',ashtagandha:'ashtagandha',vibhuti:'vibhuti',bhasm:'vibhuti',
+    bati:'batti',batti:'batti',wick:'batti',wicks:'batti',rui:'cotton',rooi:'cotton',cotton:'cotton',moli:'moli',mauli:'moli',kalava:'kalawa',kalawa:'kalawa',
+    guggal:'guggal',guggul:'guggal',loban:'loban',sambrani:'sambrani',sambhrani:'sambrani',
+    stensil:'stencil',stencel:'stencil',stensel:'stencil',stencil:'stencil',
+    abeer:'abir',abir:'abir',gulaab:'gulab',gulab:'gulab',rose:'rose',havan:'hawan',hawan:'hawan',samagri:'samagiri',samagiri:'samagiri',
+    banke:'bankey',bankey:'bankey',biharee:'bihari',bihari:'bihari',bhagwaan:'bhagwan',bhagwan:'bhagwan',bhimseni:'bheemseni',bheemseni:'bheemseni',
+    tota:'tota',thali:'thaal',thal:'thaal',thaal:'thaal',botal:'bottle',botel:'bottle',bottle:'bottle',pauch:'pouch',pouch:'pouch',dibbi:'dibbi',dibby:'dibbi'
   };
-
-  // --- LOGIN MODAL UI WITH UNFREEZE FIX ---
-  function promptLogin(){
-    const m=document.createElement('div');m.className='modal';
-    m.innerHTML=`<div class="box ca-viewer-login" style="max-width:390px"><div class="bd"><div style="text-align:center;margin:2px 0 18px"><img src="ca-logo.png" alt="CA" style="width:66px;height:66px;object-fit:cover;border-radius:18px;border:1px solid #ded5c8;box-shadow:0 12px 28px rgba(31,26,19,.10)"><div style="font-size:22px;font-weight:950;letter-spacing:-.04em;margin-top:8px">CA</div><div class="note" style="margin-top:3px">Sales / customer secure access</div></div><div class="field"><label>Username</label><input id="sv46n"></div><div class="field"><label>PIN</label><input id="sv46p" type="password" inputmode="numeric"></div><div class="note">Search rates on screen, switch available UOMs, and view/download/share price lists only as PDF. After a successful login, this device stays signed in for up to 6 hours (or until you log out / access expires). Offline rate cache still expires automatically and is enabled only for PINs with at least 6 characters.</div><div class="pm-lock-msg" id="sv46m" style="color:#B42318;min-height:20px;font-size:12px;margin-top:8px;"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="go">Log in</button></div></div>`;
-    document.body.appendChild(m);
-    const go=async()=>{
-      const b=m.querySelector('[data-x="go"]'),msg=m.querySelector('#sv46m');
-      b.disabled=true;
-      b.textContent='Checking...';
-      msg.textContent='';
-      try{
-        await window.secureViewerLogin46(m.querySelector('#sv46n').value,m.querySelector('#sv46p').value);
-        m.remove();
-      }catch(e){
-        msg.textContent=e.message||'Login failed';
-        b.disabled=false;
-        b.textContent='Log in';
+  function smartNorm276(v){
+    let x=String(v??'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,' ');
+    for(const [from,to] of SMART_PHRASES_276)x=x.split(from).join(' '+to+' ');
+    return x.replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ')
+  }
+  function smartTokens276(v){
+    const raw=smartNorm276(v).split(/\s+/).filter(Boolean).map(t=>SMART_ALIASES_276[t]||t),out=[],units=new Set(['g','gm','kg','ml','l','ltr','pc','pcs']);
+    for(let i=0;i<raw.length;i++){if(/^\d+(?:\.\d+)?$/.test(raw[i])&&units.has(raw[i+1])){out.push(raw[i]+raw[i+1]);i++;continue}out.push(raw[i])}return out
+  }
+  function editDistance276(a,b){
+    if(a===b)return 0;if(!a)return b.length;if(!b)return a.length;const n=a.length,m=b.length;if(Math.abs(n-m)>3)return 4;
+    let prev=Array.from({length:m+1},(_,i)=>i),cur=new Array(m+1);
+    for(let i=1;i<=n;i++){cur[0]=i;let rowMin=cur[0];for(let j=1;j<=m;j++){cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));rowMin=Math.min(rowMin,cur[j])}if(rowMin>3)return 4;[prev,cur]=[cur,prev]}
+    return prev[m]
+  }
+  function phonetic276(v){return String(v||'').replace(/ph/g,'f').replace(/ck/g,'k').replace(/qu/g,'k').replace(/[aeiouy]/g,'').replace(/(.)\1+/g,'$1')}
+  function tokenScore276(q,w){
+    if(!q||!w)return 0;if(q===w)return 120;
+    if(/^\d+(?:\.\d+)?$/.test(q)&&new RegExp('^'+q+'(?:g|gm|kg|ml|l|ltr|pc|pcs)?$').test(w))return 116;
+    if((w.startsWith(q)||q.startsWith(w))&&Math.min(q.length,w.length)>=3)return 104;
+    if((w.includes(q)||q.includes(w))&&Math.min(q.length,w.length)>=4)return 94;
+    if(q.length<=2||w.length<=2)return 0;
+    if(q.length>=4&&w.length>=4&&phonetic276(q)===phonetic276(w))return 88;
+    const d=editDistance276(q,w),mx=Math.max(q.length,w.length),ratio=1-d/mx;
+    if(d<=1&&mx<=6)return 86;if(d<=2&&mx>=6&&ratio>=.66)return 78;if(d<=3&&mx>=9&&ratio>=.70)return 70;return 0
+  }
+  function smartScore276(q,it,b){
+    const tokens=smartTokens276(q);if(!tokens.length)return 1;
+    const code=smartNorm276(it.code),barcode=smartNorm276(it.barcode),legacy=smartNorm276(it.legacyCode),primary=smartNorm276([it.code,it.legacyCode,it.name,it.size,it.category,it.barcode,it.keywords,b.name,(it.uomRates||[]).map(x=>x.u).join(' ')].join(' ')),packing=smartNorm276(it.packing),hay=(primary+' '+packing).trim(),words=primary.split(' ').filter(Boolean),packingWords=packing.split(' ').filter(Boolean);
+    let total=0;
+    for(const t0 of tokens){const t=SMART_ALIASES_276[t0]||t0;if(/^\d{3,}$/.test(t)){if(code===t||barcode===t||legacy===t)total+=180;else if(primary.includes(t))total+=140;else if(packing.includes(t))total+=82;else return 0;continue}
+      let best=0;if(code===t||barcode===t||legacy===t)best=170;else if(code.startsWith(t)||barcode.startsWith(t)||legacy.startsWith(t))best=145;else for(const w0 of words){const w=SMART_ALIASES_276[w0]||w0,bv=tokenScore276(t,w);if(bv>best)best=bv;if(best>=120)break}
+      if(best<68){let packBest=0;for(const w0 of packingWords){const w=SMART_ALIASES_276[w0]||w0,bv=tokenScore276(t,w);if(bv>packBest)packBest=bv}best=Math.round(packBest*.72)}
+      if(best<68)return 0;total+=best
+    }
+    const phrase=smartNorm276(q);if(phrase&&primary.includes(phrase))total+=80;else if(phrase&&packing.includes(phrase))total+=25;if(tokens.length>1)total+=tokens.length*8;return total
+  }
+  window.smartProductMatch282=(q,product,book={})=>smartScore276(q,product,book)>0;
+  function searchRows(p,q,bookId,category,mode,rateMode=''){
+    const assignedModes=[...new Set(activeBooks230(p).map(audience230))];
+    const scope=rateMode||(assignedModes.length===1?assignedModes[0]:'');
+    if(!assignedModes.includes(scope))return [];
+    const pr=prefs230(p),out=[],hasQuery=mode==='search'&&String(q||'').trim().length>0;
+    activeBooks230(p).filter(b=>(!bookId||b.id===bookId)&&audience230(b)===scope).forEach(b=>(b.items||[]).forEach(it=>{
+      if(category&&norm(it.category)!==norm(category))return;const key=productKey230(b,it);if(mode==='favorites'&&!pr.favorites.includes(key))return;if(mode==='recent'&&!pr.recentProducts.includes(key))return;
+      const smartScore=hasQuery?smartScore276(q,it,b):1;if(hasQuery&&!smartScore)return;out.push({b,it,key,smartScore})
+    }));
+    if(mode==='recent')out.sort((a,b)=>pr.recentProducts.indexOf(a.key)-pr.recentProducts.indexOf(b.key));else if(hasQuery)out.sort((a,b)=>b.smartScore-a.smartScore||String(a.it.name||'').localeCompare(String(b.it.name||'')));
+    return out.slice(0,100)
+  }
+  function selectedRate(it,u,payload){if(it.rateOnRequest)return 'Rate on request';const x=(it.uomRates||[]).find(r=>norm(r.u)===norm(u))||(it.uomRates||[])[0];const cur=payload?.currency||'₹';return x?(cur+Number(x.r).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+x.u):'—'}
+  function selectedRateHtml284(it,u,payload){
+    if(it.rateOnRequest)return '<span class="cv284-request">Rate on request</span>';
+    const r=(it.uomRates||[]).find(x=>norm(x.u)===norm(u))||(it.uomRates||[])[0];
+    if(!r)return '<span class="cv284-amount">—</span>';
+    return '<span class="cv284-amount">'+esc((payload?.currency||'₹')+Number(r.r).toLocaleString('en-IN',{maximumFractionDigits:2}))+'</span><span class="cv284-unit"> / '+esc(r.u)+'</span>';
+  }
+  function rememberResults230(p,rows,q){if(!rows.length)return;const pr=prefs230(p);for(const r of rows.slice(0,8)){pr.recentProducts=[r.key,...pr.recentProducts.filter(x=>x!==r.key)].slice(0,30)}if(q.trim().length>1)pr.recentQueries=[q.trim(),...pr.recentQueries.filter(x=>norm(x)!==norm(q))].slice(0,12);savePrefs230(p,pr)}
+  function renderResults(root,p,mode='search'){
+    const q=root.querySelector('#cv47q')?.value||'',bookId=root.querySelector('#cv47book')?.value||'',category=root.querySelector('#cv47catfilter')?.value||'',box=root.querySelector('#cv47results');if(!box)return;
+    const books=activeBooks230(p),sales=p.user?.role==='sales';
+    if(!root.dataset.rateMode282&&new Set(books.map(audience230)).size>1){box.innerHTML='<div class="cv47-empty"><b>Choose a pricing mode first</b><div style="margin-top:5px">Select Retail, Wholesale or Custom above, then search across its assigned lists.</div></div>';return}
+    if(mode==='search'&&!q.trim()){
+      const pr=prefs230(p),chips=pr.recentQueries.slice(0,6).map(x=>`<button data-q230="${esc(x)}">${esc(x)}</button>`).join('');
+      box.innerHTML=`<div class="cv47-empty"><div style="font-size:25px;margin-bottom:7px">⌕</div><b>Search your assigned products</b><div style="margin-top:4px">Type in English, Hindi/Hinglish, code/barcode, or even an approximate spelling.</div>${chips?'<div class="cv272-tools" style="justify-content:center;margin-top:12px">'+chips+'</div>':''}</div>`;
+      box.querySelectorAll('[data-q230]').forEach(b=>b.onclick=()=>{root.querySelector('#cv47q').value=b.dataset.q230;renderResults(root,p)});return
+    }
+    const rows=searchRows(p,q,bookId,category,mode,root.dataset.rateMode282||'');if(mode==='search')rememberResults230(p,rows,q);const pr=prefs230(p);
+    box.innerHTML=rows.length?rows.map((r,i)=>{const aud=audience230(r.b),label=audienceLabel230(r.b),rate=selectedRateHtml284(r.it,r.it.defaultUom,p),wh=sales&&aud==='wholesale';return `<article class="cv272-product"><div class="cv272-listline"><span class="cv272-tag ${aud}">${esc(label)}</span><span class="cv272-list-name">${esc(r.b.name)}${r.it.category?' · '+esc(r.it.category):''}</span></div><div class="cv272-product-top"><div style="min-width:0;flex:1"><div class="cv272-product-code">${esc(r.it.code||'')}</div><div class="cv272-product-name">${esc(r.it.name||'')}</div><details class="ca281-mobile-detail"><summary>Product details</summary><div class="cv272-product-meta">${[r.it.size,r.it.packing,r.it.mrp!=null?'MRP '+(p.currency||'₹')+Number(r.it.mrp).toLocaleString('en-IN',{maximumFractionDigits:2}):''].filter(Boolean).map(esc).join(' · ')}</div></details>${wh?'<div class="cv272-warning">Wholesale / trade rate — verify buyer before quoting.</div>':''}${window.orderRowExtra233?window.orderRowExtra233(r,i):''}</div><button class="cv272-star" data-star230="${i}" title="Favorite">${pr.favorites.includes(r.key)?'★':'☆'}</button><div class="cv272-ratebox"><div class="cv272-rate ${aud==='wholesale'?'wholesale':''}" data-rate47="${i}">${rate}</div>${!r.it.rateOnRequest&&(r.it.uomRates||[]).length>1?`<select class="cv272-uom" data-uom47="${i}">${r.it.uomRates.map(x=>`<option value="${esc(x.u)}" ${norm(x.u)===norm(r.it.defaultUom)?'selected':''}>${esc(x.u)}</option>`).join('')}</select>`:`<div class="metric-sub" style="margin-top:5px">${r.it.rateOnRequest?'Contact owner / sales team':esc(r.it.defaultUom||'')}</div>`}</div></div></article>`}).join(''):`<div class="cv47-empty"><div style="font-size:24px;margin-bottom:7px">⌕</div><b>No matching product</b><div style="margin-top:4px">Try another spelling, Hindi/Hinglish word, product code, or a shorter term.</div></div>`;
+    box.querySelectorAll('[data-uom47]').forEach(sel=>sel.onchange=()=>{const i=+sel.dataset.uom47,row=rows[i],rate=box.querySelector(`[data-rate47="${i}"]`);if(row&&rate)rate.innerHTML=selectedRateHtml284(row.it,sel.value,p)});
+    box.querySelectorAll('[data-star230]').forEach(st=>st.onclick=()=>{const r=rows[+st.dataset.star230],x=prefs230(p);x.favorites=x.favorites.includes(r.key)?x.favorites.filter(k=>k!==r.key):[r.key,...x.favorites];savePrefs230(p,x);renderResults(root,p,mode)});if(window.wireOrderRows233)window.wireOrderRows233(box,rows,p)
+  }
+  function noticeDate47(v){if(!v)return'';try{const d=new Date(v+'T00:00:00');if(!isNaN(d))return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){}return safe(v)}
+  function viewerBookCfg230(book,p){const b=activeBook230(book),cur=p?.currency||'₹',groups=[],gm=new Map();for(const it of b.items||[]){const cat=it.category||'Other';if(!gm.has(cat)){const g={name:cat,rows:[]};gm.set(cat,g);groups.push(g)}const rr=(it.uomRates||[]).find(x=>norm(x.u)===norm(it.defaultUom))||(it.uomRates||[])[0],rate=it.rateOnRequest?'Rate on request':rr?cur+Number(rr.r).toLocaleString('en-IN',{maximumFractionDigits:2})+'/'+rr.u:'—';gm.get(cat).rows.push([it.code||'',it.name||'',it.size||'',it.packing||'',it.mrp==null?'—':cur+Number(it.mrp).toLocaleString('en-IN',{maximumFractionDigits:2}),rate])}const br=b.branding||{},effective=b.effectiveFrom?`Effective ${noticeDate47(b.effectiveFrom)}`:'';return{columns:[{key:'code',label:'Code',w:1},{key:'name',label:'Product',w:3.4},{key:'size',label:'Size',w:1},{key:'packing',label:'Packing',w:1.5},{key:'mrp',label:'MRP',align:'right',w:1},{key:'final',label:'Rate',align:'right',w:1.4,bold:true}],groups,landscape:true,firm:br.firm||p.firm||'Price List',meta:[br.subtitle,br.contact].filter(Boolean).join('  ·  '),title:b.name,count:(b.items||[]).length,sub:[effective,b.category].filter(Boolean).join('  ·  '),footer:br.footer||''}}
+  function bookView(b){
+    let w=null;
+    try{
+      // Open the tab immediately from the user's click so mobile popup blockers do not reject it.
+      w=window.open('about:blank','_blank');
+      const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p)),blob=doc.output('blob'),url=URL.createObjectURL(blob);
+      if(w){w.location.href=url}else{
+        const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener';document.body.appendChild(link);link.click();link.remove();
       }
-    };
-    m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}b.dataset.x==='close'?m.remove():go()};
-    m.querySelector('#sv46p').onkeydown=e=>{if(e.key==='Enter')go()};
+      setTimeout(()=>URL.revokeObjectURL(url),120000);
+    }catch(e){
+      try{if(w&&!w.closed)w.close()}catch(_){ }
+      toast(e?.message||'Could not open price list preview');
+    }
+  }
+  function bookPdf(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),doc=buildPDF(viewerBookCfg230(a,p));doc.save((a.name||'price-list').replace(/[^\w\- ]+/g,'')+'.pdf')}catch(e){toast('Could not create PDF')}}
+  async function bookShare(b){try{const p=cloudSession?.payload||{},a=activeBook230(b),d=buildPDF(viewerBookCfg230(a,p)),blob=d.output('blob'),file=new File([blob],(a.name||'price-list')+'.pdf',{type:'application/pdf'});if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))return navigator.share({title:a.name,text:a.name,files:[file]});d.save(file.name)}catch(e){if(e&&e.name==='AbortError')return;bookPdf(b)}}
+  function changesDialog230(b,p){const a=activeBook230(b),c=a.changes||{},m=document.createElement('div');m.className='modal';m.style.zIndex='220000';m.innerHTML=`<div class="box" style="max-width:760px"><div class="hd"><div><h2 style="margin:0">What changed? · ${esc(a.name)}</h2><div class="note">${c.changed||0} changed · ${c.increased||0} increased · ${c.decreased||0} decreased · ${c.added||0} new · ${c.removed||0} removed</div></div></div><div class="bd"><div class="tbl-wrap" style="max-height:480px"><table><thead><tr><th>Product</th><th>Change</th><th class="r">Old</th><th class="r">New</th></tr></thead><tbody>${(c.details||[]).map(x=>`<tr><td><b>${esc(x.code||'')}</b> · ${esc(x.name||'')}</td><td>${esc(x.type||'Changed')}</td><td class="r">${x.oldOnRequest?'On request':x.oldRate==null?'—':(p.currency||'₹')+Number(x.oldRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td><td class="r">${x.onRequest?'On request':x.newRate==null?'—':(p.currency||'₹')+Number(x.newRate).toLocaleString('en-IN',{maximumFractionDigits:2})}</td></tr>`).join('')||'<tr><td colspan="4" class="empty-mini">No recorded changes.</td></tr>'}</tbody></table></div></div><div class="ft"><button class="btn primary" data-x="close">Close</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{if(e.target.closest('[data-x="close"]')||e.target===m)m.remove()}}
+  function show(p,off=false){
+    viewerCss();let e=document.getElementById('cloudViewer46');if(!e){e=document.createElement('div');e.id='cloudViewer46';e.style.cssText='position:fixed;inset:0;z-index:200000;overflow:auto';document.body.appendChild(e)}e.style.display='block';
+    const books=activeBooks230(p),sales=p.user?.role==='sales',role=sales?'Sales team':'Customer',audCount=a=>books.filter(b=>audience230(b)===a).length;
+    const modes=['retail','wholesale','custom'].filter(a=>audCount(a)>0),hasChoice=modes.length>1;
+    let initialMode=modes.includes(cloudSession?.rateMode272)?cloudSession.rateMode272:(modes.length===1?modes[0]:'');
+    const exp=p.offlineValidUntil?new Date(p.offlineValidUntil).toLocaleString('en-IN'):'',rn=p.notice||{},rd=noticeDate47(rn.effectiveDate),rtext=rn.text||('New rates implemented'+(rd?' from '+rd:'')),an=p.announcement||{};
+    const initials=String(p.firm||'PM').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'PM';
+    const modeLabel=a=>a==='wholesale'?'Wholesale':a==='retail'?'Retail':'Custom';
+    const modeHint=a=>a==='wholesale'?'Trade pricing selected. Verify the buyer before quoting or sharing.':a==='retail'?'Retail pricing selected. Only retail price lists and retail search rates are visible.':'Custom pricing selected. Only custom price lists are visible.';
+    const modeButtons=modes.map(a=>`<button class="cv272-mode ${a===initialMode?'on':''}" data-mode272="${a}" aria-pressed="${a===initialMode}">${modeLabel(a)}<span class="cv272-mode-count">${audCount(a)}</span></button>`).join('');
+    e.innerHTML=`<div class="cv272-shell"><div class="cv272-topbar"><div class="cv272-topbar-in"><div class="cv272-mark"><img src="ca-logo.png" alt="CA"></div><div class="cv272-brand"><b>CA</b><span>${esc(p.firm||'Business')} · ${esc(p.user?.name||'')} · ${role}${off?' · Offline':''}</span></div><div class="cv272-session"><span class="cv272-role">${role}</span><button class="btn ghost sm cv272-logout" id="cv46out">Log out</button></div></div></div><div class="cv47-wrap">
+      <section class="cv272-hero"><div><h1>${sales?'Rate Desk':'Your Price Desk'}</h1><p>${sales?'Choose a rate type, then search across its assigned price lists.':'Search your assigned rates, open price lists and catalogs from one clean workspace.'}</p></div><div class="cv272-hero-stat"><div class="cv272-pill"><b>${books.length}</b><span>Price lists</span></div><div class="cv272-pill"><b>${(p.catalogs||[]).length}</b><span>Catalogs</span></div></div></section>
+      ${rn.enabled?`<div class="cv47-notice"><b>Rate update</b><div>${esc(rtext)}</div>${rd&&rn.text?`<div class="note" style="margin-top:3px">Effective from ${esc(rd)}</div>`:''}</div>`:''}${activeAnnouncement230(an)?`<div class="cv47-announce"><b>${esc(an.title||'Announcement')}</b><div>${esc(an.text)}</div></div>`:''}
+      <section class="cv272-mode-panel"><div class="cv272-mode-head"><div><b>Choose pricing mode</b><span>${hasChoice?'Rates and price lists will be filtered to the selected mode.':'Only one pricing mode is assigned to this login.'}</span></div>${off&&exp?`<span>Offline valid until ${esc(exp)}</span>`:''}</div><div class="cv272-segment">${modeButtons||'<span class="note">No rate mode assigned</span>'}</div><div id="cv272modeNote" class="cv272-mode-note ${initialMode||'required'}">${initialMode?esc(modeHint(initialMode)):'Select Retail / Wholesale / Custom before viewing rates.'}</div></section>
+      <div class="cv47-search"><div class="cv272-search-panel"><label class="cv284-search-label" for="cv47q">Find a product</label><div class="cv47-searchbox"><div class="cv272-search-main"><input id="cv47q" aria-label="Search assigned products" type="search" autocomplete="off" enterkeyhint="search" placeholder="Name, code, Hindi or Hinglish…"></div></div><div class="cv276-smart-note">Spelling-friendly search · Try <b>kapur / कपूर</b> or <b>rangoly / रंगोली</b></div><div class="cv272-tools"><button id="cv47fav">★ Favorites</button><button id="cv47recent">Recent products</button></div></div></div>
+      <details class="cv284-filters"><summary><b>Filters</b><span id="cv284scope">All assigned lists in this mode</span></summary><div class="cv284-filter-body"><div class="cv272-field"><label for="cv47switchbook">Price list · optional</label><select id="cv47switchbook"><option value="">Choose pricing mode first</option></select></div><div class="cv272-field"><label for="cv47catfilter">Product category</label><select id="cv47catfilter"><option value="">All categories</option></select></div><button class="btn ghost" id="cv284reset">Clear filters</button></div></details>
+      <div class="cv272-tabs"><button class="cv272-tab on" data-tab272="products" aria-pressed="true">Products</button><button class="cv272-tab" data-tab272="lists" aria-pressed="false">Price Lists <small id="cv272listCount"></small></button><button class="cv272-tab" data-tab272="catalogs" aria-pressed="false">Catalogs <small>${(p.catalogs||[]).length}</small></button></div>
+      <section id="cv272products"><div id="cv47results" class="cv47-results" aria-live="polite"></div></section>
+      <section id="cv272lists" hidden><div class="cv272-section-title"><b>Price Lists</b><span id="cv272listSub">Choose a pricing mode</span></div><div id="cv272listGrid" class="cv272-listgrid"></div></section>
+      <section id="cv272catalogs" hidden><div class="cv272-field cv284-catalog-filter"><label for="cv47switchcat">Catalog</label><select id="cv47switchcat"><option value="">All assigned catalogs</option>${(p.catalogs||[]).map(c=>`<option value="${c.id}">${esc(c.title||c.name||'Catalog')}</option>`).join('')}</select></div><div class="cv272-section-title"><b>Product Catalogs</b><span>Assigned to this login</span></div><div class="cv47-catgrid">${(p.catalogs||[]).map(c=>`<div class="cv272-cat-card" data-cat-card="${c.id}"><span class="cv272-tag custom">${esc(c.category||'Catalog')}</span><h3>${esc(c.title||c.name||'Catalog')}</h3><div class="cv272-card-meta">PDF catalog · available offline after first online open</div><div class="cv272-actions"><button class="btn primary sm" data-cat-view="${c.id}">View</button><button class="btn ghost sm" data-cat-share276="${c.id}">Share</button><button class="btn ghost sm" data-cat-down="${c.id}">Download</button></div></div>`).join('')||'<div class="cv47-empty">No catalog assigned.</div>'}</div></section>
+    </div></div>`;
+    e.querySelector('#cv46out').onclick=window.cloudViewerLogout46;
+    let mode='search',rateMode=initialMode,selectedBook='';
+    const q=e.querySelector('#cv47q'),bookSel=e.querySelector('#cv47switchbook'),catFilter=e.querySelector('#cv47catfilter'),listGrid=e.querySelector('#cv272listGrid'),listCount=e.querySelector('#cv272listCount'),listSub=e.querySelector('#cv272listSub'),modeNote=e.querySelector('#cv272modeNote');
+    const modeBooks=()=>books.filter(b=>audience230(b)===rateMode);
+    const categories=()=>[...new Set(modeBooks().flatMap(b=>(b.items||[]).map(x=>x.category).filter(Boolean)))].sort();
+    const safeBookAction=(b,fn)=>{if(!b)return;if(sales&&audience230(b)==='wholesale'&&!window.confirm('Wholesale / Trade price list\n\nConfirm this is intended for a trade/wholesale buyer before continuing.'))return;fn(b)};
+    function paintLists(){
+      const bs=modeBooks();listCount.textContent=rateMode?String(bs.length):'';listSub.textContent=rateMode?`${modeLabel(rateMode)} mode · ${bs.length} assigned list${bs.length===1?'':'s'}`:'Choose a pricing mode';
+      listGrid.innerHTML=bs.length?bs.map(b=>`<div class="cv272-book-card" data-book-card="${b.id}"><span class="cv272-tag ${audience230(b)}">${esc(audienceLabel230(b))}</span><h3>${esc(b.name)}</h3><div class="ca281-meta"><span class="ca281-status published">Published</span>${b.scheduled&&!b.scheduledActivated?'<span class="ca281-status scheduled">Scheduled '+esc(noticeDate47(b.scheduled.effectiveDate))+'</span>':''}</div><div class="cv272-card-meta">${(b.items||[]).length} products${b.effectiveFrom?' · Effective '+esc(noticeDate47(b.effectiveFrom)):''}${b.updatedAt?' · Updated '+esc(new Date(b.updatedAt).toLocaleDateString('en-IN')):''}</div>${sales&&audience230(b)==='wholesale'?'<div class="cv272-warning">Wholesale / trade list — verify buyer before sharing.</div>':''}<div class="cv272-actions"><button class="btn ghost sm" data-searchbook282="${b.id}">Search products</button><button class="btn primary sm" data-viewbook278="${b.id}">View</button><button class="btn ghost sm" data-share="${b.id}">Share</button><button class="btn ghost sm" data-pdf="${b.id}">Download</button>${sales&&((b.changes?.details||[]).length)?`<button class="btn ghost sm" data-changes230="${b.id}">Changes</button>`:''}</div></div>`).join(''):'<div class="cv47-empty">No price list is assigned for this mode.</div>';
+      listGrid.querySelectorAll('[data-searchbook282]').forEach(x=>x.onclick=()=>{bookSel.value=x.dataset.searchbook282;bookSel.onchange();e.querySelector('[data-tab272="products"]')?.click();q.focus()});
+      listGrid.querySelectorAll('[data-viewbook278]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.viewbook278),bookView));
+      listGrid.querySelectorAll('[data-pdf]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.pdf),bookPdf));
+      listGrid.querySelectorAll('[data-share]').forEach(x=>x.onclick=()=>safeBookAction((p.priceBooks||[]).find(b=>b.id===x.dataset.share),bookShare));
+      listGrid.querySelectorAll('[data-changes230]').forEach(x=>x.onclick=()=>changesDialog230((p.priceBooks||[]).find(b=>b.id===x.dataset.changes230),p));
+    }
+    function paintBookSelect(prefer=''){
+      const bs=modeBooks();bookSel.innerHTML='';bookSel.disabled=!rateMode;
+      if(!rateMode){bookSel.innerHTML='<option value="">Choose pricing mode first</option>';selectedBook='';return}
+      bookSel.innerHTML=`<option value="">All ${esc(modeLabel(rateMode))} price lists</option>`+bs.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('');
+      selectedBook=(prefer&&bs.some(b=>b.id===prefer))?prefer:'';bookSel.value=selectedBook;
+    }
+    function paintCategories(){const old=catFilter.value;catFilter.innerHTML='<option value="">All categories</option>'+categories().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');if([...catFilter.options].some(o=>o.value===old))catFilter.value=old}
+    function renderSafeResults(){
+      e.dataset.rateMode282=rateMode;
+      e.querySelector('#cv284scope').textContent=rateMode?[(books.find(b=>b.id===bookSel.value)?.name||'All '+modeLabel(rateMode)+' lists'),catFilter.value].filter(Boolean).join(' · '):'Choose pricing mode first';
+      renderResults(e,p,mode)
+    }
+    const compat=document.createElement('select');compat.id='cv47book';compat.hidden=true;e.querySelector('#cv272products').prepend(compat);
+    const syncCompat=()=>{compat.innerHTML=bookSel.innerHTML;compat.value=bookSel.value||''};
+    function applyMode(next,ask=true){
+      if(!modes.includes(next))return false;
+      const nextBooks=books.filter(b=>audience230(b)===next),singleNext=nextBooks.length===1?nextBooks[0]:null;
+      if(sales&&next==='wholesale'&&ask){const ok=window.confirm('Switch to WHOLESALE mode?\n\nOnly wholesale/trade price lists and wholesale search rates will be shown. Verify the buyer before quoting.');if(!ok)return false}
+      if(window.guardOrderContext275 && !window.guardOrderContext275({rateMode:next,bookId:singleNext?.id||'',bookName:singleNext?.name||''}))return false;
+      rateMode=next;if(cloudSession)cloudSession.rateMode272=next;
+      e.querySelectorAll('[data-mode272]').forEach(b=>{b.classList.toggle('on',b.dataset.mode272===next);b.setAttribute('aria-pressed',String(b.dataset.mode272===next))});
+      modeNote.className='cv272-mode-note '+next;modeNote.textContent=modeHint(next);
+      paintBookSelect(cloudSession?.rateContextBookId270||'');syncCompat();if(cloudSession)cloudSession.rateContextBookId270=bookSel.value||'';
+      paintCategories();paintLists();mode='search';renderSafeResults();return true
+    }
+    e.querySelectorAll('[data-mode272]').forEach(b=>b.onclick=()=>applyMode(b.dataset.mode272,true));
+    bookSel.onchange=()=>{const next=bookSel.value,b=books.find(x=>x.id===next);if(next&&window.guardOrderContext275&&!window.guardOrderContext275({rateMode:audience230(b),bookId:next,bookName:b?.name||''})){bookSel.value=selectedBook||'';return}selectedBook=next;if(cloudSession)cloudSession.rateContextBookId270=selectedBook||'';syncCompat();mode='search';renderSafeResults()};
+    let searchTimer282;const revealProducts282=()=>e.querySelector('[data-tab272="products"]')?.click();
+    q.oninput=()=>{mode='search';revealProducts282();clearTimeout(searchTimer282);searchTimer282=setTimeout(()=>{if(e.isConnected)renderSafeResults()},120)};catFilter.onchange=()=>{revealProducts282();renderSafeResults()};
+    e.querySelector('#cv47fav').onclick=()=>{mode='favorites';q.value='';revealProducts282();renderSafeResults()};e.querySelector('#cv47recent').onclick=()=>{mode='recent';q.value='';revealProducts282();renderSafeResults()};
+    e.querySelectorAll('[data-tab272]').forEach(b=>b.onclick=()=>{e.querySelectorAll('[data-tab272]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b))});['products','lists','catalogs'].forEach(k=>{const sec=e.querySelector('#cv272'+k);if(sec)sec.hidden=b.dataset.tab272!==k})});
+    e.querySelector('#cv284reset').onclick=()=>{bookSel.value='';catFilter.value='';bookSel.onchange();renderSafeResults()};
+    const sc=e.querySelector('#cv47switchcat');sc.onchange=()=>{const id=sc.value;e.querySelectorAll('[data-cat-card]').forEach(c=>c.style.display=!id||c.dataset.catCard===id?'':'none');if(id)e.querySelector('[data-tab272="catalogs"]')?.click()};
+    e.querySelectorAll('[data-cat-view]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Loading…';try{await viewCatalog(p.catalogs.find(c=>c.id===x.dataset.catView))}finally{x.disabled=false;x.textContent=orig}});
+    e.querySelectorAll('[data-cat-down]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Downloading…';try{await downloadCatalog(p.catalogs.find(c=>c.id===x.dataset.catDown))}finally{x.disabled=false;x.textContent=orig}});
+    e.querySelectorAll('[data-cat-share276]').forEach(x=>x.onclick=async()=>{const orig=x.textContent;x.disabled=true;x.textContent='Sharing…';try{await shareCatalog276(p.catalogs.find(c=>c.id===x.dataset.catShare276))}finally{x.disabled=false;x.textContent=orig}});
+    paintBookSelect();syncCompat();paintCategories();paintLists();
+    if(rateMode)applyMode(rateMode,false);else renderSafeResults()
   }
 
+  const authoritative=e=>!!(e&&e.__authoritative);
+  async function clearViewerDeviceData268(cs){
+    const names=[cs?.loginName,cs?.payload?.user?.name].filter(Boolean).map(norm),uniq=[...new Set(names)];
+    try{
+      for(const n of uniq){
+        localStorage.removeItem(CACHE_PREFIX+n);
+        localStorage.removeItem('pm-viewer-prefs-v230:'+n);
+        localStorage.removeItem('pm-order-cart-233:'+n); // legacy username cart
+        localStorage.removeItem('pm-order-cart-233:name_'+n.replace(/[^a-z0-9._-]/g,'_'));
+      }
+      if(cs?.uid&&cs.uid!=='offline')localStorage.removeItem('pm-order-cart-233:uid_'+String(cs.uid).replace(/[^a-zA-Z0-9_-]/g,'_'));
+      localStorage.removeItem('pm-order-cart-233:guest');
+      localStorage.removeItem('pm-order-cart-233:anonymous');
+    }catch(e){}
+    try{await caches.delete('pm-viewer-catalogs-v228')}catch(e){}
+  }
+  async function closeViewerSession46({reason='',clearCache=false}={}){const cs=cloudSession;cloudSession=null;window.__restrictedFirebaseSession46=false;clearTimeout(viewerSessionTimer271);viewerSessionTimer271=null;clearViewerSessionMarker271();try{if(cs?.unsubProfile)cs.unsubProfile()}catch(e){}try{if(cs?.auth)await cs.auth.signOut()}catch(e){}try{if(cs?.app)await cs.app.delete()}catch(e){}if(clearCache)await clearViewerDeviceData268(cs);const el=document.getElementById('cloudViewer46');if(el)el.remove();if(reason)toast(reason)}
+  window.cloudViewerLogout46=()=>{const login=cloudSession?.loginName||'';if(!login)return closeViewerSession46();const m=document.createElement('div');m.className='modal';m.style.zIndex='200020';m.innerHTML=`<div class="box" style="max-width:430px"><div class="hd"><h2 style="margin:0">Log out</h2></div><div class="bd"><div class="note">Choose whether this device should retain the encrypted/verifier-protected offline price cache.</div></div><div class="ft"><button class="btn ghost" data-x="cancel">Cancel</button><button class="btn ghost" data-x="keep">Log out</button><button class="btn danger" data-x="clear">Log out & clear offline data</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='cancel')return m.remove();const clear=b.dataset.x==='clear';m.remove();await closeViewerSession46({clearCache:clear})}};
+  function profileExpired230(d){try{return d?.expiresAt&&typeof d.expiresAt.toMillis==='function'&&d.expiresAt.toMillis()<=Date.now()}catch(e){return false}}
+  async function logActivity230(sec,uid,profile){try{const ua=safe(navigator.userAgent).slice(0,300),device=/Mobi|Android/i.test(ua)?'Mobile':'Desktop';await sec.db.collection('loginActivity').doc(uid).set({ownerUid:profile.ownerUid||'',username:profile.username||'',role:profile.role||'',lastLoginAt:firebase.firestore.FieldValue.serverTimestamp(),loginCount:firebase.firestore.FieldValue.increment(1),device,userAgent:ua,lastAccessVersion:profile.accessVersion||''},{merge:true})}catch(e){}}
+  function watchProfile46(cs){if(!cs||cs.uid==='offline'||!cs.db)return;try{cs.unsubProfile=cs.db.collection('accessProfiles').doc(cs.uid).onSnapshot(async snap=>{if(cloudSession!==cs)return;const d=snap.exists?snap.data():null;if(!d||d.active!==true||profileExpired230(d)){await closeViewerSession46({reason:profileExpired230(d)?'This login has expired.':'This login was disabled or removed.',clearCache:true});return}try{const pe=d.expiresAt&&typeof d.expiresAt.toMillis==='function'?d.expiresAt.toMillis():0;if(pe&&(!cs.sessionExpiresAt271||pe<cs.sessionExpiresAt271)){cs.sessionExpiresAt271=pe;const mk=readViewerSession271();if(mk&&mk.uid===cs.uid){mk.expiresAt=pe;localStorage.setItem(VIEWER_SESSION_KEY,JSON.stringify(mk))}scheduleViewerSessionExpiry271(cs)}}catch(e){}if(d.accessVersion&&d.accessVersion!==cs.payload.accessVersion){try{const np=await readPayload(cs.db,cs.uid);if(!np||!np.accessVersion||np.accessVersion!==d.accessVersion)return;np.__offlineVerifier=cs.payload.__offlineVerifier;cs.payload=np;if(np.__offlineVerifier)cache(cs.loginName,np);show(np,false)}catch(e){}}},()=>{})}catch(e){}}
+  function networkFailure284(e){return ['auth/network-request-failed','unavailable','deadline-exceeded'].includes(e?.code)||/network|failed to fetch|client is offline/i.test(e?.message||'')}
+  function loginFailure284(e,phase){
+    if(authoritative(e))return e;
+    const code=safe(e?.code);
+    const msg=phase==='render'?'Your login was verified, but the price screen could not open. Reload the app and try again.':
+      code==='permission-denied'?'Firebase denied access to this login. Ask the owner to check published access and Firestore rules.':
+      code==='app/insecure-context'?e.message:cloudErrorMessage(e);
+    return Object.assign(new Error(msg||'The app could not complete sign-in. Please reload and retry.'),{code:code||'app/login-failed',__notCredential:true,cause:e});
+  }
+  window.secureViewerLogin46=async(name,pin)=>{
+    let sec=null,cfg=null,phase='setup';
+    try{
+      window.requireSecureCrypto284();
+      const r=await ready();cfg=r.cfg;
+      const emailV2=await loginEmailV2(name,pin,cfg.projectId),emailLegacy=await loginEmail(name,cfg.projectId),pw=await loginPassword(name,pin,cfg.projectId);
+      sec=await viewerSecondary271(cfg);phase='auth';
+      let cred=null,lastAuthErr=null;
+      const rejected=['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/invalid-email'];
+      for(const em of [emailV2,emailLegacy]){try{cred=await sec.auth.signInWithEmailAndPassword(em,pw);break}catch(e){lastAuthErr=e;if(!rejected.includes(e.code))throw e}}
+      if(!cred){const er=Error('Incorrect username or PIN.');er.__authoritative=true;throw er}
+      phase='payload';window.__restrictedFirebaseSession46=true;
+      const pr=await sec.db.collection('accessProfiles').doc(cred.user.uid).get(),pd=pr.exists?pr.data():null;
+      if(!pd||pd.active!==true||profileExpired230(pd))throw Object.assign(Error(profileExpired230(pd)?'This login has expired.':'This login has been disabled or removed.'),{__authoritative:true});
+      const p=await readPayload(sec.db,cred.user.uid);
+      if(!p)throw Object.assign(Error('No price data has been published for this login.'),{__authoritative:true});
+      if(pd.accessVersion&&p.accessVersion&&pd.accessVersion!==p.accessVersion)throw Object.assign(Error('Published access is being updated. Try again.'),{__notCredential:true});
+      if(p.accessExpiresAt&&p.accessExpiresAt<=Date.now())throw Object.assign(Error('This login has expired.'),{__authoritative:true});
+      if(String(pin||'').length>=6){p.__offlineVerifier=await offlineVerifier(name,pin,cfg.projectId);cache(name,p)}
+      else{delete p.__offlineVerifier;try{localStorage.removeItem(CACHE_PREFIX+norm(name))}catch(_){}}
+      cloudSession={uid:cred.user.uid,loginName:pd.username||name,payload:p,app:sec.app,auth:sec.auth,db:sec.db,storage:sec.storage,unsubProfile:null};
+      phase='render';show(p);persistViewerSession271(cloudSession);watchProfile46(cloudSession);logActivity230(sec,cred.user.uid,pd);return true;
+    }catch(e){
+      if(sec){try{await sec.auth.signOut()}catch(_){}try{await sec.app.delete()}catch(_){}}
+      cloudSession=null;window.__restrictedFirebaseSession46=false;clearViewerSessionMarker271();clearTimeout(viewerSessionTimer271);
+      if(phase==='render')document.getElementById('cloudViewer46')?.remove();
+      if(authoritative(e))throw e;
+      // Only a genuine connection failure may use the expiring offline cache.
+      // Programming, configuration and permission errors must stay visible.
+      if(!networkFailure284(e)){console.error('Sign-in failed at '+phase,e);throw loginFailure284(e,phase)}
+      let c=null;
+      try{
+        const a=cfg||await ready().then(x=>x.cfg),candidate=cached(name),v=await offlineVerifier(name,pin,a.projectId);
+        if(String(pin||'').length>=6&&candidate&&norm(candidate.user?.name)===norm(name)&&candidate.__offlineVerifier===v&&(+candidate.offlineValidUntil||0)>Date.now()&&(!candidate.accessExpiresAt||+candidate.accessExpiresAt>Date.now()))c=candidate;
+      }catch(_){}
+      if(c){
+        try{cloudSession={uid:'offline',loginName:name,payload:c,storage:null};window.__restrictedFirebaseSession46=true;show(c,true);return true}
+        catch(error){cloudSession=null;window.__restrictedFirebaseSession46=false;document.getElementById('cloudViewer46')?.remove();throw loginFailure284(error,'render')}
+      }
+      throw Object.assign(Error('Could not reach Firebase and no valid offline cache is available for this login.'),{code:'auth/network-request-failed',__notCredential:true});
+    }
+  };
+  function promptLogin(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box ca-viewer-login" style="max-width:390px"><div class="bd"><div style="text-align:center;margin:2px 0 18px"><img src="ca-logo.png" alt="CA" style="width:66px;height:66px;object-fit:cover;border-radius:18px;border:1px solid #ded5c8;box-shadow:0 12px 28px rgba(31,26,19,.10)"><div style="font-size:22px;font-weight:950;letter-spacing:-.04em;margin-top:8px">CA</div><div class="note" style="margin-top:3px">Sales / customer secure access</div></div><div class="field"><label>Username</label><input id="sv46n"></div><div class="field"><label>PIN</label><input id="sv46p" type="password" inputmode="numeric"></div><div class="note">Search rates on screen, switch available UOMs, and view/download/share price lists only as PDF. After a successful login, this device stays signed in for up to 6 hours (or until you log out / access expires). Offline rate cache still expires automatically and is enabled only for PINs with at least 6 characters.</div><div class="pm-lock-msg" id="sv46m"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="go">Log in</button></div></div>`;document.body.appendChild(m);const go=async()=>{const b=m.querySelector('[data-x="go"]'),msg=m.querySelector('#sv46m');b.disabled=true;msg.textContent='Signing in…';try{await window.secureViewerLogin46(m.querySelector('#sv46n').value,m.querySelector('#sv46p').value);m.remove()}catch(e){msg.textContent=e.message||'Login failed';b.disabled=false}};m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}b.dataset.x==='close'?m.remove():go()};m.querySelector('#sv46p').onkeydown=e=>{if(e.key==='Enter')go()}}
   window.viewerLoginPrompt44=promptLogin;
+
+  // Disable the old browser-local viewer authentication path. All entry points, including
+  // the encrypted lock-screen link and Users & access button, must use this secure portal.
   window.secureViewerPrompt46=promptLogin;
+  window.viewerLoginPrompt44=promptLogin;
   window.viewerLogin44=(name,pin)=>window.secureViewerLogin46(name,pin).catch(e=>toast(e.message||'Login failed'));
 
   async function compressPdf233(file, onProgress){
@@ -545,7 +664,7 @@
       canvas.width = Math.max(1, Math.round(viewport.width));
       canvas.height = Math.max(1, Math.round(viewport.height));
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // avoid black background behind transparent content
       await page.render({canvasContext: ctx, viewport}).promise;
       const imgData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
       const orientation = canvas.width > canvas.height ? 'l' : 'p';
@@ -553,23 +672,24 @@
       if(!out) out = new J({orientation, unit: 'pt', format: sizePt});
       else out.addPage(sizePt, orientation);
       out.addImage(imgData, 'JPEG', 0, 0, sizePt[0], sizePt[1]);
-      canvas.width = 0; canvas.height = 0;
-      await new Promise(r => setTimeout(r, 0));
+      canvas.width = 0; canvas.height = 0; // release memory before the next page
+      await new Promise(r => setTimeout(r, 0)); // yield to keep the UI responsive
     }
     if(!out) throw new Error('This PDF has no pages to compress.');
     return out.output('blob');
   }
 
   function catalogUploadDialog(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:500px"><div class="hd"><h2 style="margin:0">Upload product catalog</h2></div><div class="bd"><div class="cols2"><div class="field"><label>Catalog title</label><input id="C47title" placeholder="e.g. Rangoli Catalog 2026"></div><div class="field"><label>Product category</label><input id="C47cat" placeholder="e.g. Rangoli"></div></div><div class="field"><label>PDF catalog</label><input id="C47file" type="file" accept="application/pdf,.pdf"><div class="note">PDF only · up to 150 MB · secured in Firebase Storage. Large files can take a few minutes on a slow connection.</div></div><label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px"><input type="checkbox" id="C47compress" checked> Compress before uploading <span class="mut">(recompresses images — smaller, faster upload; text may not stay searchable)</span></label><div id="C47prog" style="display:none;margin-top:8px"><div style="height:6px;border-radius:3px;background:var(--line-2,#eee);overflow:hidden"><div id="C47bar" style="height:100%;width:0%;background:var(--kumkum,#C42A1C);transition:width .2s"></div></div><div id="C47pct" class="note" style="margin-top:4px"></div></div><div id="C47msg" class="note"></div></div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="upload">Upload</button></div></div>`;document.body.appendChild(m);m.onclick=async e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();let file=m.querySelector('#C47file').files[0];const title=m.querySelector('#C47title').value.trim(),category=m.querySelector('#C47cat').value.trim()||'Other',msg=m.querySelector('#C47msg'),progWrap=m.querySelector('#C47prog'),bar=m.querySelector('#C47bar'),pct=m.querySelector('#C47pct'),wantCompress=m.querySelector('#C47compress').checked;if(!file)return toast('Choose a PDF catalog');if(file.type&&file.type!=='application/pdf'&&!/\.pdf$/i.test(file.name))return toast('Catalog must be PDF');if(file.size>150*1024*1024)return toast('Catalog must be 150 MB or smaller');b.disabled=true;msg.textContent='';const originalSize=file.size,originalName=file.name;if(wantCompress){progWrap.style.display='';bar.style.width='0%';try{pct.textContent='Compressing page 1…';const blob=await compressPdf233(file,(i,n)=>{pct.textContent='Compressing page '+i+' of '+n+'…';bar.style.width=Math.round(i/n*100)+'%'});if(blob.size<originalSize){file=new File([blob],originalName,{type:'application/pdf'});pct.textContent='Compressed: '+(originalSize/1024/1024).toFixed(1)+' MB → '+(file.size/1024/1024).toFixed(1)+' MB';}else{pct.textContent='Compression did not reduce the size — uploading the original file.';}}catch(err){pct.textContent='Could not compress ('+(err.message||'error')+') — uploading the original file instead.';}await new Promise(r=>setTimeout(r,600));}progWrap.style.display='';pct.textContent='Starting upload… (0 MB of '+(file.size/1024/1024).toFixed(1)+' MB)';bar.style.width='0%';try{const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Sign in as owner in Firebase Settings first.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);const id=uid(),filename=originalName.replace(/[^\w.\- ]+/g,'_'),path=`catalogs/${auth.currentUser.uid}/${id}/${filename}`;const task=storage.ref(path).put(file,{contentType:'application/pdf'});await new Promise((resolve,reject)=>{task.on('state_changed',snap=>{const donePct=snap.totalBytes?Math.round(snap.bytesTransferred/snap.totalBytes*100):0;bar.style.width=donePct+'%';pct.textContent=donePct+'% — '+(snap.bytesTransferred/1024/1024).toFixed(1)+' MB of '+(snap.totalBytes/1024/1024).toFixed(1)+' MB';},reject,resolve)});S.catalogFiles.push({id,title:title||originalName.replace(/\.pdf$/i,''),category,filename,storagePath:path,size:file.size,uploadedAt:Date.now()});save();m.remove();render();toast('Catalog uploaded — assign it to users.')}catch(err){progWrap.style.display='none';msg.textContent=err.message||'Upload failed';b.disabled=false}}}
-  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> ·${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
+  function catalogAssignDialog(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c)return;const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="box" style="max-width:480px"><div class="hd"><h2 style="margin:0">Assign catalog · ${esc(c.title)}</h2></div><div class="bd">${S.viewerUsers.length?S.viewerUsers.map(u=>`<label style="display:block;margin:8px 0"><input type="checkbox" data-c47-user="${u.id}" ${(u.allowedCatalogFileIds||[]).includes(id)?'checked':''}> <b>${esc(u.name)}</b> · ${u.role==='sales'?'Sales team':'Customer'}</label>`).join(''):'<div class="note">Create a restricted user first.</div>'}</div><div class="ft"><button class="btn ghost" data-x="close">Cancel</button><button class="btn primary" data-x="save">Save</button></div></div>`;document.body.appendChild(m);m.onclick=e=>{const b=e.target.closest('[data-x]');if(!b){if(e.target===m)m.remove();return}if(b.dataset.x==='close')return m.remove();const selected=new Set([...m.querySelectorAll('[data-c47-user]:checked')].map(x=>x.dataset.c47User));S.viewerUsers.forEach(u=>{const set=new Set(u.allowedCatalogFileIds||[]);selected.has(u.id)?set.add(id):set.delete(id);u.allowedCatalogFileIds=[...set]});save();m.remove();render();toast('Catalog assignment saved; cloud users will auto-refresh.')}}
   async function deleteCatalog47(id){const c=S.catalogFiles.find(x=>x.id===id);if(!c||!confirm('Delete catalog "'+c.title+'"?'))return;try{if(c.storagePath){const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Owner must be signed in before a cloud catalog can be deleted safely.');if(!storage)throw Error('Firebase Storage is unavailable.');await ensureOwner(db,auth.currentUser.uid);try{await storage.ref(c.storagePath).delete()}catch(e){if(e&&e.code!=='storage/object-not-found')throw e}}}catch(e){toast((e&&e.message)||'Catalog was not deleted because cloud removal could not be confirmed.');return}S.catalogFiles=S.catalogFiles.filter(x=>x.id!==id);S.viewerUsers.forEach(u=>u.allowedCatalogFileIds=(u.allowedCatalogFileIds||[]).filter(x=>x!==id));try{if(typeof caches!=='undefined'){const cc=await caches.open('pm-viewer-catalogs-v228');await cc.delete(catalogCacheKey(c))}}catch(e){}save();render();toast('Catalog deleted securely; assigned access will auto-refresh.')}
   function catalogLibraryHtml(){return `<div class="card" id="catalogLibrary47" style="margin-top:14px"><div class="hd"><h2>Product catalog library</h2><div class="spacer"></div><button class="btn ghost sm" data-act="catalog-upload47">Upload PDF catalog</button></div><div class="bd"><div class="note" style="margin-bottom:8px">Upload category-wise PDF catalogs. Restricted users can only open assigned catalogs.</div>${S.catalogFiles.length?`<div class="tbl-wrap"><table><thead><tr><th>Catalog</th><th>Category</th><th>Assigned users</th><th class="r">Actions</th></tr></thead><tbody>${S.catalogFiles.map(c=>`<tr><td><b>${esc(c.title)}</b><div class="metric-sub">${esc(c.filename)}</div></td><td>${esc(c.category||'Other')}</td><td>${S.viewerUsers.filter(u=>(u.allowedCatalogFileIds||[]).includes(c.id)).map(u=>esc(u.name)).join(', ')||'—'}</td><td class="r"><button class="link" data-cat-assign47="${c.id}">assign</button> · <button class="link" data-cat-delete47="${c.id}">delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-mini">No uploaded PDF catalogs yet.</div>'}</div></div>`}
-  async function activityCard230(v){if(!v||v.querySelector('#loginActivity230'))return;const a=api();if(!a?.auth?.currentUser||!a.db)return;const card=document.createElement('div');card.className='card';card.id='loginActivity230';card.style.marginTop='14px';card.innerHTML='<div class="hd"><h2>Device / login activity</h2></div><div class="bd"><div class="note">Loading recent restricted-user activity… This is client-reported operational activity, not an immutable security audit log.</div></div>';v.appendChild(card);try{const snap=await a.db.collection('loginActivity').where('ownerUid','==',a.auth.currentUser.uid).get(),rows=[];snap.forEach(d=>rows.push({uid:d.id,...d.data()}));rows.sort((x,y)=>(y.lastLoginAt?.toMillis?.()||0)-(x.lastLoginAt?.toMillis?.()||0));card.querySelector('.bd').innerHTML=`<div class="note" style="margin-bottom:8px">Client-reported operational activity; use Firebase/Auth logs for authoritative security auditing.</div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Device</th><th>Last login</th><th class="r">Logins</th></tr></thead><tbody>${rows.map(r=>{const u=(S.viewerUsers||[]).find(x=>x.cloudUid===r.uid),at=r.lastLoginAt?.toDate?.();return `<tr><td><b>${esc(u?.name||r.username||'Unknown')}</b><div class="metric-sub">${esc(r.role||u?.role||'')}</div></td><td>${esc(r.device\vert{}\vert{}'—')}</td><td>${at?esc(at.toLocaleString('en-IN')):'—'}</td><td class="r">${+r.loginCount||0}</td></tr>`}).join('')||'<tr><td colspan="4" class="empty-mini">No cloud login activity yet.</td></tr>'}</tbody></table></div>`}catch(e){card.querySelector('.bd').innerHTML='<div class="note">Login activity will appear after the updated Firestore rules are published and a restricted user logs in.</div>'}}
-  
+  async function activityCard230(v){if(!v||v.querySelector('#loginActivity230'))return;const a=api();if(!a?.auth?.currentUser||!a.db)return;const card=document.createElement('div');card.className='card';card.id='loginActivity230';card.style.marginTop='14px';card.innerHTML='<div class="hd"><h2>Device / login activity</h2></div><div class="bd"><div class="note">Loading recent restricted-user activity… This is client-reported operational activity, not an immutable security audit log.</div></div>';v.appendChild(card);try{const snap=await a.db.collection('loginActivity').where('ownerUid','==',a.auth.currentUser.uid).get(),rows=[];snap.forEach(d=>rows.push({uid:d.id,...d.data()}));rows.sort((x,y)=>(y.lastLoginAt?.toMillis?.()||0)-(x.lastLoginAt?.toMillis?.()||0));card.querySelector('.bd').innerHTML=`<div class="note" style="margin-bottom:8px">Client-reported operational activity; use Firebase/Auth logs for authoritative security auditing.</div><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Device</th><th>Last login</th><th class="r">Logins</th></tr></thead><tbody>${rows.map(r=>{const u=(S.viewerUsers||[]).find(x=>x.cloudUid===r.uid),at=r.lastLoginAt?.toDate?.();return `<tr><td><b>${esc(u?.name||r.username||'Unknown')}</b><div class="metric-sub">${esc(r.role||u?.role||'')}</div></td><td>${esc(r.device||'—')}</td><td>${at?esc(at.toLocaleString('en-IN')):'—'}</td><td class="r">${+r.loginCount||0}</td></tr>`}).join('')||'<tr><td colspan="4" class="empty-mini">No cloud login activity yet.</td></tr>'}</tbody></table></div>`}catch(e){card.querySelector('.bd').innerHTML='<div class="note">Login activity will appear after the updated Firestore rules are published and a restricted user logs in.</div>'}}
   function enhance(){if(page!=='access45')return;const v=document.getElementById('view');if(!v)return;let card=v.querySelector('#secureAccess46');if(!card){const a=api();card=document.createElement('div');card.className='card';card.id='secureAccess46';card.style.marginTop='14px';card.innerHTML=`<div class="hd"><h2>Secure Firebase access</h2></div><div class="bd"><div class="private-note"><b>Security:</b> restricted users receive final rates and UOM alternatives only. Owner costing, discount formulas, inventory and settings are excluded. Offline viewer access expires after 24 hours or the user access-expiry date, whichever comes first.</div><div class="note" style="margin:10px 0">${a?.db?(a.auth?.currentUser?'Owner Firebase account is signed in. Pending logins will retry automatically.':'Firebase connected, owner not signed in. New cloud logins stay pending until the Owner signs in.'):'Firebase is not configured on this device.'}</div><button class="btn ghost sm" data-act="init-secure46">Initialize security</button> <button class="btn ghost sm" data-act="publish-all46">Publish / update cloud users</button> <button class="btn ghost sm" data-act="repair-cloud46">Repair pending only</button><div id="cloudProgress265" style="margin-top:10px"></div></div>`;v.appendChild(card)}if(!v.querySelector('#catalogLibrary47'))v.insertAdjacentHTML('beforeend',catalogLibraryHtml());v.querySelectorAll('[data-a45-edit]').forEach(btn=>{if(btn.parentElement.querySelector(`[data-cloud46="${btn.dataset.a45Edit}"]`))return;const id=btn.dataset.a45Edit,u=S.viewerUsers.find(x=>x.id===id),b=document.createElement('button');b.className='link';b.dataset.cloud46=id;const failed=u?.cloudSyncState==='error',syncing=u?.cloudSyncState==='syncing';b.textContent=syncing?'syncing…':failed?'retry cloud':u?.cloudUid?'sync cloud':'create cloud login';if(failed){b.title=u.cloudSyncError||'Cloud sync failed';const er=document.createElement('div');er.className='metric-sub';er.style.cssText='max-width:260px;color:var(--danger,#a23a32);margin-top:3px;white-space:normal';er.textContent='Cloud error: '+(u.cloudSyncError||'sync failed');btn.parentElement.appendChild(er)}else if(!u?.cloudUid){const st=document.createElement('div');st.className='metric-sub';st.style.cssText='margin-top:3px';st.textContent='Cloud: pending';btn.parentElement.appendChild(st)}btn.insertAdjacentText('afterend',' · ');btn.after(b)});updateProvisionProgress265();activityCard230(v)}
 
   const saveBeforeSecure=save;
   function cloudRelevantStamp266(){
+    // Correctness-first domain stamp. Only cloud-visible pricing/catalog/access dependencies
+    // are included, but every dependency that can change a restricted user's rate/PDF is covered.
     const ph=fastHash265(JSON.stringify((S.products||[]).map(p=>[p.id,p.updatedAt||0,p.code,p.name,p.size,p.category,p.packing,p.barcode,p.mrp,p.price,p.stock,p.status,p.priceUnit,p.priceListUnit,p.keywords,p.tags])));
     const rh=fastHash265(JSON.stringify(S.rules||[]));
     const pbh=fastHash265(JSON.stringify((S.priceBooks||[]).map(pb=>[pb.id,pb.name,pb.category,pb.audience270,pb.audience,pb.version230||0,pb.effectiveFrom230||'',pb.config||{},pb.scheduled230||null,pb.previousConfig230||null])));
@@ -587,11 +707,14 @@
   }
   window.userNeedsPublish281=userNeedsPublish265;
   async function publishPending(){
+    if(window.__pmStateReady284===false)return false;
     if(publishInFlight283)return publishInFlight283;
     if(!cloudPublishDirty265)return true;
     const run=async()=>{
       do{
         const a=api();if(!navigator.onLine||!a?.auth?.currentUser||window.__restrictedFirebaseSession46)return false;
+        // Consume only the work known at the start. Edits during awaits set this
+        // flag again and are drained by the same loop, even if their timer fires.
         cloudPublishDirty265=false;
         try{
           const users=(S.viewerUsers||[]).filter(x=>x.active!==false||x.cloudUid).filter(userNeedsPublish265),failures=[];
@@ -618,6 +741,7 @@
   window.addEventListener('online',()=>schedulePublish(120));
   window.markRestrictedPublish265=()=>{try{lastCloudRelevantStamp266=cloudRelevantStamp266()}catch(e){}schedulePublish(120)};
 
+
   const oldRender=render;render=function(){const out=oldRender();setTimeout(()=>{const legacy=document.getElementById('L_viewerBox44');if(legacy)legacy.remove();enhance();if(cloudSession)show(cloudSession.payload,cloudSession.uid==='offline');const l=document.getElementById('viewerLoginLink44');if(l)l.onclick=promptLogin},0);return out};
   document.addEventListener('click',async e=>{
     const c=e.target.closest('[data-cloud46]');if(c){e.preventDefault();window.syncOneUser46(c.dataset.cloud46)}
@@ -630,8 +754,10 @@
   window.cloudWipeAccess265=async()=>{
     const {auth,db,storage}=await ready();if(!auth.currentUser)throw Error('Sign in as Owner in Firebase Settings before deleting cloud data.');const owner=auth.currentUser.uid;await ensureOwner(db,owner);const errors=[];
     for(const u of [...(S.viewerUsers||[])]){try{await revokeUser(u,{deleteAuth:true})}catch(e){errors.push(`${u.name}: ${e.message||e}`)}}
+    // Remove access profiles left behind by older/local user records too. Viewer payloads are keyed by UID.
     try{const ps=await db.collection('accessProfiles').where('ownerUid','==',owner).get();for(const d of ps.docs){try{await deletePayload(db,d.id)}catch(e){}try{await d.ref.delete()}catch(e){errors.push(`Access ${d.id}: ${e.message||e}`)}}}catch(e){errors.push(`Access profile cleanup: ${e.message||e}`)}
     for(const c of [...(S.catalogFiles||[])]){if(c.storagePath&&storage)try{await storage.ref(c.storagePath).delete()}catch(e){if(!/object-not-found/i.test(String(e?.code||e)))errors.push(`Catalog ${c.title||c.filename}: ${e.message||e}`)}}
+    // Also sweep orphaned catalog objects that are no longer present in local state.
     if(storage)try{const top=await storage.ref(`catalogs/${owner}`).listAll();for(const pref of top.prefixes||[]){const sub=await pref.listAll();for(const item of sub.items||[])try{await item.delete()}catch(e){errors.push(`Catalog object ${item.fullPath||item.name}: ${e.message||e}`)}}for(const item of top.items||[])try{await item.delete()}catch(e){errors.push(`Catalog object ${item.fullPath||item.name}: ${e.message||e}`)}}catch(e){if(!/object-not-found/i.test(String(e?.code||e)))errors.push(`Catalog sweep: ${e.message||e}`)}
     const deleteDocs=async q=>{try{const snap=await q.get();for(const d of snap.docs)await d.ref.delete()}catch(e){errors.push(e.message||String(e))}};
     await deleteDocs(db.collection('orderRequests').doc(owner).collection('items'));
@@ -640,13 +766,5 @@
     await window.clearRestrictedOfflineCaches265();
     if(errors.length)throw Error('Some cloud records could not be removed: '+errors.slice(0,5).join(' | '));return true;
   };
-  setTimeout(()=>render(),0);setTimeout(()=>{if(!window.__entryGate238RestoreChecked)restoreViewerSession271()},180);setTimeout(()=>schedulePublish(500),900);
-
-  // Expose both camelCase and lowercase variants to prevent "not a function" errors
-  window.payloadFor46=payloadFor;
-  window.payloadfor46=payloadFor;
-  window.showViewerPreview46=(p)=>show(p,false);
-  window.showviewerpreview46=(p)=>show(p,false);
-  window.getCloudSession233=()=>cloudSession;
-  window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 deep-regression-fixes'};
+  setTimeout(()=>render(),0);setTimeout(()=>{if(!window.__entryGate238RestoreChecked)restoreViewerSession271()},180);setTimeout(()=>schedulePublish(500),900);window.payloadFor46=payloadFor;window.showViewerPreview46=(p)=>show(p,false);window.getCloudSession233=()=>cloudSession;window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 deep-regression-fixes'};
 })();
