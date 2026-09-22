@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.googleusercontent.com https://firebasestorage.googleapis.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.googleusercontent.com https://firebasestorage.googleapis.com https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CA</title>
 <link rel="manifest" href="manifest.json">
@@ -41,7 +41,7 @@ if('serviceWorker' in navigator){
 </script>
 
 
-<link rel="stylesheet" href="ca-theme.css?v=286">
+<link rel="stylesheet" href="ca-theme.css?v=2890">
 </head>
 <body>
 <div class="app">
@@ -77,7 +77,7 @@ if('serviceWorker' in navigator){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=286"></script>
+<script src="firebase-config.js?v=2890"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
@@ -5876,7 +5876,7 @@ setTimeout(()=>{try{ensure29();render()}catch(e){console.error('v2.9 init',e)}},
   window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:PM_VERSION_227};
 })();
 </script>
-<script src="secure-access.js?v=286"></script>
+<script src="secure-access.js?v=2890"></script>
 <script id="pm-v230-commercial-suite">
 (()=>{
   const V='2.30 Commercial price-list workflow';
@@ -8008,7 +8008,7 @@ Amit, 5566,"></textarea>
 <script id="pm-v266-stability-ui">
 (()=>{
   const PM_VERSION_266='2.67 Stabilization · Security · Sync Correctness';
-  const arrayKeys266=['audit','batches','catalogFiles','costHistory','customerRateHistory','customerRateLocks','customerRateTemplates230','history','imports','invoices','parties','payments','pdfBrandTemplates230','priceBookVersions','priceBooks','priceListVersions','pricePolicyHistory','priceReviewQueue','pricingAudit','products','purchaseRequirements','purchaseReturns','purchases','quantityPriceSlabs','quotes','rules','scheduledRates','shareLog','stockMoves','supplierPayments','supplierSkuMap','suppliers','uomMaster','viewerUsers'];
+  const arrayKeys266=['audit','batches','catalogFiles','costHistory','customerBillMappings','customerRateHistory','customerRateLocks','customerRateTemplates230','history','imports','invoices','parties','payments','pdfBrandTemplates230','priceBookVersions','priceBooks','priceListVersions','pricePolicyHistory','priceReviewQueue','pricingAudit','products','purchaseRequirements','purchaseReturns','purchases','quantityPriceSlabs','quotes','rules','scheduledRates','shareLog','stockMoves','supplierPayments','supplierSkuMap','suppliers','uomMaster','viewerUsers'];
   const SECURITY_SETTING_KEYS267=['ownerUsername','ownerPin','ownerPinVerifier265','ownerRecoveryHash','privacyEnabled','autoLockMinutes'];
   function preservedSecuritySettings267(){
     const src=S?.settings||{},out={};
@@ -8419,8 +8419,8 @@ Amit, 5566,"></textarea>
 <script id="pm-v279-version">window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:'2.79 Deep Regression Fixes'};</script>
 
 
-<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.86 CA Workspace"};</script>
-<script src="ca-workspace.js?v=286"></script>
+<script>document.title="CA";window.PriceManagerAPI={...(window.PriceManagerAPI||{}),version:"2.89.0 Bill Identity & Saved-Rate Guard"};</script>
+<script src="ca-workspace.js?v=2890"></script>
 
 </body>
 </html>

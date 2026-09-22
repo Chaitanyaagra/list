@@ -1,12 +1,14 @@
-const CACHE='tota-price-manager-v286';
+const CACHE='tota-price-manager-v2891';
 const CATALOG_CACHE='pm-viewer-catalogs-v228';
-const LOCAL=['./','./index.html','./firebase-config.js?v=286','./secure-access.js?v=286','./ca-theme.css?v=286','./ca-workspace.js?v=286','./manifest.json','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./ca-logo.png'];
+const LOCAL=['./','./index.html','./firebase-config.js?v=2890','./secure-access.js?v=2890','./ca-theme.css?v=2890','./ca-workspace.js?v=2890','./manifest.json','./icon-192.png','./icon-512.png','./icon-512-maskable.png','./ca-logo.png'];
 const VENDOR=[
  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
  'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+ 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+ 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
  'https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js',
  'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js',
  'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js',
